@@ -1,9 +1,9 @@
 {
-  "report_fingerprint": "sha256:2f34aad740a021dbdfb547da8f17243b815c08d1d69267ce7c3471703a5b1492",
-  "input_fingerprint": "sha256:be944f38cd58c2d1dec02a1fed6935670d87f0950d67898ec5c2cf67cfaf9bfa",
+  "report_fingerprint": "sha256:004908bdb3f74ead28dc0a9fdab9c247ae26adb344612e1016876227f0e34bf2",
+  "input_fingerprint": "sha256:2091fedb85f83b44c44ea00a61638a4ad1951810954361e5849f565a2054cc08",
   "policy_fingerprint": "sha256:2e02fe1c1919de94a47a99164c962683a934c73ca5bb30bec62384f7b17fe742",
   "manifest_fingerprints": {
-    "owner_map": "sha256:4fa5a151f0e67fbe4a157fe791080f26b446f101744729e7891287c850f551d8",
+    "owner_map": "sha256:89a7e7fbf34ac713ba7a2d6b72c59a1e056b591e74b4ea4a2fc555a47cc1de71",
     "test_map": "sha256:f497c15a319c3d2b2addc8c04a1751e8bee32a27403d54afcee3daea9436cde2",
     "generated_zones": "sha256:eb2cb0462a9f165fd321c43da2668a397fa9bcca5b7f7087c1edbf7823e6eebc",
     "boundaries": "sha256:e603dc2c37fd526ad62380eb9f3d8dda55bfd85d62125e9479e2ecc8004bf771",
@@ -11,7 +11,7 @@
     "standard_version": "sha256:e89e3b08c1e1ab55b195b4041787100956f3888aaba37595bce4403606dcb996"
   },
   "dirty_worktree": true,
-  "generated_at": "1780264486",
+  "generated_at": "1780266145",
   "schema_url": "schemas/repo-score.schema.json",
   "standard": "jankurai",
   "standard_version": "0.9.0",
@@ -24,30 +24,26 @@
   "observed_conformance_level": "HL2",
   "conformance_decision": "block",
   "conformance_blockers": [
-    "HLT-001-DEAD-MARKER on apps/browser-adapter/src/chatUpload.ts",
-    "HLT-001-DEAD-MARKER on apps/browser-adapter/src/chatUpload.ts",
-    "HLT-001-DEAD-MARKER on apps/browser-adapter/src/chatUpload.ts",
-    "HLT-001-DEAD-MARKER on apps/browser-adapter/src/chatUpload.ts",
     "HLT-001-DEAD-MARKER on apps/browser-adapter/src/chatUpload.ts"
   ],
   "repo": ".",
-  "run_id": "1780264486",
-  "started_at": "1780264486",
-  "elapsed_ms": 7046,
+  "run_id": "1780266145",
+  "started_at": "1780266145",
+  "elapsed_ms": 9217,
   "scope": {
     "mode": "full",
     "paths": []
   },
-  "score": 64,
-  "raw_score": 87,
+  "score": 70,
+  "raw_score": 89,
   "decision": {
     "status": "advisory",
     "minimum_score": 85,
     "passed": true,
     "hard_findings": 0,
-    "soft_findings": 7,
+    "soft_findings": 3,
     "ratchet": {
-      "baseline_score": 64,
+      "baseline_score": 70,
       "allowed_drop": 0,
       "passed": false,
       "score_delta": 0,
@@ -60,7 +56,7 @@
     }
   },
   "git": {
-    "head": "cd0d8c3",
+    "head": "bf6f270",
     "base": null,
     "changed_files": 0,
     "mode": "full",
@@ -79,8 +75,7 @@
     "target_stack": "rust-ts-vite-react-postgres-bounded-python"
   },
   "caps_applied": [
-    "fallback-soup-in-product-code",
-    "future-hostile-dead-language-in-product-code"
+    "fallback-soup-in-product-code"
   ],
   "hard_rules": [
     {
@@ -351,24 +346,21 @@
     {
       "name": "Code shape and semantic surface",
       "weight": 12,
-      "score": 23,
-      "weighted_points": 2.76,
+      "score": 47,
+      "weighted_points": 5.64,
       "evidence": [
-        "largest authored code file: crates/jailgun-cli/src/main.rs (794 LOC)",
+        "largest authored code file: crates/jailgun-cli/src/main.rs (820 LOC)",
         "code file exceeds 500 LOC",
         "most code files stay under 300 LOC",
         "copy-code advisory classes found: 3 (advisory only, no score impact)",
         "fallback soup marker found",
-        "future-hostile/dead-language marker found",
         "rust bad-behavior advisory signals: 250",
         "typescript bad-behavior advisory signals: 1",
         "ci bad-behavior advisory signals: 1",
         "gittools bad-behavior advisory signals: 2",
         "no hard bad-behavior findings across detector-backed language families"
       ],
-      "notes": [
-        "product/runtime code contains future-hostile or dead-language terms"
-      ]
+      "notes": []
     },
     {
       "name": "Data truth and workflow safety",
@@ -473,6 +465,7 @@
       ],
       "artifact_backed_proof": [
         "agent/ux-qa.toml",
+        "apps/chrome-bridge/bin/chrome-bridge.mjs",
         "ops/ci/ux-qa.sh",
         "package-lock.json",
         "scripts/render-dashboard-ux-qa.mjs"
@@ -485,8 +478,8 @@
         "agent/ux-qa.toml",
         "apps/browser-adapter/bin/live-capture.mjs",
         "apps/browser-adapter/src/domContracts.ts",
-        "ops/ci/ux-qa.sh",
-        "scripts/render-dashboard-ux-qa.mjs"
+        "apps/chrome-bridge/bin/chrome-bridge.mjs",
+        "ops/ci/ux-qa.sh"
       ],
       "layout_stability": [
         "ops/ci/ux-qa.sh",
@@ -1095,7 +1088,7 @@
   "copy_code": {
     "schema_version": "1.1.0",
     "generated_by": "jankurai copy-code",
-    "generated_at": "2026-05-31T21:54:39.152936+00:00",
+    "generated_at": "2026-05-31T22:22:16.034332+00:00",
     "repo": ".",
     "auditor_version": "1.4.3",
     "status": "review",
@@ -1133,7 +1126,7 @@
       ]
     },
     "summary": {
-      "files_scanned": 171,
+      "files_scanned": 173,
       "files_considered": 61,
       "active_files": 61,
       "exact_file_classes": 0,
@@ -1172,8 +1165,8 @@
           {
             "path": "crates/jailgun-cli/src/main.rs",
             "language": "rust",
-            "start_line": 743,
-            "end_line": 753,
+            "start_line": 753,
+            "end_line": 763,
             "unit_name": "write_receipt"
           },
           {
@@ -1495,10 +1488,10 @@
       "severity": "medium",
       "category": "shape",
       "path": ".",
-      "problem": "`Code shape and semantic surface` scored 23 below the standard floor of 85",
+      "problem": "`Code shape and semantic surface` scored 47 below the standard floor of 85",
       "agent_fix": "split large or ambiguous authored code into smaller semantic modules with focused tests",
       "evidence": [
-        "largest authored code file: crates/jailgun-cli/src/main.rs (794 LOC)",
+        "largest authored code file: crates/jailgun-cli/src/main.rs (820 LOC)",
         "code file exceeds 500 LOC",
         "most code files stay under 300 LOC",
         "copy-code advisory classes found: 3 (advisory only, no score impact)"
@@ -1508,7 +1501,7 @@
       "confidence": 0.76,
       "evidence_kind": "repository-scan",
       "rerun_command": "just fast",
-      "fingerprint": "sha256:8a8705b601491f96ad2a8ffc9eaf0716697123161a69cee8a454b78807c43fc3",
+      "fingerprint": "sha256:380bd00df776291ef5247a5a6c7fa1be3ad353f14151ad7a87034c967291c565",
       "rule_id": "HLT-001-DEAD-MARKER",
       "tlr": "Entropy",
       "lane": "fast",
@@ -1538,98 +1531,6 @@
       "lane": "fast",
       "docs_url": "docs/testing.md",
       "owner": "ci-release"
-    },
-    {
-      "severity": "high",
-      "category": "vibe",
-      "path": "apps/browser-adapter/src/chatUpload.ts",
-      "problem": "future-hostile/dead-language term `fallback` appears in product/runtime code",
-      "agent_fix": "remove or rename the marker, implement the intended behavior, model a typed unsupported state, or move docs/generated/vendor/product-copy text into an allowlisted context",
-      "evidence": [
-        "apps/browser-adapter/src/chatUpload.ts:282",
-        "future-hostile/dead-language term `fallback` appears"
-      ],
-      "check_id": "HLT-001-DEAD-MARKER:vibe",
-      "hardness": "hard",
-      "confidence": 0.88,
-      "evidence_kind": "repository-scan",
-      "rerun_command": "just fast",
-      "fingerprint": "sha256:6581e258cdb1c5146feaf5671c584a0aa4a773d6e7ae1d08f453dda2409bd52f",
-      "rule_id": "HLT-001-DEAD-MARKER",
-      "tlr": "Entropy",
-      "lane": "fast",
-      "docs_url": "docs/audit-rubric.md#future-hostile-language-rule",
-      "owner": "browser-adapter",
-      "line": 282
-    },
-    {
-      "severity": "high",
-      "category": "vibe",
-      "path": "apps/browser-adapter/src/chatUpload.ts",
-      "problem": "future-hostile/dead-language term `fallback` appears in product/runtime code",
-      "agent_fix": "remove or rename the marker, implement the intended behavior, model a typed unsupported state, or move docs/generated/vendor/product-copy text into an allowlisted context",
-      "evidence": [
-        "apps/browser-adapter/src/chatUpload.ts:299",
-        "future-hostile/dead-language term `fallback` appears"
-      ],
-      "check_id": "HLT-001-DEAD-MARKER:vibe",
-      "hardness": "hard",
-      "confidence": 0.88,
-      "evidence_kind": "repository-scan",
-      "rerun_command": "just fast",
-      "fingerprint": "sha256:ab3942703194ea173f9f3f69c931a2c9784e267b2e2f3dd8d026ead11272bfa2",
-      "rule_id": "HLT-001-DEAD-MARKER",
-      "tlr": "Entropy",
-      "lane": "fast",
-      "docs_url": "docs/audit-rubric.md#future-hostile-language-rule",
-      "owner": "browser-adapter",
-      "line": 299
-    },
-    {
-      "severity": "high",
-      "category": "vibe",
-      "path": "apps/browser-adapter/src/chatUpload.ts",
-      "problem": "future-hostile/dead-language term `fallback` appears in product/runtime code",
-      "agent_fix": "remove or rename the marker, implement the intended behavior, model a typed unsupported state, or move docs/generated/vendor/product-copy text into an allowlisted context",
-      "evidence": [
-        "apps/browser-adapter/src/chatUpload.ts:300",
-        "future-hostile/dead-language term `fallback` appears"
-      ],
-      "check_id": "HLT-001-DEAD-MARKER:vibe",
-      "hardness": "hard",
-      "confidence": 0.88,
-      "evidence_kind": "repository-scan",
-      "rerun_command": "just fast",
-      "fingerprint": "sha256:659f9ecf61c7fb5e86f4ea97f26bef3dab58fa01f0182ca9a76ea19fc99b9efa",
-      "rule_id": "HLT-001-DEAD-MARKER",
-      "tlr": "Entropy",
-      "lane": "fast",
-      "docs_url": "docs/audit-rubric.md#future-hostile-language-rule",
-      "owner": "browser-adapter",
-      "line": 300
-    },
-    {
-      "severity": "high",
-      "category": "vibe",
-      "path": "apps/browser-adapter/src/chatUpload.ts",
-      "problem": "future-hostile/dead-language term `fallback` appears in product/runtime code",
-      "agent_fix": "remove or rename the marker, implement the intended behavior, model a typed unsupported state, or move docs/generated/vendor/product-copy text into an allowlisted context",
-      "evidence": [
-        "apps/browser-adapter/src/chatUpload.ts:310",
-        "future-hostile/dead-language term `fallback` appears"
-      ],
-      "check_id": "HLT-001-DEAD-MARKER:vibe",
-      "hardness": "hard",
-      "confidence": 0.88,
-      "evidence_kind": "repository-scan",
-      "rerun_command": "just fast",
-      "fingerprint": "sha256:40e7aa65b2ec059e81b71aec452c3c9c682a389fdee46133bb1f6e74d5bb4046",
-      "rule_id": "HLT-001-DEAD-MARKER",
-      "tlr": "Entropy",
-      "lane": "fast",
-      "docs_url": "docs/audit-rubric.md#future-hostile-language-rule",
-      "owner": "browser-adapter",
-      "line": 310
     },
     {
       "severity": "high",
@@ -1672,16 +1573,6 @@
       "tlr": "Entropy",
       "lane": "fast",
       "owner": "browser-adapter",
-      "task": "remove or rename the marker, implement the intended behavior, model a typed unsupported state, or move docs/generated/vendor/product-copy text into an allowlisted context",
-      "why": "future-hostile/dead-language term `fallback` appears in product/runtime code"
-    },
-    {
-      "path": "apps/browser-adapter/src/chatUpload.ts",
-      "priority": "high",
-      "rule_id": "HLT-001-DEAD-MARKER",
-      "tlr": "Entropy",
-      "lane": "fast",
-      "owner": "browser-adapter",
       "task": "collapse fallback chains into explicit typed states with bounded retry policy, telemetry, and documented repair guidance",
       "why": "fallback soup detected in product code"
     },
@@ -1693,7 +1584,7 @@
       "lane": "fast",
       "owner": "tools",
       "task": "split large or ambiguous authored code into smaller semantic modules with focused tests",
-      "why": "`Code shape and semantic surface` scored 23 below the standard floor of 85"
+      "why": "`Code shape and semantic surface` scored 47 below the standard floor of 85"
     }
   ]
 }

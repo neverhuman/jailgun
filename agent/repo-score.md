@@ -7,15 +7,15 @@
 - Target stack ID: `rust-ts-vite-react-postgres-bounded-python`
 - Target stack: `Rust core + TypeScript/React/Vite + PostgreSQL + generated contracts + exception-only Python AI/data service`
 - Repo: `.`
-- Run ID: `1780264486`
-- Started at: `1780264486`
-- Elapsed: `7046` ms
+- Run ID: `1780266145`
+- Started at: `1780266145`
+- Elapsed: `9217` ms
 - Scope: `full`
-- Raw score: `87`
-- Final score: `64`
+- Raw score: `89`
+- Final score: `70`
 - Decision: `advisory`
 - Minimum score: `85`
-- Caps applied: `fallback-soup-in-product-code, future-hostile-dead-language-in-product-code`
+- Caps applied: `fallback-soup-in-product-code`
 
 ## Hard Rule Caps
 
@@ -35,7 +35,7 @@
 | `boundary-reclassification-evidence-gap` | 72 | no |
 | `vibe-placeholders-in-product-code` | 68 | no |
 | `fallback-soup-in-product-code` | 70 | yes |
-| `future-hostile-dead-language-in-product-code` | 64 | yes |
+| `future-hostile-dead-language-in-product-code` | 64 | no |
 | `severe-duplication-in-product-code` | 70 | no |
 | `generated-zone-mutation-risk` | 76 | no |
 | `direct-db-access-from-wrong-layer` | 66 | no |
@@ -81,7 +81,7 @@
 
 | Kind | Severity | Language | Lines | Tokens | Instances | Reason |
 | --- | --- | --- | ---: | ---: | --- | --- |
-| `ExactUnitSameName` | `Warning` | `rust` | 10 | 33 | `crates/jailgun-cli/src/main.rs:743-753, crates/jailgun-orchestrator/src/run/mod.rs:486-496` | `same-name semantic unit copied across multiple files` |
+| `ExactUnitSameName` | `Warning` | `rust` | 10 | 33 | `crates/jailgun-cli/src/main.rs:753-763, crates/jailgun-orchestrator/src/run/mod.rs:486-496` | `same-name semantic unit copied across multiple files` |
 | `ExactUnitSameName` | `Warning` | `rust` | 4 | 12 | `crates/jailgun-deploy/src/deploy.rs:376-380, crates/jailgun-orchestrator/src/run/mod.rs:469-473` | `same-name semantic unit copied across multiple files` |
 | `ExactUnitDifferentName` | `Warning` | `rust` | 1 | 0 | `crates/jailgun-core/src/agent_error.rs:35-36, crates/jailgun-deploy/src/deploy/model.rs:149-150, crates/jailgun-server/src/bus.rs:27-28` | `same body appears under different names across files` |
 
@@ -93,7 +93,7 @@
 | Contract and boundary integrity | 13 | 88 | 11.44 | contract surface found; generated contract artifacts found |
 | Proof lanes and test routing | 12 | 100 | 12.00 | one-command setup/validation lane found; deterministic fast lane found |
 | Security and supply-chain posture | 12 | 100 | 12.00 | lockfile present; secret or dependency scan tooling found |
-| Code shape and semantic surface | 12 | 23 | 2.76 | largest authored code file: crates/jailgun-cli/src/main.rs (794 LOC); code file exceeds 500 LOC |
+| Code shape and semantic surface | 12 | 47 | 5.64 | largest authored code file: crates/jailgun-cli/src/main.rs (820 LOC); code file exceeds 500 LOC |
 | Data truth and workflow safety | 8 | 100 | 8.00 | database surface present; structured db boundary manifest present |
 | Observability and repair evidence | 8 | 88 | 7.04 | observability libraries or patterns found; ops/observability directory present |
 | Context economy and agent instructions | 7 | 93 | 6.51 | root `AGENTS.md` present; root `AGENTS.md` stays short |
@@ -180,11 +180,11 @@ No audited runtime boundary reclassifications declared.
    Check: `HLT-001-DEAD-MARKER:shape` `soft` confidence `0.76`
    Route: TLR `Entropy`, lane `fast`, owner `tools`
    Docs: `docs/audit-rubric.md#future-hostile-language-rule`
-   Reason: `Code shape and semantic surface` scored 23 below the standard floor of 85
+   Reason: `Code shape and semantic surface` scored 47 below the standard floor of 85
    Fix: split large or ambiguous authored code into smaller semantic modules with focused tests
    Rerun: `just fast`
-   Fingerprint: `sha256:8a8705b601491f96ad2a8ffc9eaf0716697123161a69cee8a454b78807c43fc3`
-   Evidence: largest authored code file: crates/jailgun-cli/src/main.rs (794 LOC), code file exceeds 500 LOC, most code files stay under 300 LOC, copy-code advisory classes found: 3 (advisory only, no score impact)
+   Fingerprint: `sha256:380bd00df776291ef5247a5a6c7fa1be3ad353f14151ad7a87034c967291c565`
+   Evidence: largest authored code file: crates/jailgun-cli/src/main.rs (820 LOC), code file exceeds 500 LOC, most code files stay under 300 LOC, copy-code advisory classes found: 3 (advisory only, no score impact)
 2. `medium` `proof` `Justfile`
    Rule: `HLT-018-PERF-CONCURRENCY-DRIFT`
    Check: `HLT-018-PERF-CONCURRENCY-DRIFT:proof` `soft` confidence `0.76`
@@ -195,47 +195,7 @@ No audited runtime boundary reclassifications declared.
    Rerun: `just fast`
    Fingerprint: `sha256:a256a7390d4b91a5b0a95d6f092e524c8f4080f27fe2b62e28cf0801343d0fef`
    Evidence: build acceleration markers found, targeted test/build commands found, locked dependency graph present, CI cache hint found
-3. `high` `vibe` `apps/browser-adapter/src/chatUpload.ts:282`
-   Rule: `HLT-001-DEAD-MARKER`
-   Check: `HLT-001-DEAD-MARKER:vibe` `hard` confidence `0.88`
-   Route: TLR `Entropy`, lane `fast`, owner `browser-adapter`
-   Docs: `docs/audit-rubric.md#future-hostile-language-rule`
-   Reason: future-hostile/dead-language term `fallback` appears in product/runtime code
-   Fix: remove or rename the marker, implement the intended behavior, model a typed unsupported state, or move docs/generated/vendor/product-copy text into an allowlisted context
-   Rerun: `just fast`
-   Fingerprint: `sha256:6581e258cdb1c5146feaf5671c584a0aa4a773d6e7ae1d08f453dda2409bd52f`
-   Evidence: apps/browser-adapter/src/chatUpload.ts:282, future-hostile/dead-language term `fallback` appears
-4. `high` `vibe` `apps/browser-adapter/src/chatUpload.ts:299`
-   Rule: `HLT-001-DEAD-MARKER`
-   Check: `HLT-001-DEAD-MARKER:vibe` `hard` confidence `0.88`
-   Route: TLR `Entropy`, lane `fast`, owner `browser-adapter`
-   Docs: `docs/audit-rubric.md#future-hostile-language-rule`
-   Reason: future-hostile/dead-language term `fallback` appears in product/runtime code
-   Fix: remove or rename the marker, implement the intended behavior, model a typed unsupported state, or move docs/generated/vendor/product-copy text into an allowlisted context
-   Rerun: `just fast`
-   Fingerprint: `sha256:ab3942703194ea173f9f3f69c931a2c9784e267b2e2f3dd8d026ead11272bfa2`
-   Evidence: apps/browser-adapter/src/chatUpload.ts:299, future-hostile/dead-language term `fallback` appears
-5. `high` `vibe` `apps/browser-adapter/src/chatUpload.ts:300`
-   Rule: `HLT-001-DEAD-MARKER`
-   Check: `HLT-001-DEAD-MARKER:vibe` `hard` confidence `0.88`
-   Route: TLR `Entropy`, lane `fast`, owner `browser-adapter`
-   Docs: `docs/audit-rubric.md#future-hostile-language-rule`
-   Reason: future-hostile/dead-language term `fallback` appears in product/runtime code
-   Fix: remove or rename the marker, implement the intended behavior, model a typed unsupported state, or move docs/generated/vendor/product-copy text into an allowlisted context
-   Rerun: `just fast`
-   Fingerprint: `sha256:659f9ecf61c7fb5e86f4ea97f26bef3dab58fa01f0182ca9a76ea19fc99b9efa`
-   Evidence: apps/browser-adapter/src/chatUpload.ts:300, future-hostile/dead-language term `fallback` appears
-6. `high` `vibe` `apps/browser-adapter/src/chatUpload.ts:310`
-   Rule: `HLT-001-DEAD-MARKER`
-   Check: `HLT-001-DEAD-MARKER:vibe` `hard` confidence `0.88`
-   Route: TLR `Entropy`, lane `fast`, owner `browser-adapter`
-   Docs: `docs/audit-rubric.md#future-hostile-language-rule`
-   Reason: future-hostile/dead-language term `fallback` appears in product/runtime code
-   Fix: remove or rename the marker, implement the intended behavior, model a typed unsupported state, or move docs/generated/vendor/product-copy text into an allowlisted context
-   Rerun: `just fast`
-   Fingerprint: `sha256:40e7aa65b2ec059e81b71aec452c3c9c682a389fdee46133bb1f6e74d5bb4046`
-   Evidence: apps/browser-adapter/src/chatUpload.ts:310, future-hostile/dead-language term `fallback` appears
-7. `high` `vibe` `apps/browser-adapter/src/chatUpload.ts:424`
+3. `high` `vibe` `apps/browser-adapter/src/chatUpload.ts:424`
    Rule: `HLT-001-DEAD-MARKER`
    Check: `HLT-001-DEAD-MARKER:vibe` `hard` confidence `0.88`
    Route: TLR `Entropy`, lane `fast`, owner `browser-adapter`
@@ -256,9 +216,7 @@ No audited runtime boundary reclassifications declared.
 
 1. `medium` `HLT-018-PERF-CONCURRENCY-DRIFT` `Justfile` - add fast deterministic build/test targets, caches, and narrow proof lanes for agent iteration
    Route: `Verification`/`fast`
-2. `high` `HLT-001-DEAD-MARKER` `apps/browser-adapter/src/chatUpload.ts` - remove or rename the marker, implement the intended behavior, model a typed unsupported state, or move docs/generated/vendor/product-copy text into an allowlisted context
+2. `high` `HLT-001-DEAD-MARKER` `apps/browser-adapter/src/chatUpload.ts` - collapse fallback chains into explicit typed states with bounded retry policy, telemetry, and documented repair guidance
    Route: `Entropy`/`fast`
-3. `high` `HLT-001-DEAD-MARKER` `apps/browser-adapter/src/chatUpload.ts` - collapse fallback chains into explicit typed states with bounded retry policy, telemetry, and documented repair guidance
-   Route: `Entropy`/`fast`
-4. `medium` `HLT-001-DEAD-MARKER` `.` - split large or ambiguous authored code into smaller semantic modules with focused tests
+3. `medium` `HLT-001-DEAD-MARKER` `.` - split large or ambiguous authored code into smaller semantic modules with focused tests
    Route: `Entropy`/`fast`

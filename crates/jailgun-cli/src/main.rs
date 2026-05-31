@@ -408,7 +408,7 @@ async fn main() -> Result<()> {
                 config.source_archive.ref_name = source_ref;
             }
             config.deploy.enabled = !no_deploy && (deploy || config.deploy.enabled);
-            config.deploy.dry_run = dry_run || config.deploy.dry_run;
+            config.deploy.dry_run = resolve_deploy_dry_run(config.deploy.dry_run, deploy, dry_run);
 
             let prompt_text = fs::read_to_string(&prompt_file)
                 .with_context(|| format!("reading prompt file {}", prompt_file.display()))?;
@@ -642,6 +642,16 @@ fn ensure_expected_top_level(validation: &TarValidation, expected: &str) -> Resu
     Ok(())
 }
 
+fn resolve_deploy_dry_run(config_dry_run: bool, deploy: bool, dry_run: bool) -> bool {
+    if dry_run {
+        true
+    } else if deploy {
+        false
+    } else {
+        config_dry_run
+    }
+}
+
 fn bridge_command(args: Vec<String>) -> Result<Vec<String>> {
     if !args.is_empty() {
         return Ok(args);
@@ -790,5 +800,21 @@ mod tests {
         assert!(error
             .to_string()
             .contains("archive top-level must be jekko/, found (multiple)"));
+    }
+
+    #[test]
+    fn run_deploy_flag_disables_config_dry_run() {
+        assert!(!resolve_deploy_dry_run(true, true, false));
+    }
+
+    #[test]
+    fn run_dry_run_flag_overrides_deploy() {
+        assert!(resolve_deploy_dry_run(false, true, true));
+    }
+
+    #[test]
+    fn run_without_deploy_preserves_config_dry_run() {
+        assert!(resolve_deploy_dry_run(true, false, false));
+        assert!(!resolve_deploy_dry_run(false, false, false));
     }
 }

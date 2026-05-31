@@ -1,0 +1,15 @@
+{
+  "name": "@jailgun/chrome-bridge",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "bin": {
+    "jailgun-chrome-bridge": "./bin/chrome-bridge.mjs"
+  },
+  "scripts": {
+    "test": "node bin/chrome-bridge.mjs --self-test"
+  },
+  "dependencies": {
+    "playwright-core": "^1.57.0"
+  }
+}

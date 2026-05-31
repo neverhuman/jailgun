@@ -5,6 +5,7 @@
   "type": "module",
   "workspaces": [
     "apps/browser-adapter",
+    "apps/chrome-bridge",
     "apps/dashboard"
   ],
   "scripts": {
@@ -30,4 +31,3 @@
     "react-dom": "^19.1.0"
   }
 }
-
