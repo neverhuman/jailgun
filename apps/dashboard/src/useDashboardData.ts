@@ -1,0 +1,175 @@
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+
+import { fetchReceipts, fetchRuns, subscribeEvents } from './api';
+import type { JailgunEvent, RunSnapshot } from './types';
+
+export type DataSource = 'api' | 'fixture';
+export type EventStreamStatus = 'connecting' | 'open' | 'closed';
+
+export interface DashboardState {
+  runs: RunSnapshot[];
+  selectedRunId: string | null;
+  selectedRun: RunSnapshot | null;
+  receipts: unknown[];
+  events: JailgunEvent[];
+  connection: EventStreamStatus;
+  dataSource: DataSource;
+  error: string | null;
+  selectRun: (runId: string) => void;
+  refresh: () => Promise<void>;
+}
+
+export function useDashboardData(): DashboardState {
+  const [runs, setRuns] = useState<RunSnapshot[]>([]);
+  const [selectedRunId, setSelectedRunId] = useState<string | null>(null);
+  const [receipts, setReceipts] = useState<unknown[]>([]);
+  const [events, setEvents] = useState<JailgunEvent[]>([]);
+  const [connection, setConnection] = useState<EventStreamStatus>('connecting');
+  const [dataSource, setDataSource] = useState<DataSource>('api');
+  const [error, setError] = useState<string | null>(null);
+  const selectedRunIdRef = useRef<string | null>(null);
+
+  const refresh = useCallback(async () => {
+    try {
+      const nextRuns = await fetchRuns();
+      setRuns(nextRuns);
+      setDataSource('api');
+      setError(null);
+      setSelectedRunId((current) => {
+        const next = current ?? nextRuns[0]?.run_id ?? null;
+        selectedRunIdRef.current = next;
+        return next;
+      });
+    } catch (loadError) {
+      setError(loadError instanceof Error ? loadError.message : String(loadError));
+      setDataSource('fixture');
+    }
+  }, []);
+
+  const selectRun = useCallback((runId: string) => {
+    selectedRunIdRef.current = runId;
+    setSelectedRunId(runId);
+  }, []);
+
+  useEffect(() => {
+    selectedRunIdRef.current = selectedRunId;
+  }, [selectedRunId]);
+
+  useEffect(() => {
+    void refresh();
+  }, [refresh]);
+
+  useEffect(() => {
+    const unsubscribe = subscribeEvents((event) => {
+      setConnection('open');
+      setEvents((current) => [event, ...current].slice(0, 80));
+      setRuns((current) => applyEventToRuns(current, event));
+      setSelectedRunId((current) => current ?? event.run_id);
+    });
+    return () => {
+      setConnection('closed');
+      unsubscribe();
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!selectedRunId) {
+      setReceipts([]);
+      return;
+    }
+    let ignore = false;
+    void fetchReceipts(selectedRunId).then((result) => {
+      if (!ignore) {
+        setReceipts(result.receipts);
+      }
+    });
+    return () => {
+      ignore = true;
+    };
+  }, [selectedRunId]);
+
+  const selectedRun = useMemo(
+    () => runs.find((run) => run.run_id === selectedRunId) ?? null,
+    [runs, selectedRunId]
+  );
+
+  return {
+    runs,
+    selectedRunId,
+    selectedRun,
+    receipts,
+    events,
+    connection,
+    dataSource,
+    error,
+    selectRun,
+    refresh
+  };
+}
+
+function applyEventToRuns(runs: RunSnapshot[], event: JailgunEvent): RunSnapshot[] {
+  const index = runs.findIndex((run) => run.run_id === event.run_id);
+  if (index === -1) {
+    return [createRunFromEvent(event), ...runs];
+  }
+  return runs.map((run) => (run.run_id === event.run_id ? applyEventToRun(run, event) : run));
+}
+
+function createRunFromEvent(event: JailgunEvent): RunSnapshot {
+  return {
+    run_id: event.run_id,
+    started_at: event.timestamp,
+    finished_at: null,
+    status: event.fields.status ?? 'running',
+    deploy_queue: event.kind === 'deploy-queued' ? 'waiting' : 'idle',
+    denied_github_prompts: event.fields.decision === 'deny' ? 1 : 0,
+    allowed_info_prompts: event.fields.decision === 'allow-info' ? 1 : 0,
+    tabs: event.tab_id === null ? [] : [{
+      tab_id: event.tab_id,
+      status: event.fields.tab_status ?? 'active',
+      page_url: event.fields.page_url ?? '',
+      archive_sha256: event.fields.sha256 ?? null,
+      download_latency_ms: parseOptionalNumber(event.fields.download_latency_ms),
+      deploy_status: event.fields.deploy_status ?? 'pending',
+      prompt_policy_decision: event.fields.decision ?? null
+    }]
+  };
+}
+
+function applyEventToRun(run: RunSnapshot, event: JailgunEvent): RunSnapshot {
+  const decision = event.fields.decision;
+  return {
+    ...run,
+    status: event.fields.status ?? run.status,
+    finished_at: event.kind === 'deploy-finished' ? event.timestamp : run.finished_at,
+    deploy_queue: queueStateForEvent(event, run.deploy_queue),
+    denied_github_prompts: decision === 'deny' ? run.denied_github_prompts + 1 : run.denied_github_prompts,
+    allowed_info_prompts: decision === 'allow-info' ? run.allowed_info_prompts + 1 : run.allowed_info_prompts,
+    tabs: event.tab_id === null ? run.tabs : run.tabs.map((tab) => (
+      tab.tab_id === event.tab_id
+        ? {
+            ...tab,
+            status: event.fields.tab_status ?? tab.status,
+            page_url: event.fields.page_url ?? tab.page_url,
+            archive_sha256: event.fields.sha256 ?? tab.archive_sha256,
+            download_latency_ms: parseOptionalNumber(event.fields.download_latency_ms) ?? tab.download_latency_ms,
+            deploy_status: event.fields.deploy_status ?? tab.deploy_status,
+            prompt_policy_decision: event.fields.decision ?? tab.prompt_policy_decision
+          }
+        : tab
+    ))
+  };
+}
+
+function queueStateForEvent(event: JailgunEvent, current: RunSnapshot['deploy_queue']): RunSnapshot['deploy_queue'] {
+  if (event.kind === 'deploy-queued') return 'waiting';
+  if (event.kind === 'remote-safety') return event.fields.outcome === 'blocked' ? 'blocked' : 'running';
+  if (event.kind === 'deploy-finished') return 'done';
+  return current;
+}
+
+function parseOptionalNumber(value: string | undefined): number | null {
+  if (!value) return null;
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : null;
+}

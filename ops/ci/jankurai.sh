@@ -1,0 +1,263 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=ops/ci/lib.sh
+source "$script_dir/lib.sh"
+ci_enter_repo_root "$script_dir"
+
+mkdir -p agent
+
+jankurai_bin=()
+jankurai_target_dir="${JANKURAI_CARGO_TARGET_DIR:-$PWD/target/jankurai-cargo}"
+
+resolve_jankurai() {
+  if [[ -n "${JANKURAI_BIN:-}" ]]; then
+    # Intentionally split a caller-supplied command such as "cargo run ... --".
+    # shellcheck disable=SC2206
+    jankurai_bin=(${JANKURAI_BIN})
+    return
+  fi
+
+  local manifests=()
+  if [[ -n "${JANKURAI_MANIFEST_PATH:-}" ]]; then
+    manifests+=("$JANKURAI_MANIFEST_PATH")
+  fi
+  manifests+=("$PWD/../jankurai/Cargo.toml")
+
+  local manifest
+  for manifest in "${manifests[@]}"; do
+    if [[ -f "$manifest" ]]; then
+      jankurai_bin=(env CARGO_TARGET_DIR="$jankurai_target_dir" cargo run --manifest-path "$manifest" -p jankurai --)
+      return
+    fi
+  done
+
+  if command -v jankurai >/dev/null 2>&1; then
+    jankurai_bin=(jankurai)
+    return
+  fi
+
+  echo "jankurai is required for CI audit. Install it, set JANKURAI_BIN, or set JANKURAI_MANIFEST_PATH." >&2
+  exit 127
+}
+
+render_advisory_badge() {
+  local mode="${1:?mode required}"
+  ci_require_cmd python3
+  python3 - "$mode" <<'PY'
+import hashlib
+import html
+import json
+import pathlib
+import sys
+
+mode = sys.argv[1]
+root = pathlib.Path(".")
+score_path = root / "agent" / "repo-score.json"
+md_path = root / "agent" / "repo-score.md"
+svg_path = root / "agent" / "jankurai-badge.svg"
+json_path = root / "agent" / "jankurai-badge.json"
+readme_path = root / "README.md"
+start = "<!-- jankurai-badge:start -->"
+end = "<!-- jankurai-badge:end -->"
+
+report = json.loads(score_path.read_text())
+decision_obj = report.get("decision") if isinstance(report.get("decision"), dict) else {}
+status = str(decision_obj.get("status") or report.get("status") or "advisory")
+score = int(report.get("score", 0))
+raw_score = int(report.get("raw_score", score))
+minimum_score = int(decision_obj.get("minimum_score") or report.get("minimum_score") or 85)
+dirty = bool(report.get("dirty_worktree", False))
+findings = len(report.get("findings") or [])
+hard_findings = int(decision_obj.get("hard_findings") or 0)
+soft_findings = int(decision_obj.get("soft_findings") or max(0, findings - hard_findings))
+caps = len(report.get("caps_applied") or [])
+passed = bool(decision_obj.get("passed")) and not dirty and hard_findings == 0 and status == "pass"
+display_status = "dirty" if dirty and status == "pass" else status
+message = f"{score}/100 {display_status}"
+label = "jankurai"
+
+if dirty or status == "advisory":
+    color = "#fe7d37"
+elif score >= 90:
+    color = "#4c1"
+elif score >= 80:
+    color = "#97ca00"
+elif score >= 65:
+    color = "#dfb317"
+else:
+    color = "#e05d44"
+
+label_width = 72
+message_width = max(104, len(message) * 7 + 14)
+width = label_width + message_width
+label_x = label_width / 2
+message_x = label_width + message_width / 2
+title = f"Jankurai score: {message}"
+svg = f'''<svg xmlns="http://www.w3.org/2000/svg" width="{width}" height="20" role="img" aria-label="{html.escape(title)}">
+  <title>{html.escape(title)}</title>
+  <linearGradient id="jankurai-badge-shadow" x2="0" y2="100%">
+    <stop offset="0" stop-color="#bbb" stop-opacity=".1"/>
+    <stop offset="1" stop-opacity=".1"/>
+  </linearGradient>
+  <clipPath id="jankurai-badge-radius">
+    <rect width="{width}" height="20" rx="3" fill="#fff"/>
+  </clipPath>
+  <g clip-path="url(#jankurai-badge-radius)">
+    <rect width="{label_width}" height="20" fill="#555"/>
+    <rect x="{label_width}" width="{message_width}" height="20" fill="{color}"/>
+    <rect width="{width}" height="20" fill="url(#jankurai-badge-shadow)"/>
+  </g>
+  <g fill="#fff" text-anchor="middle" font-family="Verdana,Geneva,DejaVu Sans,sans-serif" font-size="11">
+    <text x="{label_x:.0f}" y="15" fill="#010101" fill-opacity=".3">{html.escape(label)}</text>
+    <text x="{label_x:.0f}" y="14">{html.escape(label)}</text>
+    <text x="{message_x:.0f}" y="15" fill="#010101" fill-opacity=".3">{html.escape(message)}</text>
+    <text x="{message_x:.0f}" y="14">{html.escape(message)}</text>
+  </g>
+</svg>
+'''
+
+markdown = (
+    f"{start}\n"
+    f"[![Jankurai score: {message}](agent/jankurai-badge.svg)](agent/repo-score.md)\n"
+    f"{end}\n"
+)
+fingerprint_input = {
+    "standard_version": report.get("standard_version"),
+    "auditor_version": report.get("auditor_version"),
+    "score": score,
+    "raw_score": raw_score,
+    "minimum_score": minimum_score,
+    "decision": status,
+    "passed": passed,
+    "findings": findings,
+    "hard_findings": hard_findings,
+    "soft_findings": soft_findings,
+    "caps": caps,
+}
+fingerprint = hashlib.sha256(
+    json.dumps(fingerprint_input, sort_keys=True, separators=(",", ":")).encode()
+).hexdigest()
+metadata = {
+    "schema_version": "1.0.0",
+    "standard": "jankurai",
+    "standard_version": report.get("standard_version"),
+    "auditor_version": report.get("auditor_version"),
+    "source_report": "agent/repo-score.json",
+    "source_badge_fingerprint": f"sha256:{fingerprint}",
+    "score": score,
+    "raw_score": raw_score,
+    "minimum_score": minimum_score,
+    "decision": status,
+    "passed": passed,
+    "findings": findings,
+    "hard_findings": hard_findings,
+    "soft_findings": soft_findings,
+    "caps": caps,
+    "conformance_level": report.get("observed_conformance_level") or report.get("claimed_conformance_level"),
+    "badge_svg": "agent/jankurai-badge.svg",
+    "readme": "README.md",
+    "markdown": markdown,
+}
+json_text = json.dumps(metadata, indent=2) + "\n"
+
+def upsert_readme(existing: str) -> str:
+    if start in existing and end in existing:
+        before, rest = existing.split(start, 1)
+        _, after = rest.split(end, 1)
+        return before + markdown + "\n" + after.lstrip("\n")
+    lines = existing.splitlines(keepends=True)
+    insert_at = 0
+    if lines and lines[0].lstrip().startswith("<img "):
+        insert_at = 1
+        while insert_at < len(lines) and lines[insert_at].strip() == "":
+            insert_at += 1
+    return "".join(lines[:insert_at]) + "\n" + markdown + "\n" + "".join(lines[insert_at:])
+
+readme_expected = upsert_readme(readme_path.read_text())
+
+if mode == "write":
+    svg_path.write_text(svg)
+    json_path.write_text(json_text)
+    readme_path.write_text(readme_expected)
+elif mode == "check":
+    failures = []
+    if svg_path.read_text() != svg:
+        failures.append(str(svg_path))
+    if json_path.read_text() != json_text:
+        failures.append(str(json_path))
+    if readme_path.read_text() != readme_expected:
+        failures.append(str(readme_path))
+    if failures:
+        raise SystemExit("jankurai advisory badge drift: " + ", ".join(failures))
+else:
+    raise SystemExit(f"unknown mode: {mode}")
+
+if not md_path.exists():
+    raise SystemExit(f"missing audit markdown artifact: {md_path}")
+PY
+}
+
+check_git_freshness() {
+  if ! git rev-parse --is-inside-work-tree >/dev/null 2>&1; then
+    ci_warn "not inside a Git worktree; skipping tracked badge freshness check"
+    return
+  fi
+
+  if [[ "${CI:-}" != "true" && "${JANKURAI_CHECK_GIT_DIFF:-0}" != "1" ]]; then
+    return
+  fi
+
+  local tracked=(
+    README.md
+    agent/jankurai-badge.svg
+    agent/jankurai-badge.json
+  )
+  local path
+  for path in "${tracked[@]}"; do
+    if ! git ls-files --error-unmatch "$path" >/dev/null 2>&1; then
+      echo "generated badge artifact is not tracked: $path" >&2
+      exit 1
+    fi
+  done
+  git diff --exit-code -- "${tracked[@]}"
+}
+
+resolve_jankurai
+
+audit_mode="${JANKURAI_AUDIT_MODE:-advisory}"
+ci_log "running jankurai audit in ${audit_mode} mode"
+"${jankurai_bin[@]}" audit . \
+  --mode "$audit_mode" \
+  --json agent/repo-score.json \
+  --md agent/repo-score.md
+
+ci_assert_file agent/repo-score.json
+ci_assert_file agent/repo-score.md
+
+badge_args=(
+  .
+  --score agent/repo-score.json
+  --out agent/jankurai-badge.svg
+  --json-out agent/jankurai-badge.json
+  --readme README.md
+  --link agent/repo-score.md
+  --update-readme
+)
+
+if "${jankurai_bin[@]}" badge "${badge_args[@]}"; then
+  "${jankurai_bin[@]}" badge "${badge_args[@]}" --check
+else
+  badge_status=$?
+  if [[ "${JANKURAI_ALLOW_ADVISORY_BADGE:-1}" != "1" ]]; then
+    exit "$badge_status"
+  fi
+  ci_warn "public jankurai badge unavailable; writing advisory audit badge"
+  render_advisory_badge write
+  render_advisory_badge check
+fi
+
+ci_assert_file agent/jankurai-badge.svg
+ci_assert_file agent/jankurai-badge.json
+check_git_freshness

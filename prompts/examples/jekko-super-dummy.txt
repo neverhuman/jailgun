@@ -1,0 +1,293 @@
+You’re right — the previous version was overbuilt for a tool-rich coding agent. Here’s a tighter prompt that assumes the model may mostly **read source files and generate a patch artifact**, not necessarily run real commands. It keeps the archive as source of truth and focuses hard on **repo-matching code changes + tar.gz deliverable**. 
+
+# SUPER PROMPT: Patch Uploaded Jekko Source Archive With Deterministic `dummy_agent_llm`
+
+You are given an uploaded `.tar.gz` archive containing the current Jekko repository source.
+
+Your job is to inspect the uploaded source tree, make the smallest correct high-value code change, and deliver a `.tar.gz` patch archive containing only changed files in repo-relative layout.
+
+Do **not** use GitHub, web search, repository mirrors, guessed raw URLs, or external docs. The uploaded archive is the source of truth.
+
+Do **not** assume command execution is available. If you can execute commands, use them to inspect/package/check. If you cannot execute commands, still read the uploaded source files carefully and produce the changed files exactly.
+
+---
+
+## Task
+
+Implement or improve Jekko’s deterministic `dummy_agent_llm` simulation system.
+
+The goal is a local, no-token, no-network simulated provider that can drive realistic tests of agent workflows, including:
+
+* deterministic assistant output
+* scripted scenario fixtures
+* streaming/chunked responses if supported by the current provider abstraction
+* tool-call style scenarios if supported by the current repo
+* failure/error scenarios
+* provider/model selection where it naturally fits
+* developer docs explaining how scenarios work
+
+Keep the patch small and aligned with the existing repo structure.
+
+---
+
+## Source rules
+
+Before editing anything:
+
+1. Find and inspect the uploaded `.tar.gz`.
+2. Extract or read its full file tree.
+3. Identify the actual repository root.
+4. Locate the workspace `Cargo.toml`.
+5. Inspect the existing crates/modules before deciding where to edit.
+
+Do not invent crate names, traits, types, modules, or paths.
+
+Do not create files based on a guessed architecture.
+
+Do not patch from README-only knowledge.
+
+If the uploaded archive is missing, unreadable, incomplete, or does not contain a recognizable Jekko Rust workspace, stop and report that no safe patch can be produced.
+
+---
+
+## Required source inspection
+
+Inspect enough of the repo to identify the real current locations for:
+
+* workspace `Cargo.toml`
+* provider abstraction
+* provider registry or factory
+* model/provider configuration
+* existing tests and fixtures
+* runtime agent loop, if reachable
+* tool-call types, if reachable
+* docs conventions
+* any existing dummy/mock/fake provider code
+
+Use the repo’s existing naming, style, module layout, error handling, and test conventions.
+
+---
+
+## Implementation strategy
+
+Choose the smallest correct slice based on the actual code.
+
+### If no dummy provider exists
+
+Add a minimal but real `dummy_agent_llm` provider with:
+
+* explicit provider/model identity
+* deterministic local responses
+* at least two structured scenarios
+* strict fixture parsing if the repo already uses serde/config fixtures
+* no API key requirement
+* no network requirement
+* provider-level tests if the repo supports them
+* concise docs
+
+### If a primitive dummy/mock provider already exists
+
+Upgrade it into a scenario-driven system with:
+
+* scenario ids
+* structured scenario fixtures or equivalent repo-native configuration
+* deterministic frame/output order
+* at least one normal scenario
+* at least one error/failure scenario
+* tests covering selection and deterministic output
+* concise docs
+
+### If an advanced dummy system already exists
+
+Do not duplicate it. Add the most valuable missing piece, such as:
+
+* better fixtures
+* stricter validation
+* streaming transcript coverage
+* runtime integration test
+* error/retry scenario
+* docs for adding scenarios
+
+---
+
+## Scenario expectations
+
+Prefer structured scenario data over ad hoc string matching.
+
+A scenario should support as much as naturally fits the existing repo:
+
+* stable `id`
+* title or description
+* tags
+* provider/model metadata
+* ordered response frames or chunks
+* optional tool-call frames
+* optional error/failure behavior
+* deterministic final response
+* zero usage/cost metadata if the repo tracks usage
+
+Do not over-engineer. Add only what the current architecture can support cleanly.
+
+---
+
+## Determinism rules
+
+The dummy provider must be deterministic by default.
+
+No network.
+
+No API keys.
+
+No sleeps.
+
+No wall-clock-dependent output.
+
+No unseeded randomness.
+
+No hidden chain-of-thought.
+
+No absolute local paths in expected output.
+
+Same scenario id plus same input must produce the same output.
+
+---
+
+## Code quality rules
+
+Do not:
+
+* weaken existing tests
+* delete existing coverage
+* add broad permissions
+* silently ignore parse errors
+* hide errors with default fallbacks
+* add unnecessary dependencies
+* put product behavior in test helper crates or xtask
+* make core crates depend on higher-level crates
+* bypass existing provider/runtime interfaces with disconnected mocks
+* create a huge speculative framework
+
+Prefer a small patch that matches the repo perfectly over a large patch that only looks plausible.
+
+---
+
+## Tests and proof
+
+If command execution is available, run the narrowest relevant checks first, such as:
+
+```bash
+cargo fmt --all -- --check
+cargo test -p <touched-crate> dummy
+cargo test -p <touched-crate> dummy_agent_llm
+```
+
+Only report commands that actually ran.
+
+If command execution is unavailable, do not pretend tests passed. Instead, provide:
+
+* static validation performed by reading the code
+* exact files inspected
+* exact tests added or modified
+* commands the user should run locally
+* known compile-risk areas
+
+A patch is still acceptable without executed tests if the code is grounded in the actual uploaded source tree and the final answer is honest.
+
+---
+
+## Documentation
+
+Add or update a focused doc only if it fits the repo.
+
+The docs should explain:
+
+* what `dummy_agent_llm` is
+* how to select it
+* how to select or add a scenario
+* why it requires no API key and no network
+* what tests cover it
+
+Keep docs concise.
+
+---
+
+## Deliverable
+
+Create a tarball containing only changed files.
+
+The archive must preserve repo-relative paths under exactly one top-level directory named `jekko/`.
+
+This is critical for deployment. Do **not** use `jekko-fixes/`, `patch/`, `repo/`, `source/`, or any other top-level directory. A tarball shaped like `jekko-fixes/crates/...` is wrong and will break the deploy extraction path.
+
+Correct archive layout:
+
+```text
+jekko/
+  crates/...
+  docs/...
+  tests/...
+```
+
+Incorrect archive layout:
+
+```text
+jekko-fixes/
+  crates/jekko-provider/src/...
+  crates/jekko-provider/fixtures/...
+  crates/jekko-provider/tests/...
+  crates/jekko-runtime/tests/...
+  docs/...
+```
+
+Before finalizing, list the tarball and verify the first path component is literally `jekko`:
+
+```bash
+tar -tzf /mnt/data/jekko.tar.gz | head
+```
+
+The first entries must look like `jekko/...`, never `jekko-fixes/...`.
+
+The archive must not include:
+
+* `.git/`
+* `target/`
+* build outputs
+* cache files
+* editor files
+* the uploaded source archive
+* unrelated files
+* unchanged repo files
+
+Preferred output path:
+
+```text
+/mnt/data/jekko.tar.gz
+```
+
+If the environment cannot create a tarball, provide:
+
+1. a clear statement that tarball creation was unavailable,
+2. the complete repo-relative list of changed files,
+3. the full final contents of each changed file,
+4. packaging instructions for the user to create `jekko.tar.gz`.
+
+Do not claim a tarball exists unless it was actually created.
+
+---
+
+## Final response format
+
+Your final response must include:
+
+1. uploaded archive path used
+2. repository root detected
+3. summary of code changes
+4. exact changed files
+5. tests/checks run, or why none could run
+6. commands the user should run locally
+7. tarball path, or fallback changed-file contents if tarball creation was unavailable
+8. residual risks
+
+Be direct. Do not include broad discussion about GitHub access, connectors, unrelated setup, or future architecture dreams.
+
+Focus only on the uploaded code, the patch, and the deliverable.

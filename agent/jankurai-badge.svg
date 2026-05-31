@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="191" height="20" role="img" aria-label="Jankurai score: 61/100 advisory">
+  <title>Jankurai score: 61/100 advisory</title>
+  <linearGradient id="jankurai-badge-shadow" x2="0" y2="100%">
+    <stop offset="0" stop-color="#bbb" stop-opacity=".1"/>
+    <stop offset="1" stop-opacity=".1"/>
+  </linearGradient>
+  <clipPath id="jankurai-badge-radius">
+    <rect width="191" height="20" rx="3" fill="#fff"/>
+  </clipPath>
+  <g clip-path="url(#jankurai-badge-radius)">
+    <rect width="72" height="20" fill="#555"/>
+    <rect x="72" width="119" height="20" fill="#fe7d37"/>
+    <rect width="191" height="20" fill="url(#jankurai-badge-shadow)"/>
+  </g>
+  <g fill="#fff" text-anchor="middle" font-family="Verdana,Geneva,DejaVu Sans,sans-serif" font-size="11">
+    <text x="36" y="15" fill="#010101" fill-opacity=".3">jankurai</text>
+    <text x="36" y="14">jankurai</text>
+    <text x="132" y="15" fill="#010101" fill-opacity=".3">61/100 advisory</text>
+    <text x="132" y="14">61/100 advisory</text>
+  </g>
+</svg>

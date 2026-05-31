@@ -1,0 +1,46 @@
+{
+  "schema_version": 1,
+  "owners": [
+    {
+      "paths": ["AGENTS.md", "agent/**", "docs/**", "README.md", "Justfile"],
+      "owner": "repo-governance",
+      "allowed_dependencies": []
+    },
+    {
+      "paths": ["crates/jailgun-core/**", "contracts/**", "config/**", "prompts/examples/**"],
+      "owner": "rust-core",
+      "allowed_dependencies": ["serde", "sha2", "toml", "tar", "flate2"]
+    },
+    {
+      "paths": ["crates/jailgun-deploy/**"],
+      "owner": "rust-deploy",
+      "allowed_dependencies": ["jailgun-core", "tokio", "async-trait"]
+    },
+    {
+      "paths": ["crates/jailgun-server/**"],
+      "owner": "rust-server",
+      "allowed_dependencies": ["jailgun-core", "axum", "tokio"]
+    },
+    {
+      "paths": ["crates/jailgun-cli/**"],
+      "owner": "rust-cli",
+      "allowed_dependencies": ["jailgun-core", "jailgun-deploy", "jailgun-server"]
+    },
+    {
+      "paths": ["apps/browser-adapter/**"],
+      "owner": "browser-adapter",
+      "allowed_dependencies": ["typescript", "vitest"]
+    },
+    {
+      "paths": ["apps/dashboard/**"],
+      "owner": "dashboard-ui",
+      "allowed_dependencies": ["react", "vite", "vitest", "lucide-react"]
+    },
+    {
+      "paths": [".github/**", "ops/**", "package.json", "package-lock.json", "Cargo.toml", "Cargo.lock"],
+      "owner": "ci-release",
+      "allowed_dependencies": []
+    }
+  ]
+}
+

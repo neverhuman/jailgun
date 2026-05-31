@@ -1,0 +1,8 @@
+schema_version = 1
+
+[lanes.fast]
+commands = ["ops/ci/rust.sh", "ops/ci/node.sh", "ops/ci/scan.sh"]
+
+[lanes.audit]
+commands = ["ops/ci/jankurai.sh"]
+

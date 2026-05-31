@@ -1,0 +1,20 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.com/jailgun/event.schema.json",
+  "title": "JailgunEvent",
+  "type": "object",
+  "required": ["run_id", "timestamp", "kind", "severity", "fields"],
+  "properties": {
+    "run_id": { "type": "string" },
+    "tab_id": { "type": ["integer", "null"] },
+    "timestamp": { "type": "string" },
+    "kind": { "type": "string" },
+    "severity": { "type": "string", "enum": ["debug", "info", "warn", "error"] },
+    "message": { "type": "string" },
+    "fields": {
+      "type": "object",
+      "additionalProperties": { "type": "string" }
+    }
+  }
+}
+

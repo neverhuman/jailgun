@@ -1,0 +1,7 @@
+schema_version = 1
+
+[tools.jankurai]
+mode = "advisory"
+required_for_push = false
+ci_script = "ops/ci/jankurai.sh"
+

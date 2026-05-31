@@ -1,0 +1,5 @@
+standard_version = "0.9.0"
+schema_version = 1
+target_stack_id = "rust-core-typescript-react-vite"
+adoption_mode = "advisory"
+

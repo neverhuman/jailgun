@@ -1,0 +1,2 @@
+Summarize the public repository structure and list questions a maintainer should answer before making changes. Do not request write access or create commits.
+

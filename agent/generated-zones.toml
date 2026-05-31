@@ -1,0 +1,31 @@
+schema_version = 1
+
+[[zones]]
+path = "Cargo.lock"
+generator = "cargo"
+command = "cargo generate-lockfile"
+
+[[zones]]
+path = "package-lock.json"
+generator = "npm"
+command = "npm install --package-lock-only"
+
+[[zones]]
+path = "agent/repo-score.json"
+generator = "jankurai"
+command = "bash ops/ci/jankurai.sh"
+
+[[zones]]
+path = "agent/repo-score.md"
+generator = "jankurai"
+command = "bash ops/ci/jankurai.sh"
+
+[[zones]]
+path = "agent/jankurai-badge.svg"
+generator = "jankurai badge"
+command = "bash ops/ci/jankurai.sh"
+
+[[zones]]
+path = "agent/jankurai-badge.json"
+generator = "jankurai badge"
+command = "bash ops/ci/jankurai.sh"

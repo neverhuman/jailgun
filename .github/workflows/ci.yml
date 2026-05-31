@@ -1,0 +1,58 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+  pull-requests: read
+
+jobs:
+  rust:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - run: bash ops/ci/rust.sh
+
+  node:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+      - run: bash ops/ci/node.sh
+
+  security:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+      - run: sudo apt-get update && sudo apt-get install -y ripgrep
+      - run: bash ops/ci/security.sh # gitleaks detect dependency-review npm audit cargo audit
+      - uses: actions/dependency-review-action@v4
+        if: github.event_name == 'pull_request'
+
+  audit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Install Jankurai
+        run: cargo install --git https://github.com/neverhuman/jankurai.git --locked --force
+      - run: bash ops/ci/jankurai.sh # jankurai audit agent/repo-score.json agent/repo-score.md
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: jankurai-audit
+          path: |
+            agent/repo-score.json
+            agent/repo-score.md
+            agent/jankurai-badge.svg
+            agent/jankurai-badge.json

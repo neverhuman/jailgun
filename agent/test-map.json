@@ -1,0 +1,16 @@
+{
+  "schema_version": 1,
+  "lanes": {
+    "fast": ["ops/ci/rust.sh", "ops/ci/node.sh", "ops/ci/scan.sh"],
+    "rust": ["cargo fmt --check", "cargo clippy --workspace --all-targets -- -D warnings", "cargo test --workspace"],
+    "web": ["npm ci", "npm run typecheck", "npm test", "npm run build"],
+    "security": ["ops/ci/security.sh"],
+    "audit": ["ops/ci/jankurai.sh"]
+  },
+  "routes": [
+    { "paths": ["crates/**", "Cargo.toml", "Cargo.lock"], "lanes": ["rust", "security"] },
+    { "paths": ["apps/**", "package.json", "package-lock.json"], "lanes": ["web", "security"] },
+    { "paths": ["agent/**", "docs/**", ".github/**", "ops/**"], "lanes": ["fast", "audit"] },
+    { "paths": ["config/**", "prompts/examples/**"], "lanes": ["fast", "security"] }
+  ]
+}
