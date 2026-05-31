@@ -7,10 +7,12 @@ repository.workspace = true
 rust-version.workspace = true
 
 [dependencies]
+jailgun-core = { path = "../jailgun-core" }
 reqwest.workspace = true
 serde.workspace = true
 thiserror.workspace = true
 tokio.workspace = true
+tracing.workspace = true
 
 [dev-dependencies]
 tempfile.workspace = true

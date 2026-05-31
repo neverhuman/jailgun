@@ -119,6 +119,15 @@ enum Command {
         /// Required for POST /api/events. When unset, the endpoint returns 503.
         #[arg(long, env = "JAILGUN_INGEST_TOKEN")]
         ingest_token: Option<String>,
+        /// Spawn a Telegram subscriber on the live broadcast that pings the
+        /// configured bot for three milestones: job started on a tab, tar
+        /// acquired, and deploy success with CI passed (or any failure).
+        #[arg(long)]
+        notify_telegram: bool,
+        #[arg(long, default_value = "telegram/token.env")]
+        telegram_token_file: PathBuf,
+        #[arg(long, default_value = "telegram/chat_id.cache")]
+        telegram_chat_id_cache: PathBuf,
     },
     Fixture {
         #[arg(value_enum)]
@@ -378,21 +387,34 @@ async fn main() -> Result<()> {
             dashboard_dist,
             live,
             ingest_token,
+            notify_telegram,
+            telegram_token_file,
+            telegram_chat_id_cache,
         } => {
             let config = JailgunConfig::from_toml_path(&config)
                 .with_context(|| format!("loading {}", config.display()))?;
             let receipt_dir = PathBuf::from(&config.paths.artifacts_dir).join("receipts");
             let state = if live {
-                let (state, _rx) = AppState::live(config, receipt_dir, 1024);
+                let (state, rx) = AppState::live(config, receipt_dir, 1024);
+                if notify_telegram {
+                    tokio::spawn(jailgun_notify::run_telegram_subscriber(
+                        rx,
+                        telegram_token_file,
+                        telegram_chat_id_cache,
+                    ));
+                }
                 state.with_ingest_token(ingest_token)
             } else {
+                if notify_telegram {
+                    anyhow::bail!("--notify-telegram requires --live");
+                }
                 AppState::fixture(config)
             };
             let router = match dashboard_dist {
                 Some(dir) => router_with_static(state, dir),
                 None => api_router(state),
             };
-            println!("listening on http://{addr} (live={live})");
+            println!("listening on http://{addr} (live={live} notify_telegram={notify_telegram})");
             jailgun_server::serve(addr, router).await?;
         }
         Command::Fixture { kind } => {

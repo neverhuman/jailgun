@@ -833,11 +833,13 @@ dependencies = [
 name = "jailgun-notify"
 version = "0.1.0"
 dependencies = [
+ "jailgun-core",
  "reqwest",
  "serde",
  "tempfile",
  "thiserror",
  "tokio",
+ "tracing",
 ]
 
 [[package]]

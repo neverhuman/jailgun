@@ -587,6 +587,39 @@ fn publish_finished(
     if let Some(ref path) = receipt.receipt_path {
         event = event.with_field("receipt_path", path.display().to_string());
     }
+    if let Some(files) = receipt.final_status.files_changed {
+        event = event.with_field("files_changed", files.to_string());
+    }
+    if let Some(adds) = receipt.final_status.additions {
+        event = event.with_field("additions", adds.to_string());
+    }
+    if let Some(dels) = receipt.final_status.deletions {
+        event = event.with_field("deletions", dels.to_string());
+    }
+    if !receipt.final_status.top_paths.is_empty() {
+        event = event.with_field("top_paths", receipt.final_status.top_paths.join(","));
+    }
+    match &receipt.ci_state {
+        crate::ci::CiState::Passed { run_url, .. } => {
+            event = event
+                .with_field("ci_state", "passed".to_string())
+                .with_field("ci_run_url", run_url.clone());
+        }
+        crate::ci::CiState::Failed { run_url, .. } => {
+            event = event
+                .with_field("ci_state", "failed".to_string())
+                .with_field("ci_run_url", run_url.clone());
+        }
+        crate::ci::CiState::Pending { .. } => {
+            event = event.with_field("ci_state", "pending".to_string());
+        }
+        crate::ci::CiState::Skipped { reason } => {
+            event = event
+                .with_field("ci_state", "skipped".to_string())
+                .with_field("ci_skip_reason", reason.clone());
+        }
+        crate::ci::CiState::Unknown => {}
+    }
     publish(events, event);
 }
 
