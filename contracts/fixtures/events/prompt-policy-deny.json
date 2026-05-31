@@ -1,0 +1,13 @@
+{
+  "run_id": "run-fixture",
+  "tab_id": 1,
+  "timestamp": "2026-05-31T12:06:10Z",
+  "kind": "prompt-policy",
+  "severity": "info",
+  "message": "policy applied",
+  "fields": {
+    "signature": "github|commit|deny|...",
+    "decision": "deny",
+    "clicked": "true"
+  }
+}

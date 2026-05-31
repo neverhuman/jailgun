@@ -1,0 +1,12 @@
+{
+  "run_id": "run-fixture",
+  "tab_id": 1,
+  "timestamp": "2026-05-31T12:08:25Z",
+  "kind": "remote-safety",
+  "severity": "info",
+  "message": "upload verified",
+  "fields": {
+    "phase": "upload-verified",
+    "remote_sha256": "ff297136810aa7374c842e77f57f506dd631be7033975ce6d454bdc82086ded4"
+  }
+}

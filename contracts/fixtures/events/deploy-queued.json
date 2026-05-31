@@ -1,0 +1,13 @@
+{
+  "run_id": "run-fixture",
+  "tab_id": 1,
+  "timestamp": "2026-05-31T12:08:22Z",
+  "kind": "deploy-queued",
+  "severity": "info",
+  "message": "deploy queued",
+  "fields": {
+    "local_sha256": "ff297136810aa7374c842e77f57f506dd631be7033975ce6d454bdc82086ded4",
+    "remote_host": "fake-host",
+    "remote_dir": "/srv/example-project"
+  }
+}

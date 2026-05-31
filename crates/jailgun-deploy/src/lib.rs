@@ -1,6 +1,8 @@
 pub mod ci;
 pub mod cleanup;
 pub mod deploy;
+#[cfg(feature = "fake-backends")]
+pub mod fake;
 pub mod job;
 pub mod launcher;
 pub mod shell;

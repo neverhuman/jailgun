@@ -1,0 +1,14 @@
+{
+  "run_id": "run-fixture",
+  "tab_id": 1,
+  "timestamp": "2026-05-31T12:08:21Z",
+  "kind": "download-receipt",
+  "severity": "info",
+  "message": "download complete",
+  "fields": {
+    "sha256": "ff297136810aa7374c842e77f57f506dd631be7033975ce6d454bdc82086ded4",
+    "size_bytes": "13756",
+    "local_path": "/tmp/jekko-fixes.tar.gz",
+    "receipt_path": "/Users/example/artifacts/run-fixture/downloads/jekko-fixes.tar.gz"
+  }
+}

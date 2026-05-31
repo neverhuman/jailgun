@@ -1,0 +1,12 @@
+{
+  "run_id": "run-fixture",
+  "tab_id": 1,
+  "timestamp": "2026-05-31T12:11:00Z",
+  "kind": "error",
+  "severity": "error",
+  "message": "bridge protocol error",
+  "fields": {
+    "kind": "protocol",
+    "recoverable": "false"
+  }
+}
