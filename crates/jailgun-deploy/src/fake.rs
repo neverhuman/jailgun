@@ -66,13 +66,24 @@ impl FakeBus {
     }
 }
 
+macro_rules! fake_outcome_constructor {
+    ($type_name:ident) => {
+        impl $type_name {
+            pub fn new(outcome: FakeOutcome) -> Self {
+                Self { outcome }
+            }
+        }
+    };
+}
+
 pub struct FakeRemoteGit {
     outcome: FakeOutcome,
     snapshots: Mutex<VecDeque<RemoteSnapshot>>,
+    receipt_root: PathBuf,
 }
 
 impl FakeRemoteGit {
-    pub fn new(outcome: FakeOutcome) -> Self {
+    pub fn new(outcome: FakeOutcome, receipt_root: PathBuf) -> Self {
         let snapshots: VecDeque<RemoteSnapshot> = match outcome {
             FakeOutcome::CleanupDivergent => VecDeque::from(vec![
                 RemoteSnapshot::clean("head-fake-a", "head-fake-b"),
@@ -84,7 +95,18 @@ impl FakeRemoteGit {
         Self {
             outcome,
             snapshots: Mutex::new(snapshots),
+            receipt_root,
         }
+    }
+
+    fn synthesize_receipt_path(&self, receipt: &CleanupReceipt) -> PathBuf {
+        let tab = receipt
+            .tab_id
+            .map(|id| format!("tab-{id:02}"))
+            .unwrap_or_else(|| "no-tab".to_string());
+        self.receipt_root
+            .join(&receipt.run_id)
+            .join(format!("{}-{tab}-cleanup-fake.json", receipt.run_id))
     }
 }
 
@@ -118,7 +140,7 @@ impl RemoteGitBackend for FakeRemoteGit {
         Ok(receipt
             .receipt_path
             .clone()
-            .unwrap_or_else(|| PathBuf::from("fake-cleanup-receipt.json")))
+            .unwrap_or_else(|| self.synthesize_receipt_path(receipt)))
     }
 
     async fn reset_hard(&mut self, _remote_dir: &str, _target: &str) -> Result<(), CleanupError> {
@@ -137,11 +159,7 @@ pub struct FakeRemoteUpload {
     outcome: FakeOutcome,
 }
 
-impl FakeRemoteUpload {
-    pub fn new(outcome: FakeOutcome) -> Self {
-        Self { outcome }
-    }
-}
+fake_outcome_constructor!(FakeRemoteUpload);
 
 #[async_trait]
 impl RemoteUploadBackend for FakeRemoteUpload {
@@ -154,7 +172,13 @@ impl RemoteUploadBackend for FakeRemoteUpload {
     async fn remote_sha256(&mut self, _remote: &str) -> Result<String, DeployError> {
         match self.outcome {
             FakeOutcome::ShaMismatch => Ok("0".repeat(64)),
-            _ => Ok(std::env::var("JAILGUN_FAKE_LOCAL_SHA").unwrap_or_else(|_| "a".repeat(64))),
+            _ => match std::env::var("JAILGUN_FAKE_LOCAL_SHA") {
+                Ok(value) => Ok(value),
+                Err(std::env::VarError::NotPresent) => Ok("a".repeat(64)),
+                Err(std::env::VarError::NotUnicode(_)) => Err(DeployError::Sha256(
+                    "JAILGUN_FAKE_LOCAL_SHA is not UTF-8".into(),
+                )),
+            },
         }
     }
     async fn remove_remote_file(&mut self, _remote: &str) -> Result<(), DeployError> {
@@ -166,11 +190,7 @@ pub struct FakeRemoteJob {
     outcome: FakeOutcome,
 }
 
-impl FakeRemoteJob {
-    pub fn new(outcome: FakeOutcome) -> Self {
-        Self { outcome }
-    }
-}
+fake_outcome_constructor!(FakeRemoteJob);
 
 #[async_trait]
 impl RemoteJobBackend for FakeRemoteJob {
@@ -227,11 +247,7 @@ pub struct FakeCiTracker {
     outcome: FakeOutcome,
 }
 
-impl FakeCiTracker {
-    pub fn new(outcome: FakeOutcome) -> Self {
-        Self { outcome }
-    }
-}
+fake_outcome_constructor!(FakeCiTracker);
 
 #[async_trait]
 impl CiTracker for FakeCiTracker {

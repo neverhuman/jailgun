@@ -57,18 +57,17 @@ async fn send_one(token_path: &Path, chat_id_cache: &Path, text: &str) -> Result
 /// Returns the short notification body for the events the user asked about,
 /// or `None` for events we deliberately do not ping on.
 pub fn format_event_notice(event: &JailgunEvent) -> Option<String> {
-    let tab = event
-        .tab_id
-        .map(|t| format!("tab {t}"))
-        .unwrap_or_else(|| "tab ?".into());
+    let tab = match event.tab_id {
+        Some(t) => format!("tab {t}"),
+        None => "tab ?".to_string(),
+    };
     match event.kind {
         EventKind::PromptSubmitted => Some(format!("▶ {} · {} · job started", event.run_id, tab)),
         EventKind::DownloadReceipt => {
-            let sha = event
-                .fields
-                .get("sha256")
-                .map(|s| s.chars().take(8).collect::<String>())
-                .unwrap_or_else(|| "?".into());
+            let sha = match event.fields.get("sha256") {
+                Some(value) => value.chars().take(8).collect::<String>(),
+                None => "?".to_string(),
+            };
             Some(format!(
                 "📦 {} · {} · tar acquired · sha {}",
                 event.run_id, tab, sha
@@ -84,16 +83,14 @@ fn format_deploy_finished(event: &JailgunEvent, tab: &str) -> Option<String> {
     let ci_state = event.fields.get("ci_state").map(String::as_str);
 
     if event.severity == Severity::Error {
-        let reason = event
-            .fields
-            .get("failure_reason")
-            .map(String::as_str)
-            .unwrap_or("unknown");
-        let preserved = event
-            .fields
-            .get("preserved_ref")
-            .map(|s| format!(" · preserved {s}"))
-            .unwrap_or_default();
+        let reason = match event.fields.get("failure_reason") {
+            Some(value) => value.as_str(),
+            None => "unknown",
+        };
+        let preserved = match event.fields.get("preserved_ref") {
+            Some(value) => format!(" · preserved {value}"),
+            None => String::new(),
+        };
         return Some(format!(
             "❌ {} · {} · deploy {outcome} · {reason}{preserved}",
             event.run_id, tab
@@ -104,11 +101,10 @@ fn format_deploy_finished(event: &JailgunEvent, tab: &str) -> Option<String> {
         return None;
     }
 
-    let post_head = event
-        .fields
-        .get("post_head")
-        .map(|s| s.chars().take(8).collect::<String>())
-        .unwrap_or_else(|| "?".into());
+    let post_head = match event.fields.get("post_head") {
+        Some(value) => value.chars().take(8).collect::<String>(),
+        None => "?".to_string(),
+    };
 
     let files_line = match (
         event.fields.get("files_changed"),
@@ -125,15 +121,9 @@ fn format_deploy_finished(event: &JailgunEvent, tab: &str) -> Option<String> {
         _ => String::new(),
     };
 
-    let paths = event
-        .fields
-        .get("top_paths")
-        .map(|raw| raw.clone())
-        .unwrap_or_default();
-    let paths_line = if paths.is_empty() {
-        String::new()
-    } else {
-        format!("\nfiles: {paths}")
+    let paths_line = match event.fields.get("top_paths") {
+        Some(paths) if !paths.is_empty() => format!("\nfiles: {paths}"),
+        _ => String::new(),
     };
 
     Some(format!(
