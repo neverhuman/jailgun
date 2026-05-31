@@ -12,9 +12,9 @@ pub use command::{
 pub use event::{
     ArchiveUploadedPayload, BridgeEvent, BridgeLogPayload, BridgeReadyPayload,
     BridgeShuttingDownPayload, DownloadCompletePayload, DownloadStartedPayload, ErrorPayload,
-    GenerationStoppedPayload, PromptPolicyAppliedPayload, PromptSubmittedPayload, TabClosedPayload,
-    TabOpenedPayload, TabProgressKind, TabProgressPayload, TarDiscoveredPayload,
-    ToolPromptDetectedPayload,
+    GenerationStoppedPayload, PromptPolicyAppliedPayload, PromptSubmittedPayload,
+    RateLimitDetectedPayload, TabClosedPayload, TabOpenedPayload, TabProgressKind,
+    TabProgressPayload, TarDiscoveredPayload, ToolPromptDetectedPayload,
 };
 pub use protocol::{
     decode_envelope, encode_envelope, envelope_for_command, envelope_for_event, Envelope,

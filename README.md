@@ -1,7 +1,7 @@
 <img src="assets/jailgun.png" alt="Jailgun" width="100%">
 
 <!-- jankurai-badge:start -->
-[![Jankurai score: 92/100 advisory](agent/jankurai-badge.svg)](agent/repo-score.md)
+[![Jankurai score: 64/100 advisory](agent/jankurai-badge.svg)](agent/repo-score.md)
 <!-- jankurai-badge:end -->
 
 # Jailgun

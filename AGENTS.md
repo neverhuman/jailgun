@@ -10,3 +10,6 @@ prompts, and local override config out of committed files.
 Do not edit outside the requested ownership scope. Run the mapped proof lane
 from `agent/test-map.json` before final handoff.
 
+Durable orientation lives in `docs/architecture.md`, `docs/boundaries.md`,
+`docs/testing.md`, and `docs/release.md`. Contracts-specific instructions live
+in `contracts/AGENTS.md`; ops-specific instructions live in `ops/AGENTS.md`.

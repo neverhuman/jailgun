@@ -15,6 +15,7 @@ pub enum EventKind {
     RemoteSafety,
     DeployFinished,
     PromptPolicy,
+    RateLimitDetected,
     Error,
 }
 

@@ -9,7 +9,7 @@
   "scripts": {
     "live-capture": "node bin/live-capture.mjs",
     "typecheck": "tsc -p tsconfig.json",
-    "test": "vitest run",
+    "test": "vitest run --maxWorkers 5",
     "build": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {

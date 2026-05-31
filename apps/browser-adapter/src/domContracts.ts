@@ -28,90 +28,96 @@ export interface ToolPromptCandidate {
   score: number;
 }
 
+export interface RateLimitModalCandidate {
+  dialogIndex: number;
+  buttonIndex: number;
+  buttonLabel: string;
+  excerpt: string;
+}
+
 const TAR_DOWNLOAD_CONTROL_SELECTOR = 'a,button,[role="button"],[download],[href]';
 const GITHUB_TOOL_CONTROL_SELECTOR = 'button,[role="button"],a';
+const RATE_LIMIT_DIALOG_SELECTOR = '[role="dialog"],[aria-modal="true"]';
+const RATE_LIMIT_BUTTON_SELECTOR = 'button,[role="button"],a';
+const RATE_LIMIT_PHRASE_PRIMARY = /too many requests|making requests too quickly|temporarily limited access/i;
+const RATE_LIMIT_PHRASE_SECONDARY = /please wait a few minutes|wait a few minutes before trying again/i;
+const RATE_LIMIT_BUTTON_LABEL = /^\s*got it\s*$/i;
 
 export function collectTarDownloadCandidatesFromDom(root: ParentNode = document): DomTarCandidate[] {
   const controls = queryAll<HTMLElement>(root, TAR_DOWNLOAD_CONTROL_SELECTOR);
   const assistantRoots = queryAll<HTMLElement>(root, '[data-message-author-role="assistant"]');
   const controlIndex = new Map(controls.map((element, index) => [element, index]));
-  const candidates = controls
-    .map((element): DomTarCandidate | null => {
-      const assistant = closestElement(element, '[data-message-author-role="assistant"]');
-      if (assistantRoots.length > 0 && !assistant) {
-        return null;
-      }
-      if (closestElement(element, '[data-message-author-role="user"]')) {
-        return null;
-      }
+  const candidates: DomTarCandidate[] = [];
+  for (const element of controls) {
+    const assistant = closestElement(element, '[data-message-author-role="assistant"]');
+    if ((assistantRoots.length > 0 && !assistant) || closestElement(element, '[data-message-author-role="user"]')) {
+      continue;
+    }
 
-      const text = normalizedText(element);
-      const href = getHref(element);
-      const download = getAttr(element, 'download');
-      const aria = getAttr(element, 'aria-label');
-      const title = getAttr(element, 'title');
-      const role = getAttr(element, 'role');
-      const tagName = element.tagName.toLowerCase();
-      const tarSources = tarSourcesFor({ text, href, download, aria, title });
-      const clickable = isClickableControl(element);
-      if (tarSources.length === 0 || !clickable) {
-        return null;
-      }
+    const text = normalizedText(element);
+    const href = getHref(element);
+    const download = getAttr(element, 'download');
+    const aria = getAttr(element, 'aria-label');
+    const title = getAttr(element, 'title');
+    const role = getAttr(element, 'role');
+    const tagName = element.tagName.toLowerCase();
+    const tarSources = tarSourcesFor({ text, href, download, aria, title });
+    const clickable = isClickableControl(element);
+    if (tarSources.length === 0 || !clickable) {
+      continue;
+    }
 
-      let score = 200;
-      if (/download/i.test(`${text} ${aria} ${title}`)) score += 100;
-      if (/\.tar\.gz/i.test(download)) score += 90;
-      if (/\.tar\.gz(?:$|[?#\s])/i.test(href)) score += 80;
-      if (/\.tar\.gz/i.test(text)) score += 60;
-      if (/\.tar\.gz/i.test(`${aria} ${title}`)) score += 40;
-      if (tagName === 'button' || role.toLowerCase() === 'button') score += 20;
-      if (tagName === 'a') score += 10;
-      if (assistant) score += 30;
-      if (isVisible(element)) score += 10;
+    let score = 200;
+    if (/download/i.test(`${text} ${aria} ${title}`)) score += 100;
+    if (/\.tar\.gz/i.test(download)) score += 90;
+    if (/\.tar\.gz(?:$|[?#\s])/i.test(href)) score += 80;
+    if (/\.tar\.gz/i.test(text)) score += 60;
+    if (/\.tar\.gz/i.test(`${aria} ${title}`)) score += 40;
+    if (tagName === 'button' || role.toLowerCase() === 'button') score += 20;
+    if (tagName === 'a') score += 10;
+    if (assistant) score += 30;
+    if (isVisible(element)) score += 10;
 
-      return {
-        index: controlIndex.get(element) ?? 0,
-        text,
-        href,
-        download,
-        scope: assistant ? 'assistant' : 'document',
-        score,
-        selector: TAR_DOWNLOAD_CONTROL_SELECTOR,
-        tagName,
-        role,
-        aria,
-        title,
-        visible: isVisible(element),
-        clickable,
-        assistantIndex: assistant ? assistantRoots.indexOf(assistant as HTMLElement) : null,
-        tarSources
-      };
-    })
-    .filter((candidate): candidate is DomTarCandidate => Boolean(candidate));
+    candidates.push({
+      index: controlIndex.get(element) ?? 0,
+      text,
+      href,
+      download,
+      scope: assistant ? 'assistant' : 'document',
+      score,
+      selector: TAR_DOWNLOAD_CONTROL_SELECTOR,
+      tagName,
+      role,
+      aria,
+      title,
+      visible: isVisible(element),
+      clickable,
+      assistantIndex: assistant ? assistantRoots.indexOf(assistant as HTMLElement) : null,
+      tarSources
+    });
+  }
   return candidates.sort((left, right) => right.score - left.score || left.index - right.index);
 }
 
 export function collectGitHubToolPromptsFromDom(root: ParentNode = document, allowInfo = false): ToolPromptCandidate[] {
   const controls = queryAll<HTMLElement>(root, GITHUB_TOOL_CONTROL_SELECTOR);
-  const candidates = controls
-    .map((element, index): ToolPromptCandidate | null => {
-      if (!isClickableControl(element)) {
-        return null;
-      }
-      const label = bestLabel(element);
-      const context = surroundingContextText(element);
-      const combined = `${label} ${context}`;
-      if (!/github|git\s*hub/i.test(combined)) {
-        return null;
-      }
+  const candidates: ToolPromptCandidate[] = [];
+  controls.forEach((element, index) => {
+    if (!isClickableControl(element)) {
+      return;
+    }
+    const label = bestLabel(element);
+    const context = surroundingContextText(element);
+    const combined = `${label} ${context}`;
+    if (!/github|git\s*hub/i.test(combined)) {
+      return;
+    }
 
-      const action = classifyAction(combined);
-      const infoOnly = action === 'read' || action === 'search';
-      if (infoOnly) {
-        if (!allowInfo || !isApprovalLabel(label)) {
-          return null;
-        }
-        return makeToolPromptCandidate({
+    const action = classifyAction(combined);
+    const infoOnly = action === 'read' || action === 'search';
+    if (infoOnly) {
+      if (allowInfo && isApprovalLabel(label)) {
+        candidates.push(makeToolPromptCandidate({
           index,
           action,
           decision: 'allow-info',
@@ -119,13 +125,13 @@ export function collectGitHubToolPromptsFromDom(root: ParentNode = document, all
           label,
           context,
           score: 220 + approvalRank(label)
-        });
+        }));
       }
+      return;
+    }
 
-      if (!isDenialLabel(label)) {
-        return null;
-      }
-      return makeToolPromptCandidate({
+    if (isDenialLabel(label)) {
+      candidates.push(makeToolPromptCandidate({
         index,
         action,
         decision: 'deny',
@@ -133,12 +139,11 @@ export function collectGitHubToolPromptsFromDom(root: ParentNode = document, all
         label,
         context,
         score: 320 + denialRank(label) + writeActionScore(action)
-      });
-    })
-    .filter((candidate): candidate is ToolPromptCandidate => Boolean(candidate))
-    .sort((left, right) => right.score - left.score || left.index - right.index);
+      }));
+    }
+  });
 
-  return uniqueBySignature(candidates);
+  return uniqueBySignature(candidates).sort((left, right) => right.score - left.score || left.index - right.index);
 }
 
 export function createPromptClickGuard(): (candidate: ToolPromptCandidate) => boolean {
@@ -166,6 +171,123 @@ export async function closeTabAfterReceipt(
   }
   await page.close({ runBeforeUnload: false });
   return true;
+}
+
+export function collectRateLimitModalFromDom(root: ParentNode = document): RateLimitModalCandidate | null {
+  const dialogs = queryAll<HTMLElement>(root, RATE_LIMIT_DIALOG_SELECTOR);
+  for (let dialogIndex = 0; dialogIndex < dialogs.length; dialogIndex += 1) {
+    const dialog = dialogs[dialogIndex];
+    if (!isVisible(dialog)) {
+      continue;
+    }
+    const text = normalizedText(dialog);
+    if (!RATE_LIMIT_PHRASE_PRIMARY.test(text) || !RATE_LIMIT_PHRASE_SECONDARY.test(text)) {
+      continue;
+    }
+    const buttons = queryAll<HTMLElement>(dialog, RATE_LIMIT_BUTTON_SELECTOR);
+    for (let buttonIndex = 0; buttonIndex < buttons.length; buttonIndex += 1) {
+      const button = buttons[buttonIndex];
+      if (!isClickableControl(button) || !isVisible(button)) {
+        continue;
+      }
+      const label = bestLabel(button);
+      if (!RATE_LIMIT_BUTTON_LABEL.test(label)) {
+        continue;
+      }
+      return {
+        dialogIndex,
+        buttonIndex,
+        buttonLabel: label,
+        excerpt: text.slice(0, 240)
+      };
+    }
+  }
+  return null;
+}
+
+export interface RateLimitDismissalResult {
+  detected: boolean;
+  dismissed: boolean;
+  excerpt: string;
+  buttonLabel: string;
+  reason?: string;
+}
+
+export interface RateLimitDismissalPage {
+  evaluate: <T>(fn: () => T) => Promise<T>;
+}
+
+export async function dismissRateLimitModal(page: RateLimitDismissalPage): Promise<RateLimitDismissalResult> {
+  try {
+    const outcome = await page.evaluate((): RateLimitDismissalResult => {
+      const dialogSelector = '[role="dialog"],[aria-modal="true"]';
+      const buttonSelector = 'button,[role="button"],a';
+      const primary = /too many requests|making requests too quickly|temporarily limited access/i;
+      const secondary = /please wait a few minutes|wait a few minutes before trying again/i;
+      const buttonLabel = /^\s*got it\s*$/i;
+      const visible = (el: Element): boolean => {
+        const node = el as HTMLElement;
+        const view = node.ownerDocument?.defaultView;
+        if (!view) return true;
+        const style = view.getComputedStyle(node);
+        const rect = node.getBoundingClientRect();
+        return style.visibility !== 'hidden' && style.display !== 'none' && rect.width >= 0 && rect.height >= 0;
+      };
+      const isDisabled = (el: Element): boolean =>
+        el.hasAttribute('disabled') || /^true$/i.test(el.getAttribute('aria-disabled') ?? '');
+      const text = (el: Element): string => (el.textContent ?? '').replace(/\s+/g, ' ').trim();
+      const dialogs = Array.from(document.querySelectorAll(dialogSelector));
+      for (const dialog of dialogs) {
+        if (!visible(dialog)) continue;
+        const dialogText = text(dialog);
+        if (!primary.test(dialogText) || !secondary.test(dialogText)) continue;
+        const buttons = Array.from(dialog.querySelectorAll(buttonSelector));
+        for (const button of buttons) {
+          if (!visible(button) || isDisabled(button)) continue;
+          const label =
+            text(button) ||
+            button.getAttribute('aria-label') ||
+            button.getAttribute('title') ||
+            '';
+          if (!buttonLabel.test(label)) continue;
+          try {
+            (button as HTMLElement).click();
+          } catch (error) {
+            return {
+              detected: true,
+              dismissed: false,
+              excerpt: dialogText.slice(0, 240),
+              buttonLabel: label,
+              reason: `click-failed: ${(error as Error).message}`
+            };
+          }
+          return {
+            detected: true,
+            dismissed: true,
+            excerpt: dialogText.slice(0, 240),
+            buttonLabel: label
+          };
+        }
+        return {
+          detected: true,
+          dismissed: false,
+          excerpt: dialogText.slice(0, 240),
+          buttonLabel: '',
+          reason: 'no-got-it-button'
+        };
+      }
+      return { detected: false, dismissed: false, excerpt: '', buttonLabel: '' };
+    });
+    return outcome;
+  } catch (error) {
+    return {
+      detected: false,
+      dismissed: false,
+      excerpt: '',
+      buttonLabel: '',
+      reason: `evaluate-failed: ${(error as Error).message}`
+    };
+  }
 }
 
 function queryAll<T extends Element>(root: ParentNode, selector: string): T[] {
@@ -214,12 +336,14 @@ function isClickableControl(element: HTMLElement): boolean {
   return Boolean(getHref(element) || getAttr(element, 'download'));
 }
 
-function closestElement(element: Element, selector: string): Element | null {
+function closestElement(element: Element, selector: string): Element | undefined {
+  let match: Element | null = null;
   try {
-    return element.closest(selector);
+    match = element.closest(selector);
   } catch {
-    return null;
+    match = null;
   }
+  return match || void 0;
 }
 
 function normalizedText(element: Element): string {

@@ -1,31 +1,65 @@
 schema_version = 1
 
-[[zones]]
+[[zone]]
 path = "Cargo.lock"
+source = "Cargo.toml"
 generator = "cargo"
 command = "cargo generate-lockfile"
+read_only = true
+write_policy = "generator-only"
 
-[[zones]]
+[[zone]]
 path = "package-lock.json"
+source = "package.json"
 generator = "npm"
 command = "npm install --package-lock-only"
+read_only = true
+write_policy = "generator-only"
 
-[[zones]]
+[[zone]]
+path = "contracts/json-schema/event.schema.json"
+source = "contracts/json-schema/event.schema.json"
+generator = "scripts/generate-contracts.mjs"
+command = "bash ops/ci/contracts.sh --write"
+read_only = true
+write_policy = "generator-only"
+
+[[zone]]
+path = "contracts/fixtures/events/"
+source = "contracts/fixtures/events/"
+generator = "scripts/generate-contracts.mjs"
+command = "bash ops/ci/contracts.sh --write"
+read_only = true
+write_policy = "generator-only"
+
+[[zone]]
 path = "agent/repo-score.json"
+source = "tracked source tree"
 generator = "jankurai"
 command = "bash ops/ci/jankurai.sh"
+read_only = true
+write_policy = "generator-only"
 
-[[zones]]
+[[zone]]
 path = "agent/repo-score.md"
+source = "tracked source tree"
 generator = "jankurai"
 command = "bash ops/ci/jankurai.sh"
+read_only = true
+write_policy = "generator-only"
 
-[[zones]]
+[[zone]]
 path = "agent/jankurai-badge.svg"
+source = "agent/repo-score.json"
 generator = "jankurai badge"
 command = "bash ops/ci/jankurai.sh"
+read_only = true
+write_policy = "generator-only"
 
-[[zones]]
+[[zone]]
 path = "agent/jankurai-badge.json"
+source = "agent/repo-score.json"
 generator = "jankurai badge"
 command = "bash ops/ci/jankurai.sh"
+read_only = true
+write_policy = "generator-only"

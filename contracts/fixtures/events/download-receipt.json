@@ -8,7 +8,7 @@
   "fields": {
     "sha256": "ff297136810aa7374c842e77f57f506dd631be7033975ce6d454bdc82086ded4",
     "size_bytes": "13756",
-    "local_path": "/tmp/jekko-fixes.tar.gz",
-    "receipt_path": "/Users/example/artifacts/run-fixture/downloads/jekko-fixes.tar.gz"
+    "local_path": "/tmp/source-fixes.tar.gz",
+    "receipt_path": "/artifacts/run-fixture/downloads/source-fixes.tar.gz"
   }
 }

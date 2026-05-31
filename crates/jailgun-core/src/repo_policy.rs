@@ -13,13 +13,13 @@ pub struct RepoStringFinding {
 
 pub fn default_personal_patterns() -> Vec<(String, String)> {
     vec![
-        ("legacy-host".into(), concat!("x", "babe2").into()),
+        ("blocked-host".into(), concat!("x", "babe2").into()),
         (
-            "legacy-remote-dir".into(),
+            "blocked-remote-dir".into(),
             concat!("/home/ubuntu/", "jekko").into(),
         ),
         (
-            "legacy-repository".into(),
+            "blocked-repository".into(),
             concat!("neverhuman/", "jekko").into(),
         ),
         (
@@ -62,6 +62,6 @@ mod tests {
     fn detects_split_personal_patterns_at_runtime() {
         let text = format!("deploy to {}", concat!("/home/ubuntu/", "jekko"));
         let findings = scan_text_for_patterns(&text, &default_personal_patterns());
-        assert_eq!(findings, vec!["legacy-remote-dir"]);
+        assert_eq!(findings, vec!["blocked-remote-dir"]);
     }
 }

@@ -3,8 +3,10 @@ import { describe, expect, it } from 'vitest';
 import {
   closeTabAfterReceipt,
   collectGitHubToolPromptsFromDom,
+  collectRateLimitModalFromDom,
   collectTarDownloadCandidatesFromDom,
-  createPromptClickGuard
+  createPromptClickGuard,
+  dismissRateLimitModal
 } from './domContracts';
 
 it('finds assistant tar links and ignores user mentions', () => {
@@ -52,6 +54,81 @@ it('guards repeated prompt scans by signature', () => {
   const guard = createPromptClickGuard();
   expect(guard(candidate)).toBe(true);
   expect(guard(candidate)).toBe(false);
+});
+
+it('detects the ChatGPT rate-limit modal when phrases and Got it button coexist', () => {
+  document.body.innerHTML = `
+    <div role="dialog">
+      <h2>Too many requests</h2>
+      <p>You're making requests too quickly. We've temporarily limited access to your conversations.</p>
+      <p>Please wait a few minutes before trying again.</p>
+      <button>Got it</button>
+    </div>
+  `;
+  const modal = collectRateLimitModalFromDom();
+  expect(modal).not.toBeNull();
+  expect(modal?.buttonLabel).toMatch(/got it/i);
+  expect(modal?.excerpt).toMatch(/too many requests/i);
+  expect(modal?.excerpt).toMatch(/wait a few minutes/i);
+});
+
+it('ignores benign popovers whose Got it button is not in a rate-limit dialog', () => {
+  document.body.innerHTML = `
+    <div role="dialog">
+      <p>Welcome to ChatGPT! Take the tour to learn more.</p>
+      <button>Got it</button>
+    </div>
+  `;
+  expect(collectRateLimitModalFromDom()).toBeNull();
+});
+
+it('ignores rate-limit phrases when no Got it button is present', () => {
+  document.body.innerHTML = `
+    <div role="dialog">
+      <h2>Too many requests</h2>
+      <p>Please wait a few minutes before trying again.</p>
+      <button>Close</button>
+    </div>
+  `;
+  expect(collectRateLimitModalFromDom()).toBeNull();
+});
+
+it('ignores hidden rate-limit dialogs', () => {
+  document.body.innerHTML = `
+    <div role="dialog" style="display:none">
+      <p>Too many requests</p>
+      <p>Please wait a few minutes before trying again.</p>
+      <button>Got it</button>
+    </div>
+  `;
+  expect(collectRateLimitModalFromDom()).toBeNull();
+});
+
+it('dismissRateLimitModal returns detected=false when no dialog is present', async () => {
+  document.body.innerHTML = '<main><p>nothing here</p></main>';
+  const fakePage = { evaluate: async <T,>(fn: () => T) => fn() };
+  const result = await dismissRateLimitModal(fakePage);
+  expect(result.detected).toBe(false);
+  expect(result.dismissed).toBe(false);
+});
+
+it('dismissRateLimitModal clicks the Got it button when a rate-limit dialog is present', async () => {
+  document.body.innerHTML = `
+    <div role="dialog">
+      <p>Too many requests. Please wait a few minutes before trying again.</p>
+      <button id="ack">Got it</button>
+    </div>
+  `;
+  const clicks: string[] = [];
+  document.getElementById('ack')!.addEventListener('click', () => {
+    clicks.push('got-it');
+  });
+  const fakePage = { evaluate: async <T,>(fn: () => T) => fn() };
+  const result = await dismissRateLimitModal(fakePage);
+  expect(result.detected).toBe(true);
+  expect(result.dismissed).toBe(true);
+  expect(result.buttonLabel).toMatch(/got it/i);
+  expect(clicks).toEqual(['got-it']);
 });
 
 it('closes a tab only after receipt confirmation', async () => {

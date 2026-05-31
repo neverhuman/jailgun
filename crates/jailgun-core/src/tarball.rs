@@ -9,6 +9,8 @@ use serde::{Deserialize, Serialize};
 use tar::{Archive, EntryType};
 use thiserror::Error;
 
+use crate::agent_error::{AgentError, AgentErrorExt};
+
 #[derive(Debug, Error)]
 pub enum TarError {
     #[error("could not open archive {path}: {source}")]
@@ -31,6 +33,23 @@ pub enum TarError {
     MultipleTopLevels(String),
     #[error("archive must contain files under its top-level directory")]
     MissingChildEntry,
+}
+
+impl AgentErrorExt for TarError {
+    fn agent_error(&self) -> AgentError {
+        AgentError::new(
+            "tar-validation",
+            "validate downloaded source archive",
+            self.to_string(),
+            vec![
+                "confirm the downloaded file is a .tar.gz archive",
+                "ensure the archive has one top-level directory",
+                "remove absolute paths, parent traversal, and .git entries",
+            ],
+            "docs/testing.md",
+            "rerun `cargo test -p jailgun-core tarball`",
+        )
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
@@ -361,5 +380,35 @@ mod tests {
         ];
         let ranked = rank_tar_candidates(&candidates, "example-source.tar.gz");
         assert_eq!(ranked[0].index, 1);
+    }
+
+    #[test]
+    fn tar_name_ranking_keeps_rstest_style_invariant() {
+        // rstest-style invariant without an extra dependency: exact target
+        // names must outrank partial and unrelated archive labels.
+        let candidates = vec![
+            TarCandidate {
+                index: 0,
+                text: "source.tar.gz".into(),
+                href: String::new(),
+                download: String::new(),
+                aria: String::new(),
+                title: String::new(),
+                base_score: 0,
+                final_score: 0,
+            },
+            TarCandidate {
+                index: 1,
+                text: "source-fixes.tar.gz".into(),
+                href: String::new(),
+                download: String::new(),
+                aria: String::new(),
+                title: String::new(),
+                base_score: 0,
+                final_score: 0,
+            },
+        ];
+        let ranked = rank_tar_candidates(&candidates, "source.tar.gz");
+        assert_eq!(ranked[0].index, 0);
     }
 }

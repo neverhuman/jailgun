@@ -12,7 +12,7 @@ ci_repo_root() {
 
 ci_enter_repo_root() {
   local script_dir="${1:?script dir required}"
-  cd "$(ci_repo_root "$script_dir/../..")"
+  cd "$(ci_repo_root "$script_dir")"
 }
 
 ci_log() {

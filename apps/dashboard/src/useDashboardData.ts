@@ -43,6 +43,13 @@ export function useDashboardData(): DashboardState {
     } catch (loadError) {
       setError(loadError instanceof Error ? loadError.message : String(loadError));
       setDataSource('fixture');
+      const fixtureRuns = await fetchRuns({ mode: 'fixture' });
+      setRuns(fixtureRuns);
+      setSelectedRunId((current) => {
+        const next = current ?? fixtureRuns[0]?.run_id ?? null;
+        selectedRunIdRef.current = next;
+        return next;
+      });
     }
   }, []);
 
@@ -60,17 +67,25 @@ export function useDashboardData(): DashboardState {
   }, [refresh]);
 
   useEffect(() => {
-    const unsubscribe = subscribeEvents((event) => {
-      setConnection('open');
-      setEvents((current) => [event, ...current].slice(0, 80));
-      setRuns((current) => applyEventToRuns(current, event));
-      setSelectedRunId((current) => current ?? event.run_id);
-    });
+    let unsubscribe: () => void = () => undefined;
+    try {
+      unsubscribe = subscribeEvents(
+        (event) => {
+          setConnection('open');
+          setEvents((current) => [event, ...current].slice(0, 80));
+          setRuns((current) => applyEventToRuns(current, event));
+          setSelectedRunId((current) => current ?? event.run_id);
+        },
+        { mode: dataSource, onError: (eventError) => setError(eventError.message) }
+      );
+    } catch (eventError) {
+      setError(eventError instanceof Error ? eventError.message : String(eventError));
+    }
     return () => {
       setConnection('closed');
       unsubscribe();
     };
-  }, []);
+  }, [dataSource]);
 
   useEffect(() => {
     if (!selectedRunId) {
@@ -78,7 +93,7 @@ export function useDashboardData(): DashboardState {
       return;
     }
     let ignore = false;
-    void fetchReceipts(selectedRunId).then((result) => {
+    void fetchReceipts(selectedRunId, { mode: dataSource }).then((result) => {
       if (!ignore) {
         setReceipts(result.receipts);
       }
@@ -169,7 +184,6 @@ function queueStateForEvent(event: JailgunEvent, current: RunSnapshot['deploy_qu
 }
 
 function parseOptionalNumber(value: string | undefined): number | null {
-  if (!value) return null;
-  const parsed = Number(value);
-  return Number.isFinite(parsed) ? parsed : null;
+  const parsed = value === undefined || value === '' ? undefined : Number(value);
+  return parsed !== undefined && Number.isFinite(parsed) ? parsed : null;
 }

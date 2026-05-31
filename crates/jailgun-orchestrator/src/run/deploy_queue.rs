@@ -171,10 +171,11 @@ mod tests {
             receipt: &CleanupReceipt,
         ) -> Result<PathBuf, CleanupError> {
             self.observe.fetch_add(1, Ordering::SeqCst);
-            Ok(receipt
-                .receipt_path
-                .clone()
-                .unwrap_or_else(|| PathBuf::from("cleanup-fake.json")))
+            let path = match receipt.receipt_path.clone() {
+                Some(path) => path,
+                None => PathBuf::from("cleanup-fake.json"),
+            };
+            Ok(path)
         }
         async fn reset_hard(
             &mut self,

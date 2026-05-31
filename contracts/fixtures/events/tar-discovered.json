@@ -6,6 +6,6 @@
   "severity": "info",
   "message": "tar link discovered",
   "fields": {
-    "filename": "jekko-fixes.tar.gz"
+    "filename": "source-fixes.tar.gz"
   }
 }

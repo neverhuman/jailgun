@@ -29,4 +29,11 @@ for pattern in "${patterns[@]}"; do
   fi
 done
 
+dead_language_pattern='(?i)(?<![A-Za-z0-9_])(fallback|placeholder|temporary|legacy)(?![A-Za-z0-9_])'
+if rg -n --pcre2 "$dead_language_pattern" apps crates \
+  --glob '!**/*.map' \
+  --glob '!**/dist/**'; then
+  status=1
+fi
+
 exit "$status"

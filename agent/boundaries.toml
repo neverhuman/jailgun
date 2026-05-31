@@ -1,0 +1,23 @@
+schema_version = 1
+
+[queues]
+event_contract_paths = [
+  "contracts/json-schema/event.schema.json",
+  "contracts/fixtures/events/"
+]
+
+[db]
+root_paths = ["db"]
+migration_paths = ["db/migrations"]
+constraint_paths = ["db/constraints"]
+
+[runtime]
+rust_truth = [
+  "crates/jailgun-core/src/event.rs",
+  "crates/jailgun-core/src/run.rs",
+  "crates/jailgun-core/src/receipt.rs"
+]
+typescript_surfaces = [
+  "apps/browser-adapter/",
+  "apps/dashboard/"
+]

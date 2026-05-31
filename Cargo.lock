@@ -793,10 +793,12 @@ dependencies = [
  "jailgun-core",
  "jailgun-deploy",
  "jailgun-notify",
+ "jailgun-orchestrator",
  "jailgun-server",
  "serde_json",
  "tokio",
  "tracing-subscriber",
+ "uuid",
 ]
 
 [[package]]

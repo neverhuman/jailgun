@@ -48,6 +48,12 @@ console.log(`monitor:start url=${page.url()} poll_seconds=${pollSeconds} output_
 
 try {
   while (Date.now() - startedAt < maxMinutes * 60_000) {
+    const rateLimit = await dismissRateLimitModal(page);
+    if (rateLimit.detected) {
+      console.log(
+        `${new Date().toISOString()} rate-limit:detected dismissed=${rateLimit.dismissed} button=${JSON.stringify(rateLimit.buttonLabel)} excerpt=${JSON.stringify(rateLimit.excerpt)}${rateLimit.reason ? ` reason=${JSON.stringify(rateLimit.reason)}` : ''}`
+      );
+    }
     const discovery = await discoverTarCandidates(page);
     const status = await readGenerationStatus(page);
     const ranked = rankCandidates(discovery.candidates);
@@ -266,11 +272,29 @@ async function readGenerationStatus(page) {
 }
 
 async function downloadCandidate(page, candidate, outputDir) {
+  const preFlight = await dismissRateLimitModal(page);
+  if (preFlight.detected) {
+    console.log(
+      `${new Date().toISOString()} rate-limit:preflight dismissed=${preFlight.dismissed} button=${JSON.stringify(preFlight.buttonLabel)}${preFlight.reason ? ` reason=${JSON.stringify(preFlight.reason)}` : ''}`
+    );
+  }
   const downloadPromise = page.waitForEvent('download', { timeout: 120_000 });
   const locator = page.locator('a,button,[role="button"],[download],[href]').nth(candidate.index);
   await locator.scrollIntoViewIfNeeded({ timeout: 5_000 }).catch(() => undefined);
   await locator.click({ timeout: 120_000 });
-  const download = await downloadPromise;
+  let download;
+  try {
+    download = await downloadPromise;
+  } catch (error) {
+    const recheck = await dismissRateLimitModal(page);
+    if (recheck.detected) {
+      console.log(
+        `${new Date().toISOString()} rate-limit:on-timeout dismissed=${recheck.dismissed} button=${JSON.stringify(recheck.buttonLabel)} excerpt=${JSON.stringify(recheck.excerpt)}`
+      );
+      throw new Error(`download did not fire — rate-limit modal intercepted (button=${recheck.buttonLabel}, dismissed=${recheck.dismissed})`);
+    }
+    throw error;
+  }
   const suggested = normalizeTarName(download.suggestedFilename() || basename(candidate.href || '') || 'chatgpt-output.tar.gz');
   const path = join(outputDir, suggested);
   await download.saveAs(path);
@@ -288,6 +312,9 @@ async function downloadCandidate(page, candidate, outputDir) {
     throw new Error(`downloaded file is not a valid tar.gz: ${tarList.stderr.trim()}`);
   }
   const entries = tarList.stdout.trim().split('\n').filter(Boolean);
+  if (entries.length === 0) {
+    throw new Error(`downloaded tar.gz contained no entries: ${path}`);
+  }
   return {
     path,
     suggested,
@@ -296,6 +323,72 @@ async function downloadCandidate(page, candidate, outputDir) {
     tarEntryCount: entries.length,
     firstEntries: entries.slice(0, 10),
   };
+}
+
+async function dismissRateLimitModal(page) {
+  try {
+    return await page.evaluate(() => {
+      const dialogSelector = '[role="dialog"],[aria-modal="true"]';
+      const buttonSelector = 'button,[role="button"],a';
+      const primary = /too many requests|making requests too quickly|temporarily limited access/i;
+      const secondary = /please wait a few minutes|wait a few minutes before trying again/i;
+      const buttonLabel = /^\s*got it\s*$/i;
+      const visible = (el) => {
+        const view = el.ownerDocument && el.ownerDocument.defaultView;
+        if (!view) return true;
+        const style = view.getComputedStyle(el);
+        const rect = el.getBoundingClientRect();
+        return style.visibility !== 'hidden' && style.display !== 'none' && rect.width >= 0 && rect.height >= 0;
+      };
+      const disabled = (el) => el.hasAttribute('disabled') || /^true$/i.test(el.getAttribute('aria-disabled') || '');
+      const textOf = (el) => String(el.textContent || '').replace(/\s+/g, ' ').trim();
+      const dialogs = Array.from(document.querySelectorAll(dialogSelector));
+      for (const dialog of dialogs) {
+        if (!visible(dialog)) continue;
+        const dialogText = textOf(dialog);
+        if (!primary.test(dialogText) || !secondary.test(dialogText)) continue;
+        const buttons = Array.from(dialog.querySelectorAll(buttonSelector));
+        for (const button of buttons) {
+          if (!visible(button) || disabled(button)) continue;
+          const label = textOf(button) || button.getAttribute('aria-label') || button.getAttribute('title') || '';
+          if (!buttonLabel.test(label)) continue;
+          try {
+            button.click();
+          } catch (error) {
+            return {
+              detected: true,
+              dismissed: false,
+              excerpt: dialogText.slice(0, 240),
+              buttonLabel: label,
+              reason: `click-failed: ${error.message}`,
+            };
+          }
+          return {
+            detected: true,
+            dismissed: true,
+            excerpt: dialogText.slice(0, 240),
+            buttonLabel: label,
+          };
+        }
+        return {
+          detected: true,
+          dismissed: false,
+          excerpt: dialogText.slice(0, 240),
+          buttonLabel: '',
+          reason: 'no-got-it-button',
+        };
+      }
+      return { detected: false, dismissed: false, excerpt: '', buttonLabel: '' };
+    });
+  } catch (error) {
+    return {
+      detected: false,
+      dismissed: false,
+      excerpt: '',
+      buttonLabel: '',
+      reason: `evaluate-failed: ${error.message}`,
+    };
+  }
 }
 
 async function stopIfGenerating(page) {

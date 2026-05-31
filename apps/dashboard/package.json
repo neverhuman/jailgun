@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "vite",
     "typecheck": "tsc -p tsconfig.json",
-    "test": "vitest run",
+    "test": "vitest run --maxWorkers 5",
     "build": "tsc -p tsconfig.json && vite build"
   },
   "dependencies": {
@@ -23,4 +23,3 @@
   },
   "devDependencies": {}
 }
-

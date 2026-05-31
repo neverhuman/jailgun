@@ -1,20 +1,69 @@
 {
+  "generated": {
+    "by": "scripts/generate-contracts.mjs",
+    "note": "DO NOT EDIT BY HAND",
+    "source": "crates/jailgun-core/src/event.rs",
+    "command": "bash ops/ci/contracts.sh --write"
+  },
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://example.com/jailgun/event.schema.json",
   "title": "JailgunEvent",
   "type": "object",
-  "required": ["run_id", "timestamp", "kind", "severity", "fields"],
+  "required": [
+    "run_id",
+    "timestamp",
+    "kind",
+    "severity",
+    "message",
+    "fields"
+  ],
   "properties": {
-    "run_id": { "type": "string" },
-    "tab_id": { "type": ["integer", "null"] },
-    "timestamp": { "type": "string" },
-    "kind": { "type": "string" },
-    "severity": { "type": "string", "enum": ["debug", "info", "warn", "error"] },
-    "message": { "type": "string" },
+    "run_id": {
+      "type": "string"
+    },
+    "tab_id": {
+      "type": [
+        "integer",
+        "null"
+      ]
+    },
+    "timestamp": {
+      "type": "string"
+    },
+    "kind": {
+      "type": "string",
+      "enum": [
+        "run-started",
+        "tab-opened",
+        "prompt-submitted",
+        "tar-discovered",
+        "download-receipt",
+        "deploy-queued",
+        "remote-safety",
+        "deploy-finished",
+        "prompt-policy",
+        "rate-limit-detected",
+        "error"
+      ]
+    },
+    "severity": {
+      "type": "string",
+      "enum": [
+        "debug",
+        "info",
+        "warn",
+        "error"
+      ]
+    },
+    "message": {
+      "type": "string"
+    },
     "fields": {
       "type": "object",
-      "additionalProperties": { "type": "string" }
+      "additionalProperties": {
+        "type": "string"
+      }
     }
-  }
+  },
+  "additionalProperties": false
 }
-

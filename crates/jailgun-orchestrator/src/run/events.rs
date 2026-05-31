@@ -55,6 +55,12 @@ pub fn map_bridge_event(
                     },
                 )
         }
+        BridgeEvent::RateLimitDetected(payload) => {
+            base(EventKind::RateLimitDetected, "rate limit modal detected")
+                .with_severity(Severity::Warn)
+                .with_field("dismissed", payload.dismissed.to_string())
+                .with_field("excerpt", payload.excerpt.clone())
+        }
         BridgeEvent::GenerationStopped(_) => return None,
         BridgeEvent::TabClosed(_) => return None,
         BridgeEvent::BridgeLog(_) => return None,
@@ -78,7 +84,9 @@ pub fn map_bridge_event(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::bridge::{ArchiveUploadedPayload, DownloadCompletePayload};
+    use crate::bridge::{
+        ArchiveUploadedPayload, DownloadCompletePayload, RateLimitDetectedPayload,
+    };
 
     #[test]
     fn maps_archive_uploaded() {
@@ -128,5 +136,20 @@ mod tests {
         };
         let event = BridgeEvent::TabProgress(payload);
         assert!(map_bridge_event("run-1", Some(1), &event).is_none());
+    }
+
+    #[test]
+    fn maps_rate_limit_detected_to_warning_event() {
+        let event = BridgeEvent::RateLimitDetected(RateLimitDetectedPayload {
+            dismissed: true,
+            excerpt: "Too many requests. Please wait a few minutes.".into(),
+        });
+        let mapped = map_bridge_event("run-1", Some(3), &event).expect("mapped");
+        assert_eq!(mapped.kind, EventKind::RateLimitDetected);
+        assert_eq!(mapped.severity, Severity::Warn);
+        assert_eq!(
+            mapped.fields.get("dismissed").map(String::as_str),
+            Some("true")
+        );
     }
 }

@@ -25,7 +25,7 @@ pub struct BridgeHandle {
     /// Send envelopes here to forward them to the bridge's stdin.
     pub commands_tx: mpsc::Sender<Envelope<serde_json::Value>>,
     /// Receive every envelope the bridge emits on its stdout here.
-    pub events_rx: mpsc::UnboundedReceiver<Result<Envelope<serde_json::Value>, ProtocolError>>,
+    pub events_rx: mpsc::Receiver<Result<Envelope<serde_json::Value>, ProtocolError>>,
 }
 
 impl BridgeHandle {

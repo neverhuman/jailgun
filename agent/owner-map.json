@@ -1,46 +1,37 @@
 {
-  "schema_version": 1,
-  "owners": [
-    {
-      "paths": ["AGENTS.md", "agent/**", "docs/**", "README.md", "Justfile"],
-      "owner": "repo-governance",
-      "allowed_dependencies": []
-    },
-    {
-      "paths": ["crates/jailgun-core/**", "contracts/**", "config/**", "prompts/examples/**"],
-      "owner": "rust-core",
-      "allowed_dependencies": ["serde", "sha2", "toml", "tar", "flate2"]
-    },
-    {
-      "paths": ["crates/jailgun-deploy/**"],
-      "owner": "rust-deploy",
-      "allowed_dependencies": ["jailgun-core", "tokio", "async-trait"]
-    },
-    {
-      "paths": ["crates/jailgun-server/**"],
-      "owner": "rust-server",
-      "allowed_dependencies": ["jailgun-core", "axum", "tokio"]
-    },
-    {
-      "paths": ["crates/jailgun-cli/**"],
-      "owner": "rust-cli",
-      "allowed_dependencies": ["jailgun-core", "jailgun-deploy", "jailgun-server"]
-    },
-    {
-      "paths": ["apps/browser-adapter/**"],
-      "owner": "browser-adapter",
-      "allowed_dependencies": ["typescript", "vitest"]
-    },
-    {
-      "paths": ["apps/dashboard/**"],
-      "owner": "dashboard-ui",
-      "allowed_dependencies": ["react", "vite", "vitest", "lucide-react"]
-    },
-    {
-      "paths": [".github/**", "ops/**", "package.json", "package-lock.json", "Cargo.toml", "Cargo.lock"],
-      "owner": "ci-release",
-      "allowed_dependencies": []
-    }
-  ]
+  "workspace": "jailgun",
+  "owners": {
+    "AGENTS.md": "repo-governance",
+    "README.md": "repo-governance",
+    "CHANGELOG.md": "repo-governance",
+    "Justfile": "ci-release",
+    ".env.example": "ci-release",
+    ".gitignore": "ci-release",
+    "rust-toolchain.toml": "ci-release",
+    "agent/": "repo-governance",
+    "assets/": "repo-governance",
+    "docs/": "repo-governance",
+    "contracts/": "contracts",
+    "db/": "repo-governance",
+    "config/": "rust-core",
+    "prompts/examples/": "rust-core",
+    "crates/jailgun-core/": "rust-core",
+    "crates/jailgun-deploy/": "rust-deploy",
+    "crates/jailgun-server/": "rust-server",
+    "crates/jailgun-cli/": "rust-cli",
+    "crates/jailgun-notify/": "rust-cli",
+    "crates/jailgun-orchestrator/": "rust-core",
+    "apps/browser-adapter/": "browser-adapter",
+    "apps/dashboard/": "dashboard-ui",
+    ".github/": "ci-release",
+    "ops/": "ci-release",
+    "scripts/": "ci-release",
+    "tools/": "ci-release",
+    "test-fixtures/": "rust-core",
+    "tsconfig.base.json": "ci-release",
+    "package.json": "ci-release",
+    "package-lock.json": "ci-release",
+    "Cargo.toml": "ci-release",
+    "Cargo.lock": "ci-release"
+  }
 }
-

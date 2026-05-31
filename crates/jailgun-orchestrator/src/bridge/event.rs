@@ -98,6 +98,12 @@ pub struct PromptPolicyAppliedPayload {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct RateLimitDetectedPayload {
+    pub dismissed: bool,
+    pub excerpt: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct GenerationStoppedPayload {
     pub method: String,
 }
@@ -144,6 +150,7 @@ pub enum BridgeEvent {
     DownloadComplete(DownloadCompletePayload),
     ToolPromptDetected(ToolPromptDetectedPayload),
     PromptPolicyApplied(PromptPolicyAppliedPayload),
+    RateLimitDetected(RateLimitDetectedPayload),
     GenerationStopped(GenerationStoppedPayload),
     TabClosed(TabClosedPayload),
     BridgeLog(BridgeLogPayload),
@@ -165,6 +172,7 @@ impl BridgeEvent {
             BridgeEvent::DownloadComplete(_) => "download-complete",
             BridgeEvent::ToolPromptDetected(_) => "tool-prompt-detected",
             BridgeEvent::PromptPolicyApplied(_) => "prompt-policy-applied",
+            BridgeEvent::RateLimitDetected(_) => "rate-limit-detected",
             BridgeEvent::GenerationStopped(_) => "generation-stopped",
             BridgeEvent::TabClosed(_) => "tab-closed",
             BridgeEvent::BridgeLog(_) => "bridge-log",
@@ -186,6 +194,7 @@ impl BridgeEvent {
             BridgeEvent::DownloadComplete(p) => super::protocol::to_value(p),
             BridgeEvent::ToolPromptDetected(p) => super::protocol::to_value(p),
             BridgeEvent::PromptPolicyApplied(p) => super::protocol::to_value(p),
+            BridgeEvent::RateLimitDetected(p) => super::protocol::to_value(p),
             BridgeEvent::GenerationStopped(p) => super::protocol::to_value(p),
             BridgeEvent::TabClosed(p) => super::protocol::to_value(p),
             BridgeEvent::BridgeLog(p) => super::protocol::to_value(p),
@@ -210,6 +219,9 @@ impl BridgeEvent {
             }
             "prompt-policy-applied" => {
                 BridgeEvent::PromptPolicyApplied(serde_json::from_value(payload)?)
+            }
+            "rate-limit-detected" => {
+                BridgeEvent::RateLimitDetected(serde_json::from_value(payload)?)
             }
             "generation-stopped" => {
                 BridgeEvent::GenerationStopped(serde_json::from_value(payload)?)

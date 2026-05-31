@@ -7,6 +7,8 @@ source "$script_dir/lib.sh"
 ci_enter_repo_root "$script_dir"
 ci_require_cmd cargo
 
+workers="${JAILGUN_WORKERS:-5}"
+
 cargo fmt --check
 cargo clippy --workspace --all-targets -- -D warnings
-cargo test --workspace
+cargo test --workspace --jobs "$workers"

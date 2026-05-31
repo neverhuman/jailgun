@@ -1,3 +1,4 @@
+pub mod agent_error;
 pub mod config;
 pub mod event;
 pub mod prompt_policy;
@@ -7,6 +8,7 @@ pub mod run;
 pub mod source_archive;
 pub mod tarball;
 
+pub use agent_error::{AgentError, AgentErrorExt};
 pub use config::{
     BrowserConfig, CleanupPolicy, DeployConfig, JailgunConfig, PathConfig, ProjectConfig,
 };

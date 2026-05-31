@@ -1,5 +1,7 @@
 use serde::{Deserialize, Serialize};
 
+use crate::agent_error::{AgentError, AgentErrorExt};
+
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct SourceArchiveConfig {
     pub enabled: bool,
@@ -45,10 +47,40 @@ impl SourceArchiveConfig {
         }
         if !self.delete_after_upload {
             return Err(
-                "source_archive.delete_after_upload must be true for temporary archives".into(),
+                "source_archive.delete_after_upload must be true for staged archives".into(),
             );
         }
         Ok(())
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SourceArchiveValidationError {
+    pub reason: String,
+}
+
+impl SourceArchiveValidationError {
+    pub fn new(reason: impl Into<String>) -> Self {
+        Self {
+            reason: reason.into(),
+        }
+    }
+}
+
+impl AgentErrorExt for SourceArchiveValidationError {
+    fn agent_error(&self) -> AgentError {
+        AgentError::new(
+            "source-archive-invalid",
+            "validate source archive upload policy",
+            self.reason.clone(),
+            vec![
+                "keep repo URL sourced from an environment variable",
+                "use a safe git ref and relative prefix",
+                "delete staged archives after upload",
+            ],
+            "docs/boundaries.md",
+            "rerun `cargo test -p jailgun-core source_archive`",
+        )
     }
 }
 
@@ -99,7 +131,7 @@ mod tests {
     }
 
     #[test]
-    fn rejects_non_temporary_archive_policy() {
+    fn rejects_non_ephemeral_archive_policy() {
         let config = SourceArchiveConfig {
             enabled: true,
             delete_after_upload: false,

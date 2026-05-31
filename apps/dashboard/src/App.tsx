@@ -9,26 +9,47 @@ export function App() {
   const [events, setEvents] = useState<JailgunEvent[]>([]);
   const [receipts, setReceipts] = useState<ReceiptResponse | null>(null);
   const [error, setError] = useState('');
+  const [dataMode, setDataMode] = useState<'api' | 'fixture'>('api');
 
   useEffect(() => {
     let cancelled = false;
-    fetchRuns()
+    fetchRuns({ mode: 'api' })
       .then((loadedRuns) => {
         if (cancelled) return;
         setRuns(loadedRuns);
         const activeRun = loadedRuns[0]?.run_id;
         if (activeRun) {
-          void fetchReceipts(activeRun).then((loadedReceipts) => {
-            if (!cancelled) setReceipts(loadedReceipts);
-          });
+          void fetchReceipts(activeRun, { mode: 'api' })
+            .then((loadedReceipts) => {
+              if (!cancelled) setReceipts(loadedReceipts);
+            })
+            .catch((receiptError: Error) => {
+              if (!cancelled) setError(receiptError.message);
+            });
         }
       })
-      .catch((loadError: Error) => {
-        if (!cancelled) setError(loadError.message);
+      .catch(async (loadError: Error) => {
+        if (cancelled) return;
+        setError(loadError.message);
+        setDataMode('fixture');
+        const loadedRuns = await fetchRuns({ mode: 'fixture' });
+        setRuns(loadedRuns);
+        const activeRun = loadedRuns[0]?.run_id;
+        if (activeRun) {
+          setReceipts(await fetchReceipts(activeRun, { mode: 'fixture' }));
+        }
       });
-    const unsubscribe = subscribeEvents((event) => {
-      setEvents((current) => [event, ...current].slice(0, 30));
-    });
+    let unsubscribe: () => void = () => undefined;
+    try {
+      unsubscribe = subscribeEvents(
+        (event) => {
+          setEvents((current) => [event, ...current].slice(0, 30));
+        },
+        { mode: 'api', onError: (eventError) => setError(eventError.message) }
+      );
+    } catch (eventError) {
+      setError(eventError instanceof Error ? eventError.message : String(eventError));
+    }
     return () => {
       cancelled = true;
       unsubscribe();
@@ -43,7 +64,7 @@ export function App() {
       <header className="topbar">
         <div>
           <h1>Jailgun</h1>
-          <p>{activeRun ? `${activeRun.run_id} · ${activeRun.status}` : 'fixture-backed run monitor'}</p>
+          <p>{activeRun ? `${activeRun.run_id} · ${activeRun.status} · ${dataMode}` : 'run monitor'}</p>
         </div>
         <div className="policyCounters" aria-label="GitHub prompt counters">
           <Metric icon={<Shield size={18} />} label="Denied" value={activeRun?.denied_github_prompts ?? 0} tone="danger" />
@@ -245,10 +266,9 @@ function formatReceipt(item: unknown): string {
   if (typeof item !== 'object' || item === null) {
     return String(item);
   }
-  const record = item as Record<string, unknown>;
+  const record = Object.fromEntries(Object.entries(item));
   const tab = record.tab_id ? `tab ${record.tab_id}` : 'run';
   const sha = typeof record.sha256 === 'string' ? record.sha256.slice(0, 10) : 'receipt';
   const path = typeof record.artifact_path === 'string' ? record.artifact_path : '';
   return `${tab} ${sha}${path ? ` ${path}` : ''}`;
 }
-

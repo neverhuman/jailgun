@@ -3,7 +3,11 @@ use std::{fs, path::Path};
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
-use crate::{prompt_policy::PromptPolicy, source_archive::SourceArchiveConfig};
+use crate::{
+    agent_error::{AgentError, AgentErrorExt},
+    prompt_policy::PromptPolicy,
+    source_archive::SourceArchiveConfig,
+};
 
 #[derive(Debug, Error)]
 pub enum ConfigError {
@@ -156,6 +160,32 @@ impl JailgunConfig {
             },
             "prompt_policy": self.prompt_policy,
         })
+    }
+}
+
+impl AgentErrorExt for ConfigError {
+    fn agent_error(&self) -> AgentError {
+        let (code, reason) = match self {
+            ConfigError::Read { path, source } => {
+                ("config-read", format!("could not read {path}: {source}"))
+            }
+            ConfigError::Parse { path, source } => {
+                ("config-parse", format!("could not parse {path}: {source}"))
+            }
+            ConfigError::Invalid(message) => ("config-invalid", message.clone()),
+        };
+        AgentError::new(
+            code,
+            "load and validate Jailgun configuration",
+            reason,
+            vec![
+                "run config validation against config/jailgun.example.toml",
+                "check required environment variable names",
+                "keep local overrides in ignored config files",
+            ],
+            "docs/testing.md",
+            "rerun `cargo run -p jailgun-cli -- validate-config --config <path>`",
+        )
     }
 }
 

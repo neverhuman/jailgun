@@ -24,7 +24,4 @@ coverage/
 *.zip
 config/*.local.toml
 prompts/local/
-agent/repo-score.json
-agent/repo-score.md
 telegram/
-

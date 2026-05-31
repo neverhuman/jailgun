@@ -1,7 +1,86 @@
-schema_version = 1
+schema_version = "1.0.0"
 
-[tools.jankurai]
+[[tools]]
+id = "audit-ci"
 mode = "advisory"
-required_for_push = false
-ci_script = "ops/ci/jankurai.sh"
+notes = "CI runs ops/ci/jankurai.sh and uploads generated score artifacts."
 
+[[tools]]
+id = "proof-routing"
+mode = "advisory"
+notes = "agent/test-map.json routes changed paths to local proof lanes."
+
+[[tools]]
+id = "proofbind"
+mode = "auto"
+notes = "Proofbind remains auto-adopted when the Jankurai binary is available."
+
+[[tools]]
+id = "proofmark-rust"
+mode = "auto"
+notes = "Rust witness coverage remains auto-adopted for high-risk Rust changes."
+
+[[tools]]
+id = "copy-code"
+mode = "auto"
+notes = "ops/ci/copy-code.sh writes target/jankurai/copy-code.{json,md}."
+
+[[tools]]
+id = "security"
+mode = "advisory"
+notes = "ops/ci/security.sh runs fixed-string scans, npm audit, cargo-audit when installed, and gitleaks when installed."
+
+[[tools]]
+id = "ci-bad-behavior"
+mode = "advisory"
+notes = "Pinned GitHub Actions, job timeouts, and concurrency are checked by security and audit lanes."
+
+[[tools]]
+id = "git-bad-behavior"
+mode = "advisory"
+notes = "Jankurai audit covers destructive git automation in advisory mode."
+
+[[tools]]
+id = "release-bad-behavior"
+mode = "auto"
+notes = "ops/ci/release.sh checks release docs, artifact evidence, and rollback guidance."
+
+[[tools]]
+id = "ux-qa"
+mode = "advisory"
+notes = "ops/ci/ux-qa.sh writes target/jankurai/ux-qa.json and artifacts/ux-qa screenshots."
+
+[[tools]]
+id = "contract-drift"
+mode = "advisory"
+notes = "ops/ci/contracts.sh checks generated event schema and fixture drift."
+
+[[tools]]
+id = "rust-witness"
+mode = "auto"
+notes = "Rust witness graphing remains auto-adopted when available."
+
+[[tools]]
+id = "authz-matrix"
+mode = "auto"
+notes = "No authenticated user data boundary exists; audit remains the advisory evidence surface."
+
+[[tools]]
+id = "input-boundary"
+mode = "advisory"
+notes = "Rust core owns policy, validation, deploy safety, and API boundaries."
+
+[[tools]]
+id = "agent-tool-supply"
+mode = "advisory"
+notes = "Agent/tool policy is documented in AGENTS.md and agent/JANKURAI_STANDARD.md."
+
+[[tools]]
+id = "release-readiness"
+mode = "auto"
+notes = "ops/ci/release.sh and docs/release.md replace manual launch checklist drift."
+
+[[tools]]
+id = "cost-budget"
+mode = "auto"
+notes = "docs/testing.md defines stop conditions and budget limits for remote or paid work."

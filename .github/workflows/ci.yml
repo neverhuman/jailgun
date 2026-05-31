@@ -9,19 +9,24 @@ permissions:
   contents: read
   pull-requests: read
 
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   rust:
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     steps:
-      - uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@stable
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
       - run: bash ops/ci/rust.sh
 
   node:
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
         with:
           node-version: "20"
           cache: npm
@@ -29,44 +34,109 @@ jobs:
 
   security:
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
         with:
           node-version: "20"
       - run: sudo apt-get update && sudo apt-get install -y ripgrep
-      - run: bash ops/ci/security.sh # gitleaks detect dependency-review npm audit cargo audit
-      - uses: actions/dependency-review-action@v4
+      - run: bash tools/security-lane.sh # gitleaks detect dependency-review npm audit cargo audit syft sbom actionlint; catalog: jankurai security run . --out target/jankurai/security/evidence.json
+      - uses: actions/dependency-review-action@2031cfc080254a8a887f58cffee85186f0e49e48
         if: github.event_name == 'pull_request'
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        if: always()
+        with:
+          name: security-evidence
+          path: |
+            target/jankurai/security/evidence.json
+
+  contracts:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+      - run: bash ops/ci/contracts.sh
+
+  ux-qa:
+    needs: [node]
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: "20"
+          cache: npm
+      - run: npm ci
+      - run: bash ops/ci/ux-qa.sh # catalog: jankurai ux audit --config agent/ux-qa.toml --out target/jankurai/ux-qa.json
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        if: always()
+        with:
+          name: ux-qa
+          path: |
+            target/jankurai/ux-qa.json
+            artifacts/ux-qa/
 
   e2e:
     needs: [rust, node]
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     steps:
-      - uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@stable
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
         with:
           node-version: "20"
           cache: npm
       - run: sudo apt-get update && sudo apt-get install -y python3
       - run: bash ops/ci/e2e.sh
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         if: failure()
         with:
           name: e2e-artifacts
           path: |
             artifacts/
 
-  audit:
+  copy-code:
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     steps:
-      - uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@stable
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
       - name: Install Jankurai
         run: cargo install --git https://github.com/neverhuman/jankurai.git --rev 34608d016de5fd24e677244112941d240ca00188 --locked --force
-      - run: bash ops/ci/jankurai.sh # jankurai audit agent/repo-score.json agent/repo-score.md
-      - uses: actions/upload-artifact@v4
+      - run: bash ops/ci/copy-code.sh # catalog: cargo run -p jankurai -- copy-code . --json target/jankurai/copy-code.json --md target/jankurai/copy-code.md
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        if: always()
+        with:
+          name: copy-code
+          path: |
+            target/jankurai/copy-code.json
+            target/jankurai/copy-code.md
+
+  release:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+      - run: bash ops/ci/release.sh
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        if: always()
+        with:
+          name: release-readiness
+          path: |
+            target/jankurai/release-readiness.json
+
+  audit:
+    needs: [rust, node, security, contracts, ux-qa, copy-code, release]
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+      - name: Install Jankurai
+        run: cargo install --git https://github.com/neverhuman/jankurai.git --rev 34608d016de5fd24e677244112941d240ca00188 --locked --force
+      - run: jankurai security run . --strict --profile ci --out target/jankurai/security/evidence.json
+      - run: bash ops/ci/jankurai.sh # jankurai audit . --mode advisory --json agent/repo-score.json --md agent/repo-score.md; jankurai audit . --mode ratchet --baseline target/jankurai/accepted-baseline.json --json target/jankurai/repo-score.json --md target/jankurai/repo-score.md; jankurai proofbind verify . --changed-from origin/main; jankurai proofmark rust . --obligations target/jankurai/proofbind/obligations.json; cargo test -p jankurai --test language_bad_behavior; jankurai rust witness build .
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         if: always()
         with:
           name: jankurai-audit
@@ -75,3 +145,10 @@ jobs:
             agent/repo-score.md
             agent/jankurai-badge.svg
             agent/jankurai-badge.json
+            target/jankurai/repair-queue.jsonl
+            target/jankurai/proofbind/surface-witness.json
+            target/jankurai/proofbind/obligations.json
+            target/jankurai/proofmark/proofmark-receipt.json
+            target/jankurai/proofmark/proof-receipt.json
+            target/jankurai/language-bad-behavior.log
+            target/jankurai/rust/witness-graph.json

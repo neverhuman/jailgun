@@ -1,0 +1,12 @@
+{
+  "run_id": "run-fixture",
+  "tab_id": 1,
+  "timestamp": "2026-05-31T12:06:30Z",
+  "kind": "rate-limit-detected",
+  "severity": "warn",
+  "message": "rate limit modal detected",
+  "fields": {
+    "dismissed": "true",
+    "excerpt": "Too many requests. Please wait a few minutes before trying again."
+  }
+}

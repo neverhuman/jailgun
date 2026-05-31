@@ -1,0 +1,14 @@
+artifactRoot = "target/jankurai/ux-qa"
+requiredStates = ["loading", "empty", "error", "success"]
+viewports = ["390x844", "1440x900"]
+readyState = "networkidle"
+timeoutMs = 45000
+screenshotRequired = true
+ariaSnapshotRequired = true
+accessibilityScanRequired = true
+
+[[routes]]
+id = "dashboard"
+url = "http://127.0.0.1:5173/"
+states = ["loading", "empty", "error", "success"]
+viewports = ["390x844", "1440x900"]

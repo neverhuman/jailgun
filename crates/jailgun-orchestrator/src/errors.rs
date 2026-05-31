@@ -1,3 +1,4 @@
+use jailgun_core::{AgentError, AgentErrorExt};
 use thiserror::Error;
 
 #[derive(Debug, Error)]
@@ -20,4 +21,32 @@ pub enum OrchestratorError {
     Cancelled,
     #[error("config error: {0}")]
     Config(String),
+}
+
+impl AgentErrorExt for OrchestratorError {
+    fn agent_error(&self) -> AgentError {
+        let code = match self {
+            OrchestratorError::BridgeSpawn(_) => "orchestrator-bridge-spawn",
+            OrchestratorError::BridgeExited(_) => "orchestrator-bridge-exited",
+            OrchestratorError::HandshakeTimeout(_) => "orchestrator-handshake-timeout",
+            OrchestratorError::Protocol(_) => "orchestrator-protocol",
+            OrchestratorError::Io(_) => "orchestrator-io",
+            OrchestratorError::Serde(_) => "orchestrator-serde",
+            OrchestratorError::Tab { .. } => "orchestrator-tab",
+            OrchestratorError::Cancelled => "orchestrator-cancelled",
+            OrchestratorError::Config(_) => "orchestrator-config",
+        };
+        AgentError::new(
+            code,
+            "coordinate browser bridge and run lifecycle",
+            self.to_string(),
+            vec![
+                "check bridge command and environment config",
+                "inspect NDJSON protocol frames",
+                "rerun orchestrator bridge tests with bounded queues",
+            ],
+            "docs/testing.md",
+            "rerun `cargo test -p jailgun-orchestrator`",
+        )
+    }
 }

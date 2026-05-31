@@ -11,12 +11,14 @@ ci_enter_repo_root "$(dirname "$0")"
 ci_require_cmd cargo
 ci_require_cmd python3
 
+workers="${JAILGUN_WORKERS:-5}"
+
 ci_log "validate the deterministic test config"
 cargo run --quiet -p jailgun-cli -- validate-config \
   --config test-fixtures/jailgun.test.toml > /dev/null
 
-ci_log "run fake_e2e integration tests against deploy_remote"
-cargo test --quiet -p jailgun-deploy --features fake-backends --test fake_e2e
+ci_log "run fake backend integration tests against deploy_remote"
+cargo test --quiet -p jailgun-deploy --features fake-backends --tests --jobs "$workers"
 
 ci_log "verify every event fixture parses as valid JSON"
 for fixture in contracts/fixtures/events/*.json; do

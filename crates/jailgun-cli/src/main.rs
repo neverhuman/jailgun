@@ -1,4 +1,4 @@
-use std::{env, net::SocketAddr, path::PathBuf};
+use std::{collections::BTreeMap, env, fs, net::SocketAddr, path::PathBuf};
 
 use anyhow::{Context, Result};
 use async_trait::async_trait;
@@ -6,9 +6,8 @@ use clap::{Parser, Subcommand, ValueEnum};
 use jailgun_core::{repo_policy, validate_tar_gz, CleanupPolicy, JailgunConfig, TarValidation};
 use jailgun_deploy::{
     cleanup_remote_checkout, deploy_remote,
-    shell::{SshRemoteGit, SshRemoteJob, SshRemoteUpload},
-    CiState, CiTracker, CleanupRequest, DeployError, DeployReceipt, DeployRequest,
-    JsonReceiptWriter,
+    shell::{SshCiTracker, SshRemoteGit, SshRemoteJob, SshRemoteUpload},
+    CleanupRequest, DeployError, DeployReceipt, DeployRequest, JsonReceiptWriter,
 };
 use jailgun_notify::{
     build_commit_message, collect_commit_summary, read_chat_id_cache, send_telegram_message,
@@ -81,6 +80,58 @@ enum Command {
         status_max_minutes: u16,
         #[arg(long)]
         ci: bool,
+    },
+    Run {
+        #[arg(long, default_value = "config/jailgun.example.toml")]
+        config: PathBuf,
+        #[arg(long)]
+        prompt_file: PathBuf,
+        #[arg(long)]
+        run_id: Option<String>,
+        #[arg(long)]
+        tabs: Option<u16>,
+        #[arg(long)]
+        source_repo_url: Option<String>,
+        #[arg(long)]
+        source_ref: Option<String>,
+        #[arg(long)]
+        deploy: bool,
+        #[arg(long)]
+        no_deploy: bool,
+        #[arg(long)]
+        dry_run: bool,
+        #[arg(long)]
+        remote_host: Option<String>,
+        #[arg(long)]
+        remote_dir: Option<String>,
+        #[arg(long)]
+        remote_command: Option<String>,
+        #[arg(long)]
+        expected_top_level: Option<String>,
+        #[arg(long)]
+        profile_dir: Option<PathBuf>,
+        #[arg(long)]
+        downloads_dir: Option<PathBuf>,
+        #[arg(long)]
+        artifacts_dir: Option<PathBuf>,
+        #[arg(long, num_args = 1.., value_name = "ARG", allow_hyphen_values = true)]
+        bridge_cmd: Vec<String>,
+        #[arg(long = "bridge-env", value_name = "KEY=VALUE")]
+        bridge_env: Vec<String>,
+        #[arg(long, default_value_t = 1024)]
+        event_buffer: usize,
+        #[arg(long, default_value_t = 1)]
+        deploy_concurrency: u16,
+        #[arg(long, default_value_t = 360)]
+        status_max_minutes: u16,
+        #[arg(long)]
+        ci: bool,
+        #[arg(long, default_value = "main")]
+        ci_branch: String,
+        #[arg(long, default_value_t = 20)]
+        ci_max_attempts: u32,
+        #[arg(long, default_value_t = 30)]
+        ci_poll_seconds: u16,
     },
     TelegramSend {
         #[arg(long, default_value = "telegram/token.env")]
@@ -246,16 +297,8 @@ async fn main() -> Result<()> {
             let remote_host =
                 arg_or_env(remote_host, &config.deploy.remote_host_env, "remote host")?;
             let remote_dir = arg_or_env(remote_dir, &config.deploy.remote_dir_env, "remote dir")?;
-            let remote_command = match remote_command {
-                Some(value) => value,
-                None => env::var(&config.deploy.remote_command_env).unwrap_or_else(|_| {
-                    if config.deploy.remote_command_env == "JAILGUN_REMOTE_COMMAND" {
-                        "bash ci-fast-push.sh".into()
-                    } else {
-                        String::new()
-                    }
-                }),
-            };
+            let remote_command =
+                deploy_remote_command(remote_command, &config.deploy.remote_command_env)?;
             let receipt_dir = receipt_dir
                 .unwrap_or_else(|| PathBuf::from(&config.paths.artifacts_dir).join("receipts"));
             let policy = policy
@@ -298,7 +341,7 @@ async fn main() -> Result<()> {
             let (events, _rx) = tokio::sync::broadcast::channel(128);
             let mut upload = SshRemoteUpload::new(remote_host.clone());
             let mut job = SshRemoteJob::new(remote_host.clone());
-            let mut ci_tracker = NoCiTracker;
+            let mut ci_tracker = SshCiTracker::new();
             let mut writer = LocalReceiptWriter {
                 receipt_dir: receipt_dir.clone(),
             };
@@ -331,6 +374,122 @@ async fn main() -> Result<()> {
             )
             .await?;
             println!("{}", serde_json::to_string_pretty(&receipt)?);
+        }
+        Command::Run {
+            config,
+            prompt_file,
+            run_id,
+            tabs,
+            source_repo_url,
+            source_ref,
+            deploy,
+            no_deploy,
+            dry_run,
+            remote_host,
+            remote_dir,
+            remote_command,
+            expected_top_level,
+            profile_dir,
+            downloads_dir,
+            artifacts_dir,
+            bridge_cmd,
+            bridge_env,
+            event_buffer,
+            deploy_concurrency,
+            status_max_minutes,
+            ci,
+            ci_branch,
+            ci_max_attempts,
+            ci_poll_seconds,
+        } => {
+            let mut config = JailgunConfig::from_toml_path(&config)
+                .with_context(|| format!("loading {}", config.display()))?;
+            if let Some(source_ref) = source_ref {
+                config.source_archive.ref_name = source_ref;
+            }
+            config.deploy.enabled = !no_deploy && (deploy || config.deploy.enabled);
+            config.deploy.dry_run = dry_run || config.deploy.dry_run;
+
+            let prompt_text = fs::read_to_string(&prompt_file)
+                .with_context(|| format!("reading prompt file {}", prompt_file.display()))?;
+            let artifacts_dir =
+                artifacts_dir.unwrap_or_else(|| PathBuf::from(&config.paths.artifacts_dir));
+            let downloads_dir = path_arg_or_env_or_default(
+                downloads_dir,
+                &config.paths.downloads_dir_env,
+                artifacts_dir.join("downloads"),
+            )?;
+            let profile_dir = path_arg_or_env_or_default(
+                profile_dir,
+                &config.browser.profile_dir_env,
+                artifacts_dir.join("chrome-profile"),
+            )?;
+            let repo_url = source_repo_url
+                .or_else(|| env::var(&config.source_archive.repo_url_env).ok())
+                .unwrap_or_else(|| config.project.repository.clone());
+            let deploy_remote_host = if config.deploy.enabled {
+                Some(arg_or_env(
+                    remote_host,
+                    &config.deploy.remote_host_env,
+                    "remote host",
+                )?)
+            } else {
+                None
+            };
+            let deploy_remote_dir = if config.deploy.enabled {
+                Some(arg_or_env(
+                    remote_dir,
+                    &config.deploy.remote_dir_env,
+                    "remote dir",
+                )?)
+            } else {
+                None
+            };
+            let deploy_remote_command = if config.deploy.enabled {
+                Some(deploy_remote_command(
+                    remote_command,
+                    &config.deploy.remote_command_env,
+                )?)
+            } else {
+                None
+            };
+            let mut bridge_env = parse_env_overrides(bridge_env)?;
+            bridge_env.insert(
+                "JAILGUN_DOWNLOADS_DIR".into(),
+                downloads_dir.display().to_string(),
+            );
+            bridge_env.insert(
+                "JAILGUN_ARTIFACTS_DIR".into(),
+                artifacts_dir.display().to_string(),
+            );
+            let bridge_cmd = bridge_command(bridge_cmd)?;
+            let opts = jailgun_orchestrator::RunOptions {
+                run_id: run_id.unwrap_or_else(default_run_id),
+                config,
+                prompt_text,
+                tabs_override: tabs,
+                no_deploy,
+                dry_run,
+                profile_dir,
+                downloads_dir,
+                artifacts_dir,
+                bridge_cmd,
+                bridge_env,
+                repo_url,
+                deploy_remote_host,
+                deploy_remote_dir,
+                deploy_remote_command,
+                deploy_expected_top_level: expected_top_level,
+                ci_tracker_enabled: ci,
+                ci_branch,
+                ci_max_attempts,
+                ci_poll_seconds,
+                status_max_minutes,
+                event_buffer,
+                deploy_concurrency,
+            };
+            let handle = jailgun_orchestrator::run_orchestration(opts).await?;
+            stream_run(handle).await?;
         }
         Command::TelegramSend {
             token_file,
@@ -456,6 +615,22 @@ fn arg_or_env(value: Option<String>, env_name: &str, label: &str) -> Result<Stri
     }
 }
 
+fn deploy_remote_command(value: Option<String>, env_name: &str) -> Result<String> {
+    if let Some(value) = value {
+        return Ok(value);
+    }
+    match env::var(env_name) {
+        Ok(value) => Ok(value),
+        Err(env::VarError::NotPresent) if env_name == "JAILGUN_REMOTE_COMMAND" => {
+            Ok("bash ci-fast-push.sh".to_string())
+        }
+        Err(env::VarError::NotPresent) => Ok(String::new()),
+        Err(env::VarError::NotUnicode(_)) => {
+            anyhow::bail!("remote command environment variable ${env_name} is not valid UTF-8")
+        }
+    }
+}
+
 fn ensure_expected_top_level(validation: &TarValidation, expected: &str) -> Result<()> {
     let expected = expected.trim();
     if !expected.is_empty() && validation.top_level.as_deref() != Some(expected) {
@@ -464,6 +639,98 @@ fn ensure_expected_top_level(validation: &TarValidation, expected: &str) -> Resu
             validation.top_level.as_deref().unwrap_or("(multiple)")
         );
     }
+    Ok(())
+}
+
+fn bridge_command(args: Vec<String>) -> Result<Vec<String>> {
+    if !args.is_empty() {
+        return Ok(args);
+    }
+    match env::var("JAILGUN_BRIDGE_CMD") {
+        Ok(value) => {
+            let parts = value
+                .split_whitespace()
+                .map(str::to_string)
+                .collect::<Vec<_>>();
+            if parts.is_empty() {
+                anyhow::bail!("JAILGUN_BRIDGE_CMD is empty");
+            }
+            Ok(parts)
+        }
+        Err(env::VarError::NotPresent) => {
+            anyhow::bail!("bridge command must be provided with --bridge-cmd or JAILGUN_BRIDGE_CMD")
+        }
+        Err(env::VarError::NotUnicode(_)) => {
+            anyhow::bail!("JAILGUN_BRIDGE_CMD is not valid UTF-8")
+        }
+    }
+}
+
+fn parse_env_overrides(values: Vec<String>) -> Result<BTreeMap<String, String>> {
+    let mut envs = BTreeMap::new();
+    for value in values {
+        let Some((key, val)) = value.split_once('=') else {
+            anyhow::bail!("--bridge-env must be KEY=VALUE, got {value:?}");
+        };
+        if key.trim().is_empty() {
+            anyhow::bail!("--bridge-env key cannot be empty");
+        }
+        envs.insert(key.to_string(), val.to_string());
+    }
+    Ok(envs)
+}
+
+fn path_arg_or_env_or_default(
+    value: Option<PathBuf>,
+    env_name: &str,
+    default: PathBuf,
+) -> Result<PathBuf> {
+    if let Some(value) = value {
+        return Ok(value);
+    }
+    match env::var(env_name) {
+        Ok(value) if !value.trim().is_empty() => Ok(PathBuf::from(value)),
+        Ok(_) => anyhow::bail!("path environment variable ${env_name} is empty"),
+        Err(env::VarError::NotPresent) => Ok(default),
+        Err(env::VarError::NotUnicode(_)) => {
+            anyhow::bail!("path environment variable ${env_name} is not valid UTF-8")
+        }
+    }
+}
+
+fn default_run_id() -> String {
+    format!("run-{}", uuid::Uuid::new_v4())
+}
+
+async fn stream_run(mut handle: jailgun_orchestrator::OrchestratorHandle) -> Result<()> {
+    let mut events_open = true;
+    loop {
+        tokio::select! {
+            event = handle.events_rx.recv(), if events_open => {
+                match event {
+                    Ok(event) => println!("{}", serde_json::to_string(&event)?),
+                    Err(tokio::sync::broadcast::error::RecvError::Lagged(dropped)) => {
+                        eprintln!("event stream lagged; dropped {dropped} event(s)");
+                    }
+                    Err(tokio::sync::broadcast::error::RecvError::Closed) => {
+                        events_open = false;
+                    }
+                }
+            }
+            summary = &mut handle.completion => {
+                let summary = summary.context("orchestrator task ended before sending a summary")?;
+                println!(
+                    "{}",
+                    serde_json::to_string(&serde_json::json!({
+                        "type": "run-summary",
+                        "summary": summary,
+                    }))?
+                );
+                break;
+            }
+        }
+    }
+    let _ = handle.shutdown.send(true);
     Ok(())
 }
 
@@ -482,25 +749,6 @@ impl JsonReceiptWriter for LocalReceiptWriter {
         let bytes = serde_json::to_vec_pretty(receipt)?;
         tokio::fs::write(&path, bytes).await?;
         Ok(path)
-    }
-}
-
-struct NoCiTracker;
-
-#[async_trait]
-impl CiTracker for NoCiTracker {
-    async fn check(&mut self, _commit_sha: &str, _branch: &str) -> Result<CiState, DeployError> {
-        Ok(CiState::Skipped {
-            reason: "cli-disabled".into(),
-        })
-    }
-
-    async fn capture_failure_log(
-        &mut self,
-        _run_id: &str,
-        _max_bytes: usize,
-    ) -> Result<String, DeployError> {
-        Ok(String::new())
     }
 }
 

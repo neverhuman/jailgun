@@ -1,8 +1,41 @@
 schema_version = 1
 
-[lanes.fast]
-commands = ["ops/ci/rust.sh", "ops/ci/node.sh", "ops/ci/scan.sh"]
+[[lane]]
+name = "fast"
+command = "bash ops/ci/rust.sh && bash ops/ci/node.sh && bash ops/ci/scan.sh"
+purpose = "deterministic Rust, Node, and source hygiene proof"
 
-[lanes.audit]
-commands = ["ops/ci/jankurai.sh"]
+[[lane]]
+name = "rust"
+command = "bash ops/ci/rust.sh"
+purpose = "Rust formatting, linting, and workspace tests"
 
+[[lane]]
+name = "web"
+command = "bash ops/ci/node.sh && bash ops/ci/ux-qa.sh"
+purpose = "TypeScript, dashboard build, rendered UX evidence"
+
+[[lane]]
+name = "security"
+command = "bash ops/ci/security.sh"
+purpose = "secret, dependency, and workflow behavior scan"
+
+[[lane]]
+name = "contract"
+command = "bash ops/ci/contracts.sh"
+purpose = "generated event schema and fixture drift checks"
+
+[[lane]]
+name = "release"
+command = "bash ops/ci/release.sh"
+purpose = "release documentation, integrity, timeout, and artifact readiness"
+
+[[lane]]
+name = "copy-code"
+command = "bash ops/ci/copy-code.sh"
+purpose = "Jankurai copy-code duplicate evidence"
+
+[[lane]]
+name = "audit"
+command = "bash ops/ci/jankurai.sh"
+purpose = "Jankurai score, badge, and repair queue artifacts"

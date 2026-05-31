@@ -4,9 +4,11 @@ use std::{
 };
 
 use async_trait::async_trait;
+use serde::Deserialize;
 use tokio::{fs, io::AsyncWriteExt, process::Command};
 
 use crate::{
+    ci::{CiState, CiTracker},
     cleanup::{CleanupError, CleanupReceipt, RemoteGitBackend, RemoteSnapshot},
     deploy::DeployError,
     job::{JobHandle, JobSpec, JobStatus, RemoteJobBackend},
@@ -30,23 +32,9 @@ impl SshRemoteGit {
 
     async fn run_script(&self, remote_dir: &str, script: &str) -> Result<String, CleanupError> {
         let remote_command = format!("cd {} && {}", shell_quote(remote_dir), script);
-        let output = Command::new("ssh")
-            .arg(&self.host)
-            .arg(remote_command)
-            .stdout(Stdio::piped())
-            .stderr(Stdio::piped())
-            .output()
+        run_ssh_command(&self.host, &remote_command)
             .await
-            .map_err(|error| CleanupError::Backend(format!("ssh failed to start: {error}")))?;
-        if !output.status.success() {
-            let stderr = String::from_utf8_lossy(&output.stderr);
-            return Err(CleanupError::Backend(format!(
-                "ssh exited {}: {}",
-                output.status,
-                stderr.trim()
-            )));
-        }
-        Ok(String::from_utf8_lossy(&output.stdout).to_string())
+            .map_err(|error| CleanupError::Backend(error.to_string()))
     }
 }
 
@@ -54,36 +42,22 @@ pub struct SshRemoteUpload {
     host: String,
 }
 
-impl SshRemoteUpload {
-    pub fn new(host: impl Into<String>) -> Self {
-        Self { host: host.into() }
-    }
-
-    async fn run_remote(&self, script: &str) -> Result<String, DeployError> {
-        let output = Command::new("ssh")
-            .arg(&self.host)
-            .arg(script)
-            .stdout(Stdio::piped())
-            .stderr(Stdio::piped())
-            .output()
-            .await
-            .map_err(|error| DeployError::Ssh(format!("ssh failed to start: {error}")))?;
-        if !output.status.success() {
-            return Err(DeployError::Ssh(format!(
-                "ssh exited {}: {}",
-                output.status,
-                String::from_utf8_lossy(&output.stderr).trim()
-            )));
+macro_rules! ssh_host_constructor {
+    ($type_name:ident) => {
+        impl $type_name {
+            pub fn new(host: impl Into<String>) -> Self {
+                Self { host: host.into() }
+            }
         }
-        Ok(String::from_utf8_lossy(&output.stdout).to_string())
-    }
+    };
 }
+
+ssh_host_constructor!(SshRemoteUpload);
 
 #[async_trait]
 impl RemoteUploadBackend for SshRemoteUpload {
     async fn ensure_remote_dir(&mut self, remote_dir: &str) -> Result<(), DeployError> {
-        self.run_remote(&format!("mkdir -p {}", shell_quote(remote_dir)))
-            .await?;
+        run_deploy_ssh(&self.host, &format!("mkdir -p {}", shell_quote(remote_dir))).await?;
         Ok(())
     }
 
@@ -111,18 +85,19 @@ impl RemoteUploadBackend for SshRemoteUpload {
     }
 
     async fn remote_sha256(&mut self, remote_path: &str) -> Result<String, DeployError> {
-        let output = self
-            .run_remote(&format!(
+        let output = run_deploy_ssh(
+            &self.host,
+            &format!(
                 "sha256sum {} | awk '{{print $1}}'",
                 shell_quote(remote_path)
-            ))
-            .await?;
+            ),
+        )
+        .await?;
         Ok(output.lines().next().unwrap_or_default().trim().to_string())
     }
 
     async fn remove_remote_file(&mut self, remote_path: &str) -> Result<(), DeployError> {
-        self.run_remote(&format!("rm -f {}", shell_quote(remote_path)))
-            .await?;
+        run_deploy_ssh(&self.host, &format!("rm -f {}", shell_quote(remote_path))).await?;
         Ok(())
     }
 }
@@ -131,28 +106,19 @@ pub struct SshRemoteJob {
     host: String,
 }
 
-impl SshRemoteJob {
-    pub fn new(host: impl Into<String>) -> Self {
-        Self { host: host.into() }
-    }
+ssh_host_constructor!(SshRemoteJob);
 
-    async fn run_remote(&self, script: &str) -> Result<String, DeployError> {
-        let output = Command::new("ssh")
-            .arg(&self.host)
-            .arg(script)
-            .stdout(Stdio::piped())
-            .stderr(Stdio::piped())
-            .output()
-            .await
-            .map_err(|error| DeployError::Ssh(format!("ssh failed to start: {error}")))?;
-        if !output.status.success() {
-            return Err(DeployError::Ssh(format!(
-                "ssh exited {}: {}",
-                output.status,
-                String::from_utf8_lossy(&output.stderr).trim()
-            )));
-        }
-        Ok(String::from_utf8_lossy(&output.stdout).to_string())
+pub struct SshCiTracker;
+
+impl SshCiTracker {
+    pub fn new() -> Self {
+        Self
+    }
+}
+
+impl Default for SshCiTracker {
+    fn default() -> Self {
+        Self::new()
     }
 }
 
@@ -218,24 +184,29 @@ impl RemoteJobBackend for SshRemoteJob {
     }
 
     async fn start_job(&mut self, _spec: &JobSpec, handle: &JobHandle) -> Result<(), DeployError> {
-        self.run_remote(&format!(
-            "nohup {} > {} 2>&1 < /dev/null &",
-            shell_quote(&handle.launcher_path),
-            shell_quote(&handle.log_path)
-        ))
+        run_deploy_ssh(
+            &self.host,
+            &format!(
+                "nohup {} > {} 2>&1 < /dev/null &",
+                shell_quote(&handle.launcher_path),
+                shell_quote(&handle.log_path)
+            ),
+        )
         .await
         .map_err(|error| DeployError::LauncherStart(error.to_string()))?;
         Ok(())
     }
 
     async fn fetch_status(&mut self, handle: &JobHandle) -> Result<JobStatus, DeployError> {
-        let output = self
-            .run_remote(&format!(
+        let output = run_deploy_ssh(
+            &self.host,
+            &format!(
                 "cat {} 2>/dev/null || true",
                 shell_quote(&handle.status_path)
-            ))
-            .await
-            .map_err(|error| DeployError::StatusFetch(error.to_string()))?;
+            ),
+        )
+        .await
+        .map_err(|error| DeployError::StatusFetch(error.to_string()))?;
         if output.trim().is_empty() {
             return Ok(JobStatus::default());
         }
@@ -247,13 +218,95 @@ impl RemoteJobBackend for SshRemoteJob {
         handle: &JobHandle,
         last_n_lines: usize,
     ) -> Result<String, DeployError> {
-        self.run_remote(&format!(
-            "tail -n {} {} 2>/dev/null || true",
-            last_n_lines,
-            shell_quote(&handle.log_path)
-        ))
+        run_deploy_ssh(
+            &self.host,
+            &format!(
+                "tail -n {} {} 2>/dev/null || true",
+                last_n_lines,
+                shell_quote(&handle.log_path)
+            ),
+        )
         .await
         .map_err(|error| DeployError::LogFetch(error.to_string()))
+    }
+}
+
+#[async_trait]
+impl CiTracker for SshCiTracker {
+    async fn check(&mut self, commit_sha: &str, branch: &str) -> Result<CiState, DeployError> {
+        let output = Command::new("gh")
+            .args([
+                "run",
+                "list",
+                "--branch",
+                branch,
+                "--commit",
+                commit_sha,
+                "--json",
+                "databaseId,status,conclusion,url",
+                "--limit",
+                "1",
+            ])
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped())
+            .output()
+            .await;
+        let output = match output {
+            Ok(output) => output,
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
+                return Ok(CiState::Skipped {
+                    reason: "gh-not-on-path".into(),
+                });
+            }
+            Err(error) => {
+                return Err(DeployError::CiTracker(format!(
+                    "gh failed to start: {error}"
+                )))
+            }
+        };
+        if !output.status.success() {
+            return Err(DeployError::CiTracker(format!(
+                "gh run list exited {}: {}",
+                output.status,
+                String::from_utf8_lossy(&output.stderr).trim()
+            )));
+        }
+        parse_gh_run_list(&output.stdout)
+    }
+
+    async fn capture_failure_log(
+        &mut self,
+        run_id: &str,
+        max_bytes: usize,
+    ) -> Result<String, DeployError> {
+        let output = Command::new("gh")
+            .args(["run", "view", run_id, "--log-failed"])
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped())
+            .output()
+            .await;
+        let output = match output {
+            Ok(output) => output,
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(String::new()),
+            Err(error) => {
+                return Err(DeployError::CiTracker(format!(
+                    "gh failed to start: {error}"
+                )))
+            }
+        };
+        if !output.status.success() {
+            return Err(DeployError::CiTracker(format!(
+                "gh run view exited {}: {}",
+                output.status,
+                String::from_utf8_lossy(&output.stderr).trim()
+            )));
+        }
+        let mut text = String::from_utf8_lossy(&output.stdout).to_string();
+        if text.len() > max_bytes {
+            let start = text.len().saturating_sub(max_bytes);
+            text = text[start..].to_string();
+        }
+        Ok(text)
     }
 }
 
@@ -316,10 +369,12 @@ impl RemoteGitBackend for SshRemoteGit {
     }
 
     async fn write_receipt(&mut self, receipt: &CleanupReceipt) -> Result<PathBuf, CleanupError> {
-        let path = receipt.receipt_path.clone().unwrap_or_else(|| {
-            self.receipt_dir
-                .join(format!("{}-remote-cleanup.json", receipt.run_id))
-        });
+        let path = match receipt.receipt_path.clone() {
+            Some(path) => path,
+            None => self
+                .receipt_dir
+                .join(format!("{}-remote-cleanup.json", receipt.run_id)),
+        };
         let Some(parent) = path.parent() else {
             return Err(CleanupError::Receipt("receipt path has no parent".into()));
         };
@@ -351,7 +406,127 @@ fn shell_quote(value: &str) -> String {
     format!("'{}'", value.replace('\'', "'\\''"))
 }
 
+struct RemoteCommandError(String);
+
+impl std::fmt::Display for RemoteCommandError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(&self.0)
+    }
+}
+
+async fn run_ssh_command(host: &str, script: &str) -> Result<String, RemoteCommandError> {
+    let output = Command::new("ssh")
+        .arg(host)
+        .arg(script)
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .output()
+        .await
+        .map_err(|error| RemoteCommandError(format!("ssh failed to start: {error}")))?;
+    if !output.status.success() {
+        return Err(RemoteCommandError(format!(
+            "ssh exited {}: {}",
+            output.status,
+            String::from_utf8_lossy(&output.stderr).trim()
+        )));
+    }
+    Ok(String::from_utf8_lossy(&output.stdout).to_string())
+}
+
+async fn run_deploy_ssh(host: &str, script: &str) -> Result<String, DeployError> {
+    run_ssh_command(host, script)
+        .await
+        .map_err(|error| DeployError::Ssh(error.to_string()))
+}
+
 #[allow(dead_code)]
 fn ensure_absolute(path: &Path) -> bool {
     path.is_absolute()
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct GhRun {
+    database_id: Option<u64>,
+    status: Option<String>,
+    conclusion: Option<String>,
+    url: Option<String>,
+}
+
+fn parse_gh_run_list(bytes: &[u8]) -> Result<CiState, DeployError> {
+    let runs: Vec<GhRun> = serde_json::from_slice(bytes)?;
+    let Some(run) = runs.into_iter().next() else {
+        return Ok(CiState::Pending { run_id: None });
+    };
+    let run_id = run.database_id.map(|id| id.to_string()).unwrap_or_default();
+    let url = run.url.unwrap_or_default();
+    let status = run.status.unwrap_or_default();
+    let conclusion = run.conclusion.unwrap_or_default();
+    if status != "completed" {
+        return Ok(CiState::Pending {
+            run_id: if run_id.is_empty() {
+                None
+            } else {
+                Some(run_id)
+            },
+        });
+    }
+    if conclusion == "success" {
+        Ok(CiState::Passed {
+            run_id,
+            run_url: url,
+            conclusion,
+        })
+    } else {
+        Ok(CiState::Failed {
+            run_id,
+            run_url: url,
+            conclusion,
+            log_excerpt: None,
+        })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn parse_gh_run_list_returns_pending_when_no_run_exists_yet() {
+        let state = parse_gh_run_list(br#"[]"#).unwrap();
+        assert_eq!(state, CiState::Pending { run_id: None });
+    }
+
+    #[test]
+    fn parse_gh_run_list_maps_successful_completed_run() {
+        let state = parse_gh_run_list(
+            br#"[{"databaseId":42,"status":"completed","conclusion":"success","url":"https://example.test/run"}]"#,
+        )
+        .unwrap();
+        assert_eq!(
+            state,
+            CiState::Passed {
+                run_id: "42".into(),
+                run_url: "https://example.test/run".into(),
+                conclusion: "success".into()
+            }
+        );
+    }
+
+    #[test]
+    fn parse_gh_run_list_maps_failed_completed_run() {
+        let state = parse_gh_run_list(
+            br#"[{"databaseId":99,"status":"completed","conclusion":"failure","url":"https://example.test/run"}]"#,
+        )
+        .unwrap();
+        assert_eq!(
+            state,
+            CiState::Failed {
+                run_id: "99".into(),
+                run_url: "https://example.test/run".into(),
+                conclusion: "failure".into(),
+                log_excerpt: None
+            }
+        );
+    }
 }
