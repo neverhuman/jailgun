@@ -1,6 +1,6 @@
 {
-  "report_fingerprint": "sha256:004908bdb3f74ead28dc0a9fdab9c247ae26adb344612e1016876227f0e34bf2",
-  "input_fingerprint": "sha256:2091fedb85f83b44c44ea00a61638a4ad1951810954361e5849f565a2054cc08",
+  "report_fingerprint": "sha256:72fdd2511f185884a845364a075f6196bea70f5e9c6a6e85da981a6736d37f4c",
+  "input_fingerprint": "sha256:a7b850550e20ddb61da2a0c8359344703cada514372fad0ec8d311dc331f058e",
   "policy_fingerprint": "sha256:2e02fe1c1919de94a47a99164c962683a934c73ca5bb30bec62384f7b17fe742",
   "manifest_fingerprints": {
     "owner_map": "sha256:89a7e7fbf34ac713ba7a2d6b72c59a1e056b591e74b4ea4a2fc555a47cc1de71",
@@ -10,8 +10,8 @@
     "proof_lanes": "sha256:15ec3d011b63046bbc896e0de66f4c8ec26bc4b72e286200e2ece5f714024c73",
     "standard_version": "sha256:e89e3b08c1e1ab55b195b4041787100956f3888aaba37595bce4403606dcb996"
   },
-  "dirty_worktree": true,
-  "generated_at": "1780266145",
+  "dirty_worktree": false,
+  "generated_at": "1780266344",
   "schema_url": "schemas/repo-score.schema.json",
   "standard": "jankurai",
   "standard_version": "0.9.0",
@@ -27,9 +27,9 @@
     "HLT-001-DEAD-MARKER on apps/browser-adapter/src/chatUpload.ts"
   ],
   "repo": ".",
-  "run_id": "1780266145",
-  "started_at": "1780266145",
-  "elapsed_ms": 9217,
+  "run_id": "1780266344",
+  "started_at": "1780266344",
+  "elapsed_ms": 9300,
   "scope": {
     "mode": "full",
     "paths": []
@@ -56,11 +56,11 @@
     }
   },
   "git": {
-    "head": "bf6f270",
+    "head": "7937cfe",
     "base": null,
     "changed_files": 0,
     "mode": "full",
-    "dirty_worktree": true
+    "dirty_worktree": false
   },
   "policy": {
     "path": "./agent/audit-policy.toml",
@@ -1088,7 +1088,7 @@
   "copy_code": {
     "schema_version": "1.1.0",
     "generated_by": "jankurai copy-code",
-    "generated_at": "2026-05-31T22:22:16.034332+00:00",
+    "generated_at": "2026-05-31T22:25:35.649072+00:00",
     "repo": ".",
     "auditor_version": "1.4.3",
     "status": "review",
