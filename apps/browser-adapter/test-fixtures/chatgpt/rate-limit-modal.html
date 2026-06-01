@@ -1,0 +1,18 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>ChatGPT — rate-limit modal</title>
+</head>
+<body>
+  <main>
+    <div id="conversation" data-state="rate-limited"></div>
+  </main>
+  <div role="dialog" aria-modal="true" data-testid="rate-limit-modal">
+    <h2>Too many requests</h2>
+    <p>You're making requests too quickly. We've temporarily limited access to your conversations to protect your data.</p>
+    <p>Please wait a few minutes before trying again.</p>
+    <button data-testid="rate-limit-ack">Got it</button>
+  </div>
+</body>
+</html>

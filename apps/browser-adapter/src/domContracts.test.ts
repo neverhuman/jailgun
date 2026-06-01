@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import {
+  clickGitHubToolPrompt,
   closeTabAfterReceipt,
   collectDismissablePopupFromDom,
   collectGitHubToolPromptsFromDom,
@@ -196,6 +197,115 @@ it('ignores benign onboarding dialogs that do not match any popup recipe', async
   expect(collectDismissablePopupFromDom()).toEqual([]);
   const fakePage = { evaluate: async <T,>(fn: () => T) => fn() };
   expect(await dismissPopups(fakePage)).toEqual([]);
+});
+
+it('biases tar candidates toward --tar-target-name when multiple .tar.gz links appear', () => {
+  document.body.innerHTML = `
+    <div data-message-author-role="assistant">
+      <a href="https://example.invalid/jekko.tar.gz" download="jekko.tar.gz">Download jekko.tar.gz</a>
+      <a href="https://example.invalid/jekko-fixes.tar.gz" download="jekko-fixes.tar.gz">Download jekko-fixes.tar.gz</a>
+      <a href="https://example.invalid/dummy.tar.gz" download="dummy.tar.gz">Download dummy.tar.gz</a>
+    </div>
+  `;
+  const withTarget = collectTarDownloadCandidatesFromDom(document, 'jekko-fixes.tar.gz');
+  expect(withTarget).toHaveLength(3);
+  expect(withTarget[0].download).toBe('jekko-fixes.tar.gz');
+  expect(withTarget[0].score).toBeGreaterThan(withTarget[1].score);
+
+  const noTarget = collectTarDownloadCandidatesFromDom(document);
+  expect(noTarget).toHaveLength(3);
+  expect(noTarget.map((candidate) => candidate.download)).toContain('jekko-fixes.tar.gz');
+  expect(noTarget[0].score).toBe(noTarget[1].score);
+});
+
+it('preserves existing tar candidate ordering when targetName is omitted', () => {
+  document.body.innerHTML = `
+    <div data-message-author-role="assistant">
+      <a href="https://example.invalid/a.tar.gz" download="a.tar.gz">Download a.tar.gz</a>
+      <button download="b.tar.gz">Download b.tar.gz</button>
+    </div>
+  `;
+  const candidates = collectTarDownloadCandidatesFromDom(document);
+  expect(candidates).toHaveLength(2);
+  const baselineOrder = candidates.map((candidate) => candidate.download);
+  const repeat = collectTarDownloadCandidatesFromDom(document);
+  expect(repeat.map((candidate) => candidate.download)).toEqual(baselineOrder);
+  expect(candidates[0].score).toBeGreaterThanOrEqual(candidates[1].score);
+});
+
+it('clickGitHubToolPrompt clicks the Nth control and returns observed label', async () => {
+  document.body.innerHTML = `
+    <button>Allow</button>
+    <button>Deny</button>
+  `;
+  const clicks: string[] = [];
+  document.querySelectorAll('button').forEach((button) => {
+    button.addEventListener('click', () => clicks.push(button.textContent ?? ''));
+  });
+  const denyCandidate = collectGitHubToolPromptsFromDom(document)[0] ?? null;
+  const fakePage = {
+    locator: (selector: string) => {
+      const matches = Array.from(document.querySelectorAll(selector)) as HTMLElement[];
+      return {
+        nth: (index: number) => {
+          const element = matches[index];
+          return {
+            count: async () => (element ? 1 : 0),
+            isVisible: async () => Boolean(element),
+            isEnabled: async () => Boolean(element) && !element.hasAttribute('disabled'),
+            textContent: async () => element?.textContent ?? null,
+            getAttribute: async (name: string) => element?.getAttribute(name) ?? null,
+            click: async () => {
+              element?.click();
+            }
+          };
+        }
+      };
+    }
+  };
+  const denyDefault = { index: 1, label: 'Deny' } as Parameters<typeof clickGitHubToolPrompt>[1];
+  const result = await clickGitHubToolPrompt(fakePage, denyCandidate ?? denyDefault);
+  expect(result.clicked).toBe(true);
+  expect(result.label).toMatch(/deny/i);
+  expect(clicks).toEqual(['Deny']);
+});
+
+it('clickGitHubToolPrompt reports not-found when index is out of range', async () => {
+  document.body.innerHTML = '<button>Allow</button>';
+  const fakePage = {
+    locator: () => ({
+      nth: () => ({
+        count: async () => 0,
+        isVisible: async () => false,
+        isEnabled: async () => false,
+        textContent: async () => null,
+        getAttribute: async () => null,
+        click: async () => undefined
+      })
+    })
+  };
+  const result = await clickGitHubToolPrompt(fakePage, { index: 5, label: 'Deny' } as Parameters<typeof clickGitHubToolPrompt>[1]);
+  expect(result.clicked).toBe(false);
+  expect(result.reason).toBe('not-found');
+});
+
+it('clickGitHubToolPrompt reports disabled when button is disabled', async () => {
+  document.body.innerHTML = '<button disabled>Deny</button>';
+  const fakePage = {
+    locator: () => ({
+      nth: () => ({
+        count: async () => 1,
+        isVisible: async () => true,
+        isEnabled: async () => false,
+        textContent: async () => 'Deny',
+        getAttribute: async (name: string) => (name === 'aria-disabled' ? null : null),
+        click: async () => undefined
+      })
+    })
+  };
+  const result = await clickGitHubToolPrompt(fakePage, { index: 0, label: 'Deny' } as Parameters<typeof clickGitHubToolPrompt>[1]);
+  expect(result.clicked).toBe(false);
+  expect(result.reason).toBe('disabled');
 });
 
 it('closes a tab only after receipt confirmation', async () => {

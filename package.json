@@ -6,7 +6,8 @@
   "workspaces": [
     "apps/browser-adapter",
     "apps/chrome-bridge",
-    "apps/dashboard"
+    "apps/dashboard",
+    "apps/fake-chatgpt"
   ],
   "scripts": {
     "typecheck": "npm run typecheck --workspaces --if-present",

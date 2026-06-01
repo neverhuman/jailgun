@@ -68,3 +68,22 @@ check: fast security contracts ux-qa copy-code release audit
 
 install-hooks:
     git config core.hooksPath ops/git-hooks
+
+run *args:
+    cargo run -p jailgun-cli -- run {{args}}
+
+bridge-build:
+    npm run typecheck --workspace apps/chrome-bridge --if-present
+    node --check apps/chrome-bridge/bin/chrome-bridge.mjs
+
+bridge-test:
+    npm run test --workspace apps/chrome-bridge --if-present
+
+fake-chatgpt *args:
+    node apps/fake-chatgpt/bin/fake-chatgpt.mjs {{args}}
+
+fake-chatgpt-test:
+    npm run test --workspace apps/fake-chatgpt
+
+e2e:
+    bash ops/ci/e2e.sh

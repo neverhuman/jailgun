@@ -1,0 +1,13 @@
+{
+  "name": "@jailgun/fake-chatgpt",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "bin": {
+    "jailgun-fake-chatgpt": "./bin/fake-chatgpt.mjs"
+  },
+  "scripts": {
+    "start": "node bin/fake-chatgpt.mjs",
+    "test": "vitest run --maxWorkers 5"
+  }
+}

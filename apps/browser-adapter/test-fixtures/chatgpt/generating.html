@@ -1,0 +1,23 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>ChatGPT — assistant generating</title>
+</head>
+<body>
+  <main>
+    <div id="conversation" data-state="generating">
+      <article data-message-author-role="user">
+        <p>Please analyse this archive.</p>
+      </article>
+      <article data-message-author-role="assistant">
+        <p>Reading the archive contents…</p>
+      </article>
+    </div>
+    <form>
+      <textarea id="prompt-textarea" data-testid="composer-text-input"></textarea>
+      <button data-testid="stop-button" aria-label="Stop generating">Stop generating</button>
+    </form>
+  </main>
+</body>
+</html>

@@ -1,0 +1,26 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>ChatGPT — uploading archive</title>
+</head>
+<body>
+  <main>
+    <div id="conversation" data-state="uploading"></div>
+    <form>
+      <div data-testid="upload-chip" aria-label="Uploading jekko-source.tar.gz">
+        <span>jekko-source.tar.gz</span>
+        <span data-state="uploading">Uploading…</span>
+      </div>
+      <textarea id="prompt-textarea" data-testid="composer-text-input" disabled></textarea>
+      <button
+        data-testid="send-button"
+        aria-label="Sending unavailable — upload in progress"
+        aria-disabled="true"
+        data-state="disabled"
+        disabled
+      >Send</button>
+    </form>
+  </main>
+</body>
+</html>

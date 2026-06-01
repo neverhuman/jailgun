@@ -64,10 +64,15 @@ const STAY_ON_PAGE_BUTTON_LABEL = /^\s*stay( on (this )?page)?\s*$/i;
 
 const SESSION_EXPIRED_PHRASE = /session (has )?expired|you'?ve been signed out|you have been signed out|please (sign|log) (back )?in/i;
 
-export function collectTarDownloadCandidatesFromDom(root: ParentNode = document): DomTarCandidate[] {
+export function collectTarDownloadCandidatesFromDom(
+  root: ParentNode = document,
+  targetName?: string
+): DomTarCandidate[] {
   const controls = queryAll<HTMLElement>(root, TAR_DOWNLOAD_CONTROL_SELECTOR);
   const assistantRoots = queryAll<HTMLElement>(root, '[data-message-author-role="assistant"]');
   const controlIndex = new Map(controls.map((element, index) => [element, index]));
+  const normalizedTarget = typeof targetName === 'string' ? targetName.trim() : '';
+  const targetBasename = normalizedTarget.replace(/\.tar\.gz$/i, '').toLowerCase();
   const candidates: DomTarCandidate[] = [];
   for (const element of controls) {
     const assistant = closestElement(element, '[data-message-author-role="assistant"]');
@@ -98,6 +103,21 @@ export function collectTarDownloadCandidatesFromDom(root: ParentNode = document)
     if (tagName === 'a') score += 10;
     if (assistant) score += 30;
     if (isVisible(element)) score += 10;
+
+    if (normalizedTarget) {
+      const lowerTarget = normalizedTarget.toLowerCase();
+      const downloadMatch = download.toLowerCase() === lowerTarget;
+      const textMatch = text.toLowerCase().includes(lowerTarget);
+      const hrefMatch = href.toLowerCase().includes(lowerTarget);
+      const ariaTitleMatch = `${aria} ${title}`.toLowerCase().includes(lowerTarget);
+      const haystack = `${text} ${href} ${download} ${aria} ${title}`.toLowerCase();
+      const basenameMatch = targetBasename !== '' && haystack.includes(targetBasename);
+      if (downloadMatch) score += 150;
+      if (textMatch) score += 120;
+      if (hrefMatch) score += 100;
+      if (ariaTitleMatch) score += 80;
+      if (basenameMatch && !downloadMatch && !textMatch && !hrefMatch && !ariaTitleMatch) score += 50;
+    }
 
     candidates.push({
       index: controlIndex.get(element) ?? 0,
@@ -424,6 +444,62 @@ export async function dismissPopups(page: RateLimitDismissalPage): Promise<Dismi
     });
   } catch (error) {
     return [];
+  }
+}
+
+export interface GitHubToolPromptClickResult {
+  clicked: boolean;
+  label: string;
+  reason?: string;
+}
+
+export interface ClickablePage {
+  locator: (selector: string) => {
+    nth: (index: number) => {
+      count?: () => Promise<number>;
+      isVisible?: () => Promise<boolean>;
+      isEnabled?: () => Promise<boolean>;
+      textContent?: () => Promise<string | null>;
+      getAttribute?: (name: string) => Promise<string | null>;
+      click?: (options?: unknown) => Promise<void>;
+    };
+  };
+}
+
+export async function clickGitHubToolPrompt(
+  page: ClickablePage,
+  candidate: ToolPromptCandidate
+): Promise<GitHubToolPromptClickResult> {
+  const button = page.locator('button,[role="button"],a').nth(candidate.index);
+  try {
+    const total = await button.count?.().catch(() => 0);
+    if ((total ?? 0) === 0) {
+      return { clicked: false, label: candidate.label, reason: 'not-found' };
+    }
+    const visible = await button.isVisible?.().catch(() => false);
+    if (visible === false) {
+      return { clicked: false, label: candidate.label, reason: 'not-visible' };
+    }
+    const enabled = await button.isEnabled?.().catch(() => false);
+    const ariaDisabled = await button.getAttribute?.('aria-disabled').catch(() => null);
+    if (enabled === false || /^true$/i.test(ariaDisabled ?? '')) {
+      return { clicked: false, label: candidate.label, reason: 'disabled' };
+    }
+    const text = (await button.textContent?.().catch(() => null)) ?? '';
+    const ariaLabel = (await button.getAttribute?.('aria-label').catch(() => null)) ?? '';
+    const title = (await button.getAttribute?.('title').catch(() => null)) ?? '';
+    const observed = text.replace(/\s+/g, ' ').trim() || ariaLabel || title;
+    if (candidate.label && observed.trim().toLowerCase() !== candidate.label.trim().toLowerCase()) {
+      return { clicked: false, label: observed, reason: 'label-mismatch' };
+    }
+    await button.click?.({ timeout: 2_000 });
+    return { clicked: true, label: observed };
+  } catch (error) {
+    return {
+      clicked: false,
+      label: candidate.label,
+      reason: `click-failed: ${(error as Error).message}`
+    };
   }
 }
 
