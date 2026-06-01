@@ -45,8 +45,7 @@ where
     let started_at = timestamp_now();
     let local_sha256 = jailgun_core::sha256_file(&req.local_archive_path)?;
 
-    publish(
-        events,
+    let mut queued_event =
         JailgunEvent::new(req.run_id.clone(), EventKind::DeployQueued, "deploy queued")
             .with_tab(req.tab_id)
             .with_field("local_sha256", local_sha256.clone())
@@ -55,8 +54,11 @@ where
                 req.local_archive_path.display().to_string(),
             )
             .with_field("remote_host", req.remote_host.clone())
-            .with_field("remote_dir", req.remote_dir.clone()),
-    );
+            .with_field("remote_dir", req.remote_dir.clone());
+    if let Some(ci_repo) = req.ci_repo.as_ref() {
+        queued_event = queued_event.with_field("ci_repo", ci_repo.clone());
+    }
+    publish(events, queued_event);
 
     let job_id = format!(
         "{}-tab-{:02}",
@@ -254,6 +256,7 @@ fn build_receipt(
         job_handle,
         final_status,
         ci_state,
+        ci_repo: req.ci_repo.clone(),
         log_tail,
         outcome,
         receipt_path: None,

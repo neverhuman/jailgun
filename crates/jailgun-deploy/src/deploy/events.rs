@@ -112,8 +112,20 @@ pub(super) fn publish_finished(
     .with_tab(req.tab_id)
     .with_severity(severity)
     .with_field("outcome", outcome_str(receipt.outcome).to_string())
+    .with_field("remote_host", req.remote_host.clone())
+    .with_field("remote_dir", req.remote_dir.clone())
+    .with_field("remote_command", req.remote_command.clone())
     .with_field("local_sha256", receipt.local_sha256.clone())
     .with_field("remote_sha256", receipt.remote_sha256.clone());
+    if let Some(ci_repo) = receipt.ci_repo.as_ref() {
+        event = event.with_field("ci_repo", ci_repo.clone());
+    }
+    if let Some(exit) = receipt.final_status.exit_code {
+        event = event.with_field("exit_code", exit.to_string());
+    }
+    if !receipt.log_tail.is_empty() {
+        event = event.with_field("log_tail", receipt.log_tail.clone());
+    }
     if let Some(ref head) = receipt.final_status.post_head {
         event = event.with_field("post_head", head.clone());
     }

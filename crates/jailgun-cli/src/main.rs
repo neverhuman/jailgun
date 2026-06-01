@@ -1,4 +1,9 @@
-use std::{collections::BTreeMap, env, fs, net::SocketAddr, path::PathBuf};
+use std::{
+    collections::BTreeMap,
+    env, fs,
+    net::SocketAddr,
+    path::{Path, PathBuf},
+};
 
 use anyhow::{Context, Result};
 use async_trait::async_trait;
@@ -7,7 +12,7 @@ use jailgun_core::{repo_policy, validate_tar_gz, CleanupPolicy, JailgunConfig, T
 use jailgun_deploy::{
     cleanup_remote_checkout, deploy_remote,
     shell::{SshCiTracker, SshRemoteGit, SshRemoteJob, SshRemoteUpload},
-    CleanupRequest, DeployError, DeployReceipt, DeployRequest, JsonReceiptWriter,
+    CleanupRequest, DeployError, DeployOutcome, DeployReceipt, DeployRequest, JsonReceiptWriter,
 };
 use jailgun_notify::{
     build_commit_message, collect_commit_summary, read_chat_id_cache, send_telegram_message,
@@ -24,6 +29,7 @@ struct Cli {
 }
 
 #[derive(Debug, Subcommand)]
+#[allow(clippy::large_enum_variant)]
 enum Command {
     ValidateConfig {
         #[arg(long, default_value = "config/jailgun.example.toml")]
@@ -80,6 +86,8 @@ enum Command {
         status_max_minutes: u16,
         #[arg(long)]
         ci: bool,
+        #[arg(long)]
+        ci_repo: Option<String>,
     },
     Run {
         #[arg(long, default_value = "config/jailgun.example.toml")]
@@ -109,6 +117,8 @@ enum Command {
         #[arg(long)]
         expected_top_level: Option<String>,
         #[arg(long)]
+        tar_target_name: Option<String>,
+        #[arg(long)]
         profile_dir: Option<PathBuf>,
         #[arg(long)]
         downloads_dir: Option<PathBuf>,
@@ -126,12 +136,20 @@ enum Command {
         status_max_minutes: u16,
         #[arg(long)]
         ci: bool,
+        #[arg(long)]
+        ci_repo: Option<String>,
         #[arg(long, default_value = "main")]
         ci_branch: String,
         #[arg(long, default_value_t = 20)]
         ci_max_attempts: u32,
         #[arg(long, default_value_t = 30)]
         ci_poll_seconds: u16,
+        #[arg(long)]
+        notify_telegram: bool,
+        #[arg(long, default_value = "telegram/token.env")]
+        telegram_token_file: PathBuf,
+        #[arg(long, default_value = "telegram/chat_id.cache")]
+        telegram_chat_id_cache: PathBuf,
     },
     TelegramSend {
         #[arg(long, default_value = "telegram/token.env")]
@@ -291,9 +309,11 @@ async fn main() -> Result<()> {
             expected_top_level,
             status_max_minutes,
             ci,
+            ci_repo,
         } => {
             let config = JailgunConfig::from_toml_path(&config)
                 .with_context(|| format!("loading {}", config.display()))?;
+            let ci_repo = ci_repo.or_else(|| infer_github_repo(&config.project.repository));
             let remote_host =
                 arg_or_env(remote_host, &config.deploy.remote_host_env, "remote host")?;
             let remote_dir = arg_or_env(remote_dir, &config.deploy.remote_dir_env, "remote dir")?;
@@ -341,7 +361,7 @@ async fn main() -> Result<()> {
             let (events, _rx) = tokio::sync::broadcast::channel(128);
             let mut upload = SshRemoteUpload::new(remote_host.clone());
             let mut job = SshRemoteJob::new(remote_host.clone());
-            let mut ci_tracker = SshCiTracker::new();
+            let mut ci_tracker = SshCiTracker::with_repo(ci_repo.clone());
             let mut writer = LocalReceiptWriter {
                 receipt_dir: receipt_dir.clone(),
             };
@@ -364,6 +384,7 @@ async fn main() -> Result<()> {
                     status_poll_seconds: config.deploy.remote_status_poll_seconds,
                     status_max_minutes,
                     ci_tracker_enabled: ci,
+                    ci_repo,
                     ci_branch: "main".into(),
                     ci_max_attempts: 20,
                     ci_poll_seconds: 30,
@@ -374,6 +395,26 @@ async fn main() -> Result<()> {
             )
             .await?;
             println!("{}", serde_json::to_string_pretty(&receipt)?);
+            if !deploy_outcome_succeeded(receipt.outcome) {
+                let mut reason = format!(
+                    "deploy finished with outcome {}",
+                    deploy_outcome_label(receipt.outcome)
+                );
+                if let Some(failure_reason) = receipt.final_status.failure_reason.as_deref() {
+                    reason.push_str(&format!("; failure_reason={failure_reason}"));
+                }
+                if let Some(exit_code) = receipt.final_status.exit_code {
+                    reason.push_str(&format!("; exit_code={exit_code}"));
+                }
+                if let Some(line) = receipt
+                    .log_tail
+                    .lines()
+                    .find(|line| !line.trim().is_empty())
+                {
+                    reason.push_str(&format!("; log_tail={}", line.trim()));
+                }
+                anyhow::bail!(reason);
+            }
         }
         Command::Run {
             config,
@@ -389,6 +430,7 @@ async fn main() -> Result<()> {
             remote_dir,
             remote_command,
             expected_top_level,
+            tar_target_name,
             profile_dir,
             downloads_dir,
             artifacts_dir,
@@ -398,12 +440,19 @@ async fn main() -> Result<()> {
             deploy_concurrency,
             status_max_minutes,
             ci,
+            ci_repo,
             ci_branch,
             ci_max_attempts,
             ci_poll_seconds,
+            notify_telegram,
+            telegram_token_file,
+            telegram_chat_id_cache,
         } => {
             let mut config = JailgunConfig::from_toml_path(&config)
                 .with_context(|| format!("loading {}", config.display()))?;
+            if notify_telegram {
+                validate_telegram_notify(&telegram_token_file, &telegram_chat_id_cache)?;
+            }
             if let Some(source_ref) = source_ref {
                 config.source_archive.ref_name = source_ref;
             }
@@ -422,11 +471,12 @@ async fn main() -> Result<()> {
             let profile_dir = path_arg_or_env_or_default(
                 profile_dir,
                 &config.browser.profile_dir_env,
-                artifacts_dir.join("chrome-profile"),
+                default_managed_chrome_profile_dir(),
             )?;
             let repo_url = source_repo_url
                 .or_else(|| env::var(&config.source_archive.repo_url_env).ok())
                 .unwrap_or_else(|| config.project.repository.clone());
+            let ci_repo = ci_repo.or_else(|| infer_github_repo(&repo_url));
             let deploy_remote_host = if config.deploy.enabled {
                 Some(arg_or_env(
                     remote_host,
@@ -462,9 +512,19 @@ async fn main() -> Result<()> {
                 "JAILGUN_ARTIFACTS_DIR".into(),
                 artifacts_dir.display().to_string(),
             );
+            if let Some(tar_target_name) = tar_target_name {
+                bridge_env.insert("JAILGUN_TAR_TARGET_NAME".into(), tar_target_name);
+            }
+            bridge_env
+                .entry(config.browser.profile_dir_env.clone())
+                .or_insert_with(|| profile_dir.display().to_string());
+            bridge_env
+                .entry(config.browser.state_dir_env.clone())
+                .or_insert_with(|| default_managed_chrome_state_dir().display().to_string());
             let bridge_cmd = bridge_command(bridge_cmd)?;
+            let run_id = run_id.unwrap_or_else(default_run_id);
             let opts = jailgun_orchestrator::RunOptions {
-                run_id: run_id.unwrap_or_else(default_run_id),
+                run_id,
                 config,
                 prompt_text,
                 tabs_override: tabs,
@@ -481,6 +541,7 @@ async fn main() -> Result<()> {
                 deploy_remote_command,
                 deploy_expected_top_level: expected_top_level,
                 ci_tracker_enabled: ci,
+                ci_repo,
                 ci_branch,
                 ci_max_attempts,
                 ci_poll_seconds,
@@ -489,6 +550,13 @@ async fn main() -> Result<()> {
                 deploy_concurrency,
             };
             let handle = jailgun_orchestrator::run_orchestration(opts).await?;
+            if notify_telegram {
+                tokio::spawn(jailgun_notify::run_telegram_subscriber(
+                    handle.events_rx.resubscribe(),
+                    telegram_token_file,
+                    telegram_chat_id_cache,
+                ));
+            }
             stream_run(handle).await?;
         }
         Command::TelegramSend {
@@ -556,6 +624,7 @@ async fn main() -> Result<()> {
             let state = if live {
                 let (state, rx) = AppState::live(config, receipt_dir, 1024);
                 if notify_telegram {
+                    validate_telegram_notify(&telegram_token_file, &telegram_chat_id_cache)?;
                     tokio::spawn(jailgun_notify::run_telegram_subscriber(
                         rx,
                         telegram_token_file,
@@ -599,6 +668,56 @@ fn notify_result(chat_id: String, summary: CommitSummary) -> serde_json::Value {
         "subject": summary.subject,
         "files": summary.files,
     })
+}
+
+fn validate_telegram_notify(token_file: &Path, chat_id_cache: &Path) -> Result<()> {
+    let mut config = TelegramConfig::from_token_file(token_file)
+        .with_context(|| format!("loading {}", token_file.display()))?;
+    if config.chat_id.is_none() {
+        config.chat_id = read_chat_id_cache(chat_id_cache)?;
+    }
+    if config
+        .chat_id
+        .as_deref()
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .is_none()
+    {
+        anyhow::bail!(
+            "--notify-telegram requires a chat id in {} or {}",
+            token_file.display(),
+            chat_id_cache.display()
+        );
+    }
+    Ok(())
+}
+
+fn infer_github_repo(url: &str) -> Option<String> {
+    let value = url.trim();
+    if value.is_empty() {
+        return None;
+    }
+    if let Some(rest) = value.strip_prefix("git@github.com:") {
+        return owner_repo_from_github_path(rest);
+    }
+    if let Some((_, rest)) = value.split_once("github.com/") {
+        return owner_repo_from_github_path(rest);
+    }
+    None
+}
+
+fn owner_repo_from_github_path(path: &str) -> Option<String> {
+    let mut parts = path
+        .trim_start_matches('/')
+        .split(['/', '#', '?'])
+        .filter(|part| !part.is_empty());
+    let owner = parts.next()?.trim();
+    let repo = parts.next()?.trim().trim_end_matches(".git");
+    if owner.is_empty() || repo.is_empty() {
+        None
+    } else {
+        Some(format!("{owner}/{repo}"))
+    }
 }
 
 fn arg_or_env(value: Option<String>, env_name: &str, label: &str) -> Result<String> {
@@ -649,6 +768,26 @@ fn resolve_deploy_dry_run(config_dry_run: bool, deploy: bool, dry_run: bool) -> 
         false
     } else {
         config_dry_run
+    }
+}
+
+fn deploy_outcome_succeeded(outcome: DeployOutcome) -> bool {
+    matches!(
+        outcome,
+        DeployOutcome::Succeeded | DeployOutcome::SucceededCiSkipped | DeployOutcome::DryRunStaged
+    )
+}
+
+fn deploy_outcome_label(outcome: DeployOutcome) -> &'static str {
+    match outcome {
+        DeployOutcome::Succeeded => "succeeded",
+        DeployOutcome::SucceededCiFailed => "succeeded-ci-failed",
+        DeployOutcome::SucceededCiSkipped => "succeeded-ci-skipped",
+        DeployOutcome::FailedPreserved => "failed-preserved",
+        DeployOutcome::FailedHard => "failed-hard",
+        DeployOutcome::UploadShaMismatch => "upload-sha-mismatch",
+        DeployOutcome::TimedOut => "timed-out",
+        DeployOutcome::DryRunStaged => "dry-run-staged",
     }
 }
 
@@ -706,6 +845,20 @@ fn path_arg_or_env_or_default(
             anyhow::bail!("path environment variable ${env_name} is not valid UTF-8")
         }
     }
+}
+
+fn default_managed_chrome_profile_dir() -> PathBuf {
+    home_dir_or_current().join(".google-profile-automation-profile")
+}
+
+fn default_managed_chrome_state_dir() -> PathBuf {
+    home_dir_or_current().join(".google-profile-automation-state")
+}
+
+fn home_dir_or_current() -> PathBuf {
+    env::var_os("HOME")
+        .map(PathBuf::from)
+        .unwrap_or_else(|| PathBuf::from("."))
 }
 
 fn default_run_id() -> String {
@@ -816,5 +969,30 @@ mod tests {
     fn run_without_deploy_preserves_config_dry_run() {
         assert!(resolve_deploy_dry_run(true, false, false));
         assert!(!resolve_deploy_dry_run(false, false, false));
+    }
+
+    #[test]
+    fn failed_preserved_deploy_archive_outcome_is_not_successful() {
+        assert!(deploy_outcome_succeeded(DeployOutcome::Succeeded));
+        assert!(deploy_outcome_succeeded(DeployOutcome::SucceededCiSkipped));
+        assert!(!deploy_outcome_succeeded(DeployOutcome::FailedPreserved));
+        assert!(!deploy_outcome_succeeded(DeployOutcome::SucceededCiFailed));
+    }
+
+    #[test]
+    fn infers_github_owner_repo_from_supported_remote_urls() {
+        assert_eq!(
+            infer_github_repo("git@github.com:neverhuman/jekko.git").as_deref(),
+            Some("neverhuman/jekko")
+        );
+        assert_eq!(
+            infer_github_repo("https://github.com/neverhuman/jekko.git").as_deref(),
+            Some("neverhuman/jekko")
+        );
+        assert_eq!(
+            infer_github_repo("ssh://git@github.com/neverhuman/jekko.git").as_deref(),
+            Some("neverhuman/jekko")
+        );
+        assert_eq!(infer_github_repo("git@example.com:org/repo.git"), None);
     }
 }

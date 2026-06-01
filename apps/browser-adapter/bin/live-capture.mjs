@@ -46,12 +46,29 @@ let result = null;
 const startedAt = Date.now();
 console.log(`monitor:start url=${page.url()} poll_seconds=${pollSeconds} output_dir=${outputDir}`);
 
+page.on('dialog', (dialog) => {
+  const type = dialog.type();
+  if (type === 'beforeunload') {
+    console.log(`${new Date().toISOString()} dialog:beforeunload dismissed`);
+    dialog.dismiss().catch(() => undefined);
+  } else {
+    console.log(`${new Date().toISOString()} dialog:${type} accepted message=${JSON.stringify(dialog.message().slice(0, 200))}`);
+    dialog.accept().catch(() => undefined);
+  }
+});
+
 try {
   while (Date.now() - startedAt < maxMinutes * 60_000) {
     const rateLimit = await dismissRateLimitModal(page);
     if (rateLimit.detected) {
       console.log(
         `${new Date().toISOString()} rate-limit:detected dismissed=${rateLimit.dismissed} button=${JSON.stringify(rateLimit.buttonLabel)} excerpt=${JSON.stringify(rateLimit.excerpt)}${rateLimit.reason ? ` reason=${JSON.stringify(rateLimit.reason)}` : ''}`
+      );
+    }
+    const popups = await dismissPopups(page);
+    for (const popup of popups) {
+      console.log(
+        `${new Date().toISOString()} popup:${popup.kind} clicked=${popup.clicked} button=${JSON.stringify(popup.buttonLabel)} excerpt=${JSON.stringify(popup.excerpt)}${popup.reason ? ` reason=${JSON.stringify(popup.reason)}` : ''}`
       );
     }
     const discovery = await discoverTarCandidates(page);
@@ -388,6 +405,79 @@ async function dismissRateLimitModal(page) {
       buttonLabel: '',
       reason: `evaluate-failed: ${error.message}`,
     };
+  }
+}
+
+async function dismissPopups(page) {
+  try {
+    return await page.evaluate(() => {
+      const dialogSelector = '[role="dialog"],[aria-modal="true"]';
+      const buttonSelector = 'button,[role="button"],a';
+      const stayPrimary = /leave (this )?(page|site)|reload (this )?(page|site)/i;
+      const staySecondary = /changes (you'?ve |you have )?made|might not be saved|won'?t be saved|aren'?t saved|are not saved|unsaved/i;
+      const stayButtonLabel = /^\s*stay( on (this )?page)?\s*$/i;
+      const sessionExpired = /session (has )?expired|you'?ve been signed out|you have been signed out|please (sign|log) (back )?in/i;
+      const visible = (el) => {
+        const view = el.ownerDocument && el.ownerDocument.defaultView;
+        if (!view) return true;
+        const style = view.getComputedStyle(el);
+        const rect = el.getBoundingClientRect();
+        return style.visibility !== 'hidden' && style.display !== 'none' && rect.width >= 0 && rect.height >= 0;
+      };
+      const disabled = (el) => el.hasAttribute('disabled') || /^true$/i.test(el.getAttribute('aria-disabled') || '');
+      const textOf = (el) => String(el.textContent || '').replace(/\s+/g, ' ').trim();
+      const labelOf = (el) => textOf(el) || el.getAttribute('aria-label') || el.getAttribute('title') || '';
+
+      const outcomes = [];
+      const dialogs = Array.from(document.querySelectorAll(dialogSelector));
+      for (const dialog of dialogs) {
+        if (!visible(dialog)) continue;
+        const dialogText = textOf(dialog);
+
+        if (stayPrimary.test(dialogText) && staySecondary.test(dialogText)) {
+          const buttons = Array.from(dialog.querySelectorAll(buttonSelector));
+          let clicked = false;
+          let buttonLabel = '';
+          let reason;
+          for (const button of buttons) {
+            if (!visible(button) || disabled(button)) continue;
+            const bl = labelOf(button);
+            if (!stayButtonLabel.test(bl)) continue;
+            buttonLabel = bl;
+            try {
+              button.click();
+              clicked = true;
+            } catch (error) {
+              reason = `click-failed: ${error.message}`;
+            }
+            break;
+          }
+          outcomes.push({
+            kind: 'stay-on-page',
+            buttonLabel,
+            excerpt: dialogText.slice(0, 240),
+            clicked,
+            reason: clicked ? reason : (reason || 'no-stay-button'),
+          });
+          continue;
+        }
+
+        if (sessionExpired.test(dialogText)) {
+          outcomes.push({
+            kind: 'session-expired',
+            buttonLabel: '',
+            excerpt: dialogText.slice(0, 240),
+            clicked: false,
+            reason: 'detect-only',
+          });
+          continue;
+        }
+      }
+      return outcomes;
+    });
+  } catch (error) {
+    console.log(`${new Date().toISOString()} popup:evaluate-failed reason=${JSON.stringify(error.message)}`);
+    return [];
   }
 }
 

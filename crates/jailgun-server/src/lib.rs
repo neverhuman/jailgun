@@ -19,14 +19,17 @@ use axum::{
 use futures::{SinkExt, StreamExt};
 use jailgun_core::{EventKind, JailgunConfig, JailgunEvent, RunSnapshot};
 use serde_json::json;
-use tokio::{net::TcpListener, sync::broadcast};
+use tokio::{
+    net::TcpListener,
+    sync::{broadcast, RwLock},
+};
 use tower_http::services::ServeDir;
 
 #[derive(Clone)]
 pub struct AppState {
     pub config: JailgunConfig,
     pub runs: Vec<RunSnapshot>,
-    pub events: Vec<JailgunEvent>,
+    pub events: Arc<RwLock<Vec<JailgunEvent>>>,
     pub receipt_dir: PathBuf,
     /// When `Some`, the WS endpoint subscribes to it and streams live events.
     /// When `None`, the WS endpoint replays `events` once and closes
@@ -42,7 +45,7 @@ impl AppState {
         let run = RunSnapshot::fixture();
         Self {
             config,
-            events: vec![
+            events: Arc::new(RwLock::new(vec![
                 JailgunEvent::new(&run.run_id, EventKind::RunStarted, "fixture run started"),
                 JailgunEvent::new(
                     &run.run_id,
@@ -55,7 +58,7 @@ impl AppState {
                     EventKind::RemoteSafety,
                     "remote safety state updated",
                 ),
-            ],
+            ])),
             runs: vec![run],
             receipt_dir: PathBuf::from("receipts"),
             event_bus: None,
@@ -75,7 +78,7 @@ impl AppState {
         let state = Self {
             config,
             runs: Vec::new(),
-            events: Vec::new(),
+            events: Arc::new(RwLock::new(Vec::new())),
             receipt_dir,
             event_bus: Some(tx),
             ingest_token: None,
@@ -156,7 +159,7 @@ async fn get_receipts(
 }
 
 async fn ws_events(State(state): State<Arc<AppState>>, ws: WebSocketUpgrade) -> Response {
-    let replay = state.events.clone();
+    let replay = state.events.read().await.clone();
     let receiver = state.event_bus.as_ref().map(|tx| tx.subscribe());
     ws.on_upgrade(move |socket| handle_ws(socket, replay, receiver))
         .into_response()
@@ -235,6 +238,7 @@ async fn post_event(
         return StatusCode::UNAUTHORIZED;
     }
     if let Some(tx) = state.event_bus.as_ref() {
+        state.events.write().await.push(event.clone());
         let _ = tx.send(event);
         StatusCode::ACCEPTED
     } else {
@@ -278,6 +282,7 @@ mod tests {
     #[tokio::test]
     async fn ingest_requires_matching_token() {
         let (state, _rx) = AppState::live(JailgunConfig::default(), PathBuf::from("receipts"), 64);
+        let history = state.events.clone();
         let app = api_router(state.with_ingest_token(Some("secret".to_string())));
 
         let event = JailgunEvent::new("run-1", EventKind::RunStarted, "hi");
@@ -311,6 +316,9 @@ mod tests {
             .await
             .unwrap();
         assert_eq!(ok.status(), StatusCode::ACCEPTED);
+        let events = history.read().await;
+        assert_eq!(events.len(), 1);
+        assert_eq!(events[0].run_id, "run-1");
     }
 
     #[tokio::test]

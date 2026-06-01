@@ -60,7 +60,7 @@ export function useDashboardData(): DashboardState {
 
   useEffect(() => {
     selectedRunIdRef.current = selectedRunId;
-  }, [selectedRunId]);
+  }, [dataSource, selectedRunId]);
 
   useEffect(() => {
     void refresh();
@@ -101,7 +101,7 @@ export function useDashboardData(): DashboardState {
     return () => {
       ignore = true;
     };
-  }, [selectedRunId]);
+  }, [dataSource, selectedRunId]);
 
   const selectedRun = useMemo(
     () => runs.find((run) => run.run_id === selectedRunId) ?? null,
@@ -141,11 +141,11 @@ function createRunFromEvent(event: JailgunEvent): RunSnapshot {
     allowed_info_prompts: event.fields.decision === 'allow-info' ? 1 : 0,
     tabs: event.tab_id === null ? [] : [{
       tab_id: event.tab_id,
-      status: event.fields.tab_status ?? 'active',
+      status: tabStatusForEvent(event, event.fields.tab_status ?? 'active'),
       page_url: event.fields.page_url ?? '',
       archive_sha256: event.fields.sha256 ?? null,
       download_latency_ms: parseOptionalNumber(event.fields.download_latency_ms),
-      deploy_status: event.fields.deploy_status ?? 'pending',
+      deploy_status: deployStatusForEvent(event, event.fields.deploy_status ?? 'pending'),
       prompt_policy_decision: event.fields.decision ?? null
     }]
   };
@@ -153,6 +153,7 @@ function createRunFromEvent(event: JailgunEvent): RunSnapshot {
 
 function applyEventToRun(run: RunSnapshot, event: JailgunEvent): RunSnapshot {
   const decision = event.fields.decision;
+  const tabs = event.tab_id === null ? run.tabs : upsertTab(run.tabs, event);
   return {
     ...run,
     status: event.fields.status ?? run.status,
@@ -160,20 +161,57 @@ function applyEventToRun(run: RunSnapshot, event: JailgunEvent): RunSnapshot {
     deploy_queue: queueStateForEvent(event, run.deploy_queue),
     denied_github_prompts: decision === 'deny' ? run.denied_github_prompts + 1 : run.denied_github_prompts,
     allowed_info_prompts: decision === 'allow-info' ? run.allowed_info_prompts + 1 : run.allowed_info_prompts,
-    tabs: event.tab_id === null ? run.tabs : run.tabs.map((tab) => (
-      tab.tab_id === event.tab_id
-        ? {
-            ...tab,
-            status: event.fields.tab_status ?? tab.status,
-            page_url: event.fields.page_url ?? tab.page_url,
-            archive_sha256: event.fields.sha256 ?? tab.archive_sha256,
-            download_latency_ms: parseOptionalNumber(event.fields.download_latency_ms) ?? tab.download_latency_ms,
-            deploy_status: event.fields.deploy_status ?? tab.deploy_status,
-            prompt_policy_decision: event.fields.decision ?? tab.prompt_policy_decision
-          }
-        : tab
-    ))
+    tabs
   };
+}
+
+function upsertTab(tabs: RunSnapshot['tabs'], event: JailgunEvent): RunSnapshot['tabs'] {
+  if (event.tab_id === null) return tabs;
+  const existing = tabs.find((tab) => tab.tab_id === event.tab_id);
+  const next = applyEventToTab(
+    existing ?? {
+      tab_id: event.tab_id,
+      status: 'active',
+      page_url: '',
+      archive_sha256: null,
+      download_latency_ms: null,
+      deploy_status: 'pending',
+      prompt_policy_decision: null
+    },
+    event
+  );
+  if (!existing) {
+    return [...tabs, next].sort((left, right) => left.tab_id - right.tab_id);
+  }
+  return tabs.map((tab) => (tab.tab_id === event.tab_id ? next : tab));
+}
+
+function applyEventToTab(tab: RunSnapshot['tabs'][number], event: JailgunEvent): RunSnapshot['tabs'][number] {
+  return {
+    ...tab,
+    status: tabStatusForEvent(event, tab.status),
+    page_url: event.fields.page_url ?? tab.page_url,
+    archive_sha256: event.fields.sha256 ?? tab.archive_sha256,
+    download_latency_ms: parseOptionalNumber(event.fields.download_latency_ms) ?? tab.download_latency_ms,
+    deploy_status: deployStatusForEvent(event, tab.deploy_status),
+    prompt_policy_decision: event.fields.decision ?? tab.prompt_policy_decision
+  };
+}
+
+function tabStatusForEvent(event: JailgunEvent, current: string): string {
+  if (event.fields.tab_status) return event.fields.tab_status;
+  if (event.kind === 'download-receipt') return 'downloaded';
+  if (event.kind === 'deploy-finished') return event.severity === 'error' ? 'error' : 'deployed';
+  if (event.kind === 'tab-closed') return 'closed';
+  return current;
+}
+
+function deployStatusForEvent(event: JailgunEvent, current: string): string {
+  if (event.fields.deploy_status) return event.fields.deploy_status;
+  if (event.kind === 'deploy-queued') return event.fields.status ?? 'queued';
+  if (event.kind === 'remote-safety') return event.fields.phase ?? current;
+  if (event.kind === 'deploy-finished') return event.fields.outcome ?? 'done';
+  return current;
 }
 
 function queueStateForEvent(event: JailgunEvent, current: RunSnapshot['deploy_queue']): RunSnapshot['deploy_queue'] {

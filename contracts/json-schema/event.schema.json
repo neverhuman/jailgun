@@ -43,6 +43,7 @@
         "deploy-finished",
         "prompt-policy",
         "rate-limit-detected",
+        "browser-log",
         "error"
       ]
     },

@@ -1,62 +1,11 @@
 import { Activity, AlertTriangle, CheckCircle2, Download, GitBranch, Shield, XCircle } from 'lucide-react';
-import { useEffect, useMemo, useState } from 'react';
+import { useMemo } from 'react';
 
-import { fetchReceipts, fetchRuns, subscribeEvents } from './api';
-import type { JailgunEvent, ReceiptResponse, RunSnapshot, TabSnapshot } from './types';
+import type { JailgunEvent, RunSnapshot, TabSnapshot } from './types';
+import { useDashboardData } from './useDashboardData';
 
 export function App() {
-  const [runs, setRuns] = useState<RunSnapshot[]>([]);
-  const [events, setEvents] = useState<JailgunEvent[]>([]);
-  const [receipts, setReceipts] = useState<ReceiptResponse | null>(null);
-  const [error, setError] = useState('');
-  const [dataMode, setDataMode] = useState<'api' | 'fixture'>('api');
-
-  useEffect(() => {
-    let cancelled = false;
-    fetchRuns({ mode: 'api' })
-      .then((loadedRuns) => {
-        if (cancelled) return;
-        setRuns(loadedRuns);
-        const activeRun = loadedRuns[0]?.run_id;
-        if (activeRun) {
-          void fetchReceipts(activeRun, { mode: 'api' })
-            .then((loadedReceipts) => {
-              if (!cancelled) setReceipts(loadedReceipts);
-            })
-            .catch((receiptError: Error) => {
-              if (!cancelled) setError(receiptError.message);
-            });
-        }
-      })
-      .catch(async (loadError: Error) => {
-        if (cancelled) return;
-        setError(loadError.message);
-        setDataMode('fixture');
-        const loadedRuns = await fetchRuns({ mode: 'fixture' });
-        setRuns(loadedRuns);
-        const activeRun = loadedRuns[0]?.run_id;
-        if (activeRun) {
-          setReceipts(await fetchReceipts(activeRun, { mode: 'fixture' }));
-        }
-      });
-    let unsubscribe: () => void = () => undefined;
-    try {
-      unsubscribe = subscribeEvents(
-        (event) => {
-          setEvents((current) => [event, ...current].slice(0, 30));
-        },
-        { mode: 'api', onError: (eventError) => setError(eventError.message) }
-      );
-    } catch (eventError) {
-      setError(eventError instanceof Error ? eventError.message : String(eventError));
-    }
-    return () => {
-      cancelled = true;
-      unsubscribe();
-    };
-  }, []);
-
-  const activeRun = runs[0] ?? null;
+  const { runs, selectedRun: activeRun, receipts, events, connection, dataSource, error } = useDashboardData();
   const metrics = useMemo(() => computeMetrics(activeRun), [activeRun]);
 
   return (
@@ -64,7 +13,7 @@ export function App() {
       <header className="topbar">
         <div>
           <h1>Jailgun</h1>
-          <p>{activeRun ? `${activeRun.run_id} · ${activeRun.status} · ${dataMode}` : 'run monitor'}</p>
+          <p>{activeRun ? `${activeRun.run_id} · ${activeRun.status} · ${dataSource} · ${connection}` : `run monitor · ${dataSource} · ${connection}`}</p>
         </div>
         <div className="policyCounters" aria-label="GitHub prompt counters">
           <Metric icon={<Shield size={18} />} label="Denied" value={activeRun?.denied_github_prompts ?? 0} tone="danger" />
@@ -116,7 +65,7 @@ export function App() {
             <div className="panel">
               <div className="panelHeader">
                 <h2>Receipt Timeline</h2>
-                <span>{receipts?.receipts.length ?? 0} receipts</span>
+                <span>{receipts.length} receipts</span>
               </div>
               <ReceiptTimeline receipts={receipts} events={events} />
             </div>
@@ -200,8 +149,8 @@ function ProgressChart({ tabs }: { tabs: TabSnapshot[] }) {
   );
 }
 
-function ReceiptTimeline({ receipts, events }: { receipts: ReceiptResponse | null; events: JailgunEvent[] }) {
-  const receiptItems = receipts?.receipts ?? [];
+function ReceiptTimeline({ receipts, events }: { receipts: unknown[]; events: JailgunEvent[] }) {
+  const receiptItems = receipts;
   const downloadEvents = events.filter((event) => event.kind.includes('receipt') || event.kind.includes('download'));
   const items = receiptItems.length > 0 ? receiptItems : downloadEvents;
   if (items.length === 0) {

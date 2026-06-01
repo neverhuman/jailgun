@@ -1,0 +1,14 @@
+{
+  "run_id": "run-fixture",
+  "tab_id": 1,
+  "timestamp": "2026-05-31T12:06:45Z",
+  "kind": "browser-log",
+  "severity": "info",
+  "message": "tab monitor telemetry",
+  "fields": {
+    "phase": "monitor-poll",
+    "status": "running",
+    "candidate_count": "0",
+    "page_url": "https://chatgpt.com/"
+  }
+}

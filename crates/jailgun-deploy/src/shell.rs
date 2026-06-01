@@ -108,11 +108,26 @@ pub struct SshRemoteJob {
 
 ssh_host_constructor!(SshRemoteJob);
 
-pub struct SshCiTracker;
+pub struct SshCiTracker {
+    repo: Option<String>,
+}
 
 impl SshCiTracker {
     pub fn new() -> Self {
-        Self
+        Self { repo: None }
+    }
+
+    pub fn with_repo(repo: Option<String>) -> Self {
+        Self {
+            repo: repo.and_then(|value| {
+                let value = value.trim().to_string();
+                if value.is_empty() {
+                    None
+                } else {
+                    Some(value)
+                }
+            }),
+        }
     }
 }
 
@@ -235,18 +250,7 @@ impl RemoteJobBackend for SshRemoteJob {
 impl CiTracker for SshCiTracker {
     async fn check(&mut self, commit_sha: &str, branch: &str) -> Result<CiState, DeployError> {
         let output = Command::new("gh")
-            .args([
-                "run",
-                "list",
-                "--branch",
-                branch,
-                "--commit",
-                commit_sha,
-                "--json",
-                "databaseId,status,conclusion,url",
-                "--limit",
-                "1",
-            ])
+            .args(self.gh_run_list_args(commit_sha, branch))
             .stdout(Stdio::piped())
             .stderr(Stdio::piped())
             .output()
@@ -280,7 +284,7 @@ impl CiTracker for SshCiTracker {
         max_bytes: usize,
     ) -> Result<String, DeployError> {
         let output = Command::new("gh")
-            .args(["run", "view", run_id, "--log-failed"])
+            .args(self.gh_run_view_args(run_id))
             .stdout(Stdio::piped())
             .stderr(Stdio::piped())
             .output()
@@ -307,6 +311,43 @@ impl CiTracker for SshCiTracker {
             text = text[start..].to_string();
         }
         Ok(text)
+    }
+}
+
+impl SshCiTracker {
+    fn gh_run_list_args(&self, commit_sha: &str, branch: &str) -> Vec<String> {
+        let mut args = vec![
+            "run".to_string(),
+            "list".to_string(),
+            "--branch".to_string(),
+            branch.to_string(),
+            "--commit".to_string(),
+            commit_sha.to_string(),
+            "--json".to_string(),
+            "databaseId,status,conclusion,url".to_string(),
+            "--limit".to_string(),
+            "1".to_string(),
+        ];
+        self.append_repo_args(&mut args);
+        args
+    }
+
+    fn gh_run_view_args(&self, run_id: &str) -> Vec<String> {
+        let mut args = vec![
+            "run".to_string(),
+            "view".to_string(),
+            run_id.to_string(),
+            "--log-failed".to_string(),
+        ];
+        self.append_repo_args(&mut args);
+        args
+    }
+
+    fn append_repo_args(&self, args: &mut Vec<String>) {
+        if let Some(repo) = self.repo.as_ref() {
+            args.push("--repo".to_string());
+            args.push(repo.clone());
+        }
     }
 }
 
@@ -528,5 +569,18 @@ mod tests {
                 log_excerpt: None
             }
         );
+    }
+
+    #[test]
+    fn ci_tracker_args_include_explicit_repo_when_configured() {
+        let tracker = SshCiTracker::with_repo(Some("neverhuman/jekko".into()));
+        let list_args = tracker.gh_run_list_args("abc123", "main");
+        assert!(list_args
+            .windows(2)
+            .any(|pair| pair[0] == "--repo" && pair[1] == "neverhuman/jekko"));
+        let view_args = tracker.gh_run_view_args("42");
+        assert!(view_args
+            .windows(2)
+            .any(|pair| pair[0] == "--repo" && pair[1] == "neverhuman/jekko"));
     }
 }

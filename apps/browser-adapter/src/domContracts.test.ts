@@ -2,10 +2,12 @@ import { describe, expect, it } from 'vitest';
 
 import {
   closeTabAfterReceipt,
+  collectDismissablePopupFromDom,
   collectGitHubToolPromptsFromDom,
   collectRateLimitModalFromDom,
   collectTarDownloadCandidatesFromDom,
   createPromptClickGuard,
+  dismissPopups,
   dismissRateLimitModal
 } from './domContracts';
 
@@ -129,6 +131,71 @@ it('dismissRateLimitModal clicks the Got it button when a rate-limit dialog is p
   expect(result.dismissed).toBe(true);
   expect(result.buttonLabel).toMatch(/got it/i);
   expect(clicks).toEqual(['got-it']);
+});
+
+it('detects the stay-on-page popup and dismissPopups clicks Stay', async () => {
+  document.body.innerHTML = `
+    <div role="dialog">
+      <p>Leave this page? Changes you've made may not be saved.</p>
+      <button id="leave">Leave</button>
+      <button id="stay">Stay on this page</button>
+    </div>
+  `;
+  const candidates = collectDismissablePopupFromDom();
+  expect(candidates).toHaveLength(1);
+  expect(candidates[0].kind).toBe('stay-on-page');
+  expect(candidates[0].shouldClick).toBe(true);
+  expect(candidates[0].buttonLabel).toMatch(/stay/i);
+
+  const clicks: string[] = [];
+  document.getElementById('stay')!.addEventListener('click', () => clicks.push('stay'));
+  document.getElementById('leave')!.addEventListener('click', () => clicks.push('leave'));
+
+  const fakePage = { evaluate: async <T,>(fn: () => T) => fn() };
+  const outcomes = await dismissPopups(fakePage);
+  expect(outcomes).toHaveLength(1);
+  expect(outcomes[0].kind).toBe('stay-on-page');
+  expect(outcomes[0].clicked).toBe(true);
+  expect(clicks).toEqual(['stay']);
+});
+
+it('detects session-expired popup but does not auto-click anything', async () => {
+  document.body.innerHTML = `
+    <div role="dialog">
+      <h2>Session expired</h2>
+      <p>Please sign in again to continue.</p>
+      <button id="signin">Sign in</button>
+    </div>
+  `;
+  const candidates = collectDismissablePopupFromDom();
+  expect(candidates).toHaveLength(1);
+  expect(candidates[0].kind).toBe('session-expired');
+  expect(candidates[0].shouldClick).toBe(false);
+  expect(candidates[0].buttonLabel).toBe('');
+
+  const clicks: string[] = [];
+  document.getElementById('signin')!.addEventListener('click', () => clicks.push('signin'));
+
+  const fakePage = { evaluate: async <T,>(fn: () => T) => fn() };
+  const outcomes = await dismissPopups(fakePage);
+  expect(outcomes).toHaveLength(1);
+  expect(outcomes[0].kind).toBe('session-expired');
+  expect(outcomes[0].clicked).toBe(false);
+  expect(clicks).toEqual([]);
+});
+
+it('ignores benign onboarding dialogs that do not match any popup recipe', async () => {
+  document.body.innerHTML = `
+    <div role="dialog">
+      <h2>Welcome to ChatGPT</h2>
+      <p>Take the tour to learn about new features.</p>
+      <button>Got it</button>
+      <button>Dismiss</button>
+    </div>
+  `;
+  expect(collectDismissablePopupFromDom()).toEqual([]);
+  const fakePage = { evaluate: async <T,>(fn: () => T) => fn() };
+  expect(await dismissPopups(fakePage)).toEqual([]);
 });
 
 it('closes a tab only after receipt confirmation', async () => {

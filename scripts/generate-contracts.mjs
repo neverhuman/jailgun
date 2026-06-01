@@ -35,6 +35,7 @@ const schema = {
         'deploy-finished',
         'prompt-policy',
         'rate-limit-detected',
+        'browser-log',
         'error'
       ]
     },
@@ -99,6 +100,20 @@ const fixtures = {
     fields: {
       dismissed: 'true',
       excerpt: 'Too many requests. Please wait a few minutes before trying again.'
+    }
+  },
+  'browser-log.json': {
+    run_id: 'run-fixture',
+    tab_id: 1,
+    timestamp: '2026-05-31T12:06:45Z',
+    kind: 'browser-log',
+    severity: 'info',
+    message: 'tab monitor telemetry',
+    fields: {
+      phase: 'monitor-poll',
+      status: 'running',
+      candidate_count: '0',
+      page_url: 'https://chatgpt.com/'
     }
   },
   'tar-discovered.json': {

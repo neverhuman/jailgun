@@ -3,9 +3,8 @@
 //!
 //! 1. Job started on a tab (`EventKind::PromptSubmitted`)
 //! 2. Tar acquired (`EventKind::DownloadReceipt`)
-//! 3. Remote CI passed and the commit landed on `main`
-//!    (`EventKind::DeployFinished` with `outcome=succeeded` and
-//!    `ci_state=passed`)
+//! 3. Remote CI passed and the commit landed on `main`, or the remote
+//!    command itself completed local CI + push
 //!
 //! Plus a brief failure ping when a deploy ends with severity=Error so the
 //! user knows something broke without watching the dashboard.
@@ -34,6 +33,13 @@ pub async fn run_telegram_subscriber(
                 };
                 if let Err(error) = send_one(&token_path, &chat_id_cache, &text).await {
                     tracing::warn!(?error, "telegram notify failed");
+                } else {
+                    tracing::info!(
+                        run_id = %event.run_id,
+                        tab_id = ?event.tab_id,
+                        kind = ?event.kind,
+                        "telegram notify sent"
+                    );
                 }
             }
             Err(RecvError::Lagged(dropped)) => {
@@ -91,15 +97,21 @@ fn format_deploy_finished(event: &JailgunEvent, tab: &str) -> Option<String> {
             Some(value) => format!(" · preserved {value}"),
             None => String::new(),
         };
+        let exit = match event.fields.get("exit_code") {
+            Some(value) => format!(" · exit {value}"),
+            None => String::new(),
+        };
         return Some(format!(
-            "❌ {} · {} · deploy {outcome} · {reason}{preserved}",
+            "❌ {} · {} · deploy {outcome} · {reason}{exit}{preserved}",
             event.run_id, tab
         ));
     }
 
-    if outcome != "succeeded" {
-        return None;
-    }
+    let success_line = match (outcome, ci_state) {
+        ("succeeded", Some("passed")) => " · CI passed, on main",
+        ("succeeded-ci-skipped", _) => " · local CI/push complete",
+        _ => return None,
+    };
 
     let post_head = match event.fields.get("post_head") {
         Some(value) => value.chars().take(8).collect::<String>(),
@@ -115,19 +127,13 @@ fn format_deploy_finished(event: &JailgunEvent, tab: &str) -> Option<String> {
         _ => String::new(),
     };
 
-    let ci_line = match ci_state {
-        Some("passed") => " · CI passed, on main".to_string(),
-        Some("skipped") => " · CI skipped (no commit)".to_string(),
-        _ => String::new(),
-    };
-
     let paths_line = match event.fields.get("top_paths") {
         Some(paths) if !paths.is_empty() => format!("\nfiles: {paths}"),
         _ => String::new(),
     };
 
     Some(format!(
-        "✅ {} · {} · {post_head}{ci_line}{files_line}{paths_line}",
+        "✅ {} · {} · {post_head}{success_line}{files_line}{paths_line}",
         event.run_id, tab
     ))
 }
@@ -181,10 +187,12 @@ mod tests {
             .with_severity(Severity::Error)
             .with_field("outcome", "failed-preserved")
             .with_field("failure_reason", "remote-command-failed")
+            .with_field("exit_code", "127")
             .with_field("preserved_ref", "jailgun-failed/run-A-tab-01");
         let msg = format_event_notice(&event).expect("some");
         assert!(msg.starts_with('❌'));
         assert!(msg.contains("remote-command-failed"));
+        assert!(msg.contains("exit 127"));
         assert!(msg.contains("preserved jailgun-failed/run-A-tab-01"));
     }
 
@@ -195,13 +203,22 @@ mod tests {
     }
 
     #[test]
-    fn deploy_finished_ci_skipped_does_not_get_files_block_when_absent() {
+    fn deploy_finished_ci_skipped_success_emits_local_ci_push_complete() {
+        let event = base(EventKind::DeployFinished, 1)
+            .with_field("outcome", "succeeded-ci-skipped")
+            .with_field("ci_state", "skipped")
+            .with_field("post_head", "aaaaaaaa");
+        let msg = format_event_notice(&event).expect("some");
+        assert!(msg.contains("local CI/push complete"));
+        assert!(!msg.contains("files:"));
+    }
+
+    #[test]
+    fn deploy_finished_plain_success_without_ci_passed_is_not_notified() {
         let event = base(EventKind::DeployFinished, 1)
             .with_field("outcome", "succeeded")
             .with_field("ci_state", "skipped")
             .with_field("post_head", "aaaaaaaa");
-        let msg = format_event_notice(&event).expect("some");
-        assert!(msg.contains("CI skipped"));
-        assert!(!msg.contains("files:"));
+        assert!(format_event_notice(&event).is_none());
     }
 }

@@ -63,7 +63,22 @@ pub fn map_bridge_event(
         }
         BridgeEvent::GenerationStopped(_) => return None,
         BridgeEvent::TabClosed(_) => return None,
-        BridgeEvent::BridgeLog(_) => return None,
+        BridgeEvent::BridgeLog(payload) => {
+            let severity = match payload.level.as_str() {
+                "debug" | "DEBUG" => Severity::Debug,
+                "warn" | "WARN" | "warning" | "WARNING" => Severity::Warn,
+                "error" | "ERROR" => Severity::Error,
+                _ => Severity::Info,
+            };
+            let mut event = base(EventKind::BrowserLog, &payload.message)
+                .with_severity(severity)
+                .with_field("phase", payload.phase.clone())
+                .with_field("level", payload.level.clone());
+            for (key, value) in &payload.fields {
+                event = event.with_field(key.clone(), value.clone());
+            }
+            event
+        }
         BridgeEvent::Pong => return None,
         BridgeEvent::BridgeShuttingDown(_) => return None,
         BridgeEvent::Error(payload) => base(EventKind::Error, &payload.message)
@@ -84,8 +99,10 @@ pub fn map_bridge_event(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::collections::BTreeMap;
+
     use crate::bridge::{
-        ArchiveUploadedPayload, DownloadCompletePayload, RateLimitDetectedPayload,
+        ArchiveUploadedPayload, BridgeLogPayload, DownloadCompletePayload, RateLimitDetectedPayload,
     };
 
     #[test]
@@ -150,6 +167,33 @@ mod tests {
         assert_eq!(
             mapped.fields.get("dismissed").map(String::as_str),
             Some("true")
+        );
+    }
+
+    #[test]
+    fn maps_bridge_log_to_browser_log_event() {
+        let mut fields = BTreeMap::new();
+        fields.insert("status".into(), "waiting".into());
+        fields.insert(
+            "selector".into(),
+            "button[data-testid=\"send-button\"]".into(),
+        );
+        let event = BridgeEvent::BridgeLog(BridgeLogPayload {
+            level: "warn".into(),
+            phase: "prompt-submit-wait".into(),
+            message: "waiting for send button readiness".into(),
+            fields,
+        });
+        let mapped = map_bridge_event("run-1", Some(1), &event).expect("mapped");
+        assert_eq!(mapped.kind, EventKind::BrowserLog);
+        assert_eq!(mapped.severity, Severity::Warn);
+        assert_eq!(
+            mapped.fields.get("phase").map(String::as_str),
+            Some("prompt-submit-wait")
+        );
+        assert_eq!(
+            mapped.fields.get("status").map(String::as_str),
+            Some("waiting")
         );
     }
 }

@@ -16,6 +16,7 @@ pub enum EventKind {
     DeployFinished,
     PromptPolicy,
     RateLimitDetected,
+    BrowserLog,
     Error,
 }
 

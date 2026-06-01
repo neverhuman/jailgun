@@ -21,6 +21,7 @@ pub struct RunOptions {
     pub deploy_remote_command: Option<String>,
     pub deploy_expected_top_level: Option<String>,
     pub ci_tracker_enabled: bool,
+    pub ci_repo: Option<String>,
     pub ci_branch: String,
     pub ci_max_attempts: u32,
     pub ci_poll_seconds: u16,
