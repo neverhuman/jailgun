@@ -3,7 +3,7 @@ import { createHash } from 'node:crypto';
 import http from 'node:http';
 import net from 'node:net';
 import { createWriteStream, existsSync } from 'node:fs';
-import { mkdir, mkdtemp, readFile, rm, stat, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, readFile, readdir, rm, stat, writeFile } from 'node:fs/promises';
 import { createRequire } from 'node:module';
 import { homedir, tmpdir } from 'node:os';
 import { basename, extname, isAbsolute, join, resolve } from 'node:path';
@@ -18,11 +18,16 @@ const PLAYWRIGHT_VERSION = require('playwright-core/package.json').version;
 const PROTOCOL_VERSION = 1;
 const DEFAULT_CDP_HOST = '127.0.0.1';
 const DEFAULT_CDP_PORT = 9224;
+const MANAGED_CDP_MAX_PORT = 9234;
+const LEGACY_LOCAL_CDP_PORT = 922;
 const DEFAULT_PROFILE_DIR = join(homedir(), '.google-profile-automation-profile');
 const DEFAULT_STATE_DIR = join(homedir(), '.google-profile-automation-state');
 const DEFAULT_SOURCE_ARCHIVE_MODE = 'ai-source';
 const DEFAULT_MAX_MINUTES = 30;
 const DEFAULT_BROWSER_TIMEOUT_MS = 45000;
+const DEFAULT_GLOBAL_MODAL_SWEEP_MS = 2500;
+const DEFAULT_MESSAGE_STREAM_RETRY_LIMIT = 6;
+const DEFAULT_MESSAGE_STREAM_RETRY_DELAY_MS = 10000;
 
 const args = parseArgs(process.argv.slice(2));
 if (args.selfTest === 'true') {
@@ -30,13 +35,30 @@ if (args.selfTest === 'true') {
   process.exit(0);
 }
 
-const cdpUrlOverride = args.cdpUrl ?? process.env.JAILGUN_CDP_URL ?? null;
-const cdpHost = args.cdpHost ?? args.host ?? process.env.JAILGUN_CDP_HOST ?? process.env.GOOGLE_AUTOMATION_REMOTE_DEBUG_HOST ?? DEFAULT_CDP_HOST;
-const cdpPort = numberFrom(args.cdpPort ?? args.port ?? process.env.JAILGUN_CDP_PORT ?? process.env.GOOGLE_AUTOMATION_REMOTE_DEBUG_PORT, DEFAULT_CDP_PORT);
+const cdpUrlSetting = firstSetting([
+  ['--cdp-url', args.cdpUrl],
+  ['JAILGUN_CDP_URL', process.env.JAILGUN_CDP_URL],
+]);
+const cdpHostSetting = firstSetting([
+  ['--cdp-host', args.cdpHost],
+  ['--host', args.host],
+  ['JAILGUN_CDP_HOST', process.env.JAILGUN_CDP_HOST],
+  ['GOOGLE_AUTOMATION_REMOTE_DEBUG_HOST', process.env.GOOGLE_AUTOMATION_REMOTE_DEBUG_HOST],
+]);
+const cdpPortSetting = firstSetting([
+  ['--cdp-port', args.cdpPort],
+  ['--port', args.port],
+  ['JAILGUN_CDP_PORT', process.env.JAILGUN_CDP_PORT],
+  ['GOOGLE_AUTOMATION_REMOTE_DEBUG_PORT', process.env.GOOGLE_AUTOMATION_REMOTE_DEBUG_PORT],
+]);
+const cdpUrlOverride = cdpUrlSetting?.value ?? null;
+const cdpHost = cdpHostSetting?.value ?? DEFAULT_CDP_HOST;
+const cdpPort = numberFrom(cdpPortSetting?.value, DEFAULT_CDP_PORT);
 
 const settings = {
   cdpUrl: cdpUrlOverride ?? `http://${cdpHost}:${cdpPort}`,
-  cdpUrlExplicit: Boolean(cdpUrlOverride),
+  cdpEndpointSource: cdpUrlSetting?.source ?? cdpPortSetting?.source ?? cdpHostSetting?.source ?? 'default',
+  cdpEndpointConfigured: Boolean(cdpUrlSetting || cdpPortSetting || cdpHostSetting),
   profileDir: resolvePath(args.profileDir ?? process.env.JAILGUN_CHROME_PROFILE_DIR ?? process.env.GOOGLE_AUTOMATION_PROFILE_DIR ?? DEFAULT_PROFILE_DIR),
   stateDir: resolvePath(args.stateDir ?? process.env.JAILGUN_CHROME_STATE_DIR ?? process.env.GOOGLE_AUTOMATION_STATE_DIR ?? DEFAULT_STATE_DIR),
   chromeExecutable: args.chromeExecutable ?? args.browserExecutable ?? process.env.JAILGUN_CHROME_EXECUTABLE ?? process.env.GOOGLE_CHROME_EXECUTABLE ?? '',
@@ -48,15 +70,27 @@ const settings = {
   submitDelaySeconds: numberFrom(args.submitDelaySeconds ?? process.env.JAILGUN_SUBMIT_DELAY_SECONDS, 0),
   submitJitterSeconds: numberFrom(args.submitJitterSeconds ?? process.env.JAILGUN_SUBMIT_JITTER_SECONDS, 0),
   tarWaitMinutes: numberFrom(args.tarWaitMinutes ?? process.env.JAILGUN_TAR_WAIT_MINUTES, DEFAULT_MAX_MINUTES),
+  globalModalSweepMs: numberFrom(args.globalModalSweepMs ?? process.env.JAILGUN_GLOBAL_MODAL_SWEEP_MS, DEFAULT_GLOBAL_MODAL_SWEEP_MS),
+  messageStreamRetryLimit: numberFrom(args.messageStreamRetryLimit ?? process.env.JAILGUN_MESSAGE_STREAM_RETRY_LIMIT, DEFAULT_MESSAGE_STREAM_RETRY_LIMIT),
+  messageStreamRetryDelayMs: numberFrom(
+    args.messageStreamRetryDelayMs ?? process.env.JAILGUN_MESSAGE_STREAM_RETRY_DELAY_MS,
+    DEFAULT_MESSAGE_STREAM_RETRY_DELAY_MS,
+  ),
+  recoverKnownRunTabs: booleanFrom(args.recoverKnownRunTabs ?? process.env.JAILGUN_RECOVER_KNOWN_RUN_TABS, true),
+  knownRunArtifactsDir: resolvePath(args.knownRunArtifactsDir ?? process.env.JAILGUN_KNOWN_RUN_ARTIFACTS_DIR ?? join('artifacts', 'live-runs')),
 };
 
 class ChromeBridge {
   constructor(options) {
     this.options = options;
     this.browser = null;
+    this.browserEndpoint = null;
     this.context = null;
     this.tabs = new Map();
     this.shutdownRequested = false;
+    this.globalDismissalTimer = null;
+    this.globalDismissalRunning = false;
+    this.lastEnvelope = null;
   }
 
   async run() {
@@ -78,7 +112,7 @@ class ChromeBridge {
       rl.once('close', resolvePromise);
     });
 
-    await this.shutdown('stdin-closed', 0);
+    await this.shutdown('stdin-closed', 0, this.lastEnvelope);
   }
 
   async handleLine(line) {
@@ -89,6 +123,7 @@ class ChromeBridge {
     try {
       envelope = JSON.parse(line);
       validateEnvelope(envelope);
+      this.lastEnvelope = envelope;
     } catch (error) {
       this.emitRaw({
         v: PROTOCOL_VERSION,
@@ -168,20 +203,28 @@ class ChromeBridge {
 
   async handleHello(envelope) {
     try {
-      await this.ensureBrowser();
+      const chrome = await this.ensureBrowser(envelope);
       this.emit(envelope, 'bridge-ready', {
         node_version: process.version,
         playwright_version: PLAYWRIGHT_VERSION,
         browser: 'chromium-cdp',
         browser_version: await this.browser.version(),
+        cdp_url: chrome.cdpUrl,
+        managed_chrome_started: chrome.started,
         capabilities: [
           'managed-chrome',
           'source-upload',
           'prompt-submit-readiness',
           'tar-capture',
           'rate-limit-detection',
+          'global-modal-sweeper',
+          'known-run-tab-recovery',
+          'message-stream-retry',
         ],
       });
+      await this.recoverKnownRunChatGptTabs(envelope, 'startup-known-run-tab-recovery');
+      await this.sweepAllChatGptModals(envelope, 'startup-global-modal-sweep');
+      this.startGlobalDismissalSweep(envelope);
     } catch (error) {
       this.logError('startup-failed', error);
       this.emit(envelope, 'error', errorPayload('bridge-startup-failed', error));
@@ -191,16 +234,21 @@ class ChromeBridge {
     }
   }
 
-  async ensureBrowser() {
+  async ensureBrowser(envelope = null) {
     if (this.browser && this.context) {
-      return;
+      return this.browserEndpoint;
     }
-    const chrome = await ensureManagedChromeRunning(this.options);
+    const logStartup = envelope
+      ? (phase, status, message, fields, level) => this.bridgeLog(envelope, phase, status, message, fields, level)
+      : null;
+    const chrome = await ensureManagedChromeRunning(this.options, logStartup);
     this.browser = await chromium.connectOverCDP(chrome.cdpUrl, { timeout: this.options.browserTimeoutMs });
     this.context = this.browser.contexts()[0];
     if (!this.context) {
       throw new Error(`no browser context found at ${chrome.cdpUrl}`);
     }
+    this.browserEndpoint = chrome;
+    return chrome;
   }
 
   async openTab(envelope) {
@@ -323,6 +371,7 @@ class ChromeBridge {
     await mkdir(outputDir, { recursive: true });
     let lastTelemetry = 0;
     let tick = 0;
+    let messageStreamRetries = 0;
     this.bridgeLog(envelope, 'monitor-started', 'ok', 'tab monitor loop started', {
       completion_check_ms: String(completionMs),
       telemetry_tick_ms: String(pollMs),
@@ -345,8 +394,8 @@ class ChromeBridge {
       }
       this.emit(envelope, 'tab-progress', {
         kind: progressKind,
-        phase: ranked.length > 0 ? 'tar-candidate-found' : status.activeStop ? 'generating' : 'checking',
-        busy_reason: status.activeStop ? 'active-stop-button' : null,
+        phase: ranked.length > 0 ? 'tar-candidate-found' : status.messageStreamError ? 'message-stream-error' : status.activeStop ? 'generating' : 'checking',
+        busy_reason: status.activeStop ? 'active-stop-button' : status.messageStreamError ? 'message-stream-error' : null,
         has_active_stop: Boolean(status.activeStop),
         has_final_actions: status.finalActions > 0,
         last_text_length: discovery.lastTextLength,
@@ -360,6 +409,9 @@ class ChromeBridge {
           assistant_roots: String(discovery.assistantRootCount ?? 0),
           has_active_stop: String(Boolean(status.activeStop)),
           has_final_actions: String(status.finalActions > 0),
+          message_stream_error: String(Boolean(status.messageStreamError)),
+          retry_available: String(Boolean(status.retryAvailable)),
+          message_stream_retries: String(messageStreamRetries),
           last_text_length: String(discovery.lastTextLength),
           preview: compact(discovery.lastTextPreview || '', 160),
           page_url: tab.page.url(),
@@ -387,62 +439,107 @@ class ChromeBridge {
           target_path: targetPath,
           label: compact(candidate.label || candidate.download || candidate.href || '', 160),
         });
-        await this.runDismissals(tab.page, envelope, 'download-preflight');
-        const file = await downloadCandidate(tab.page, candidate, outputDir);
-        const receiptPath = join(this.options.artifactsDir, 'receipts', envelope.run_id, `tab-${String(tabId).padStart(2, '0')}-download.json`);
-        await mkdir(resolve(receiptPath, '..'), { recursive: true });
-        const completePayload = {
-          sha256: file.sha256,
-          size_bytes: file.sizeBytes,
-          local_path: file.path,
-          receipt_path: receiptPath,
-          original_name: file.suggested,
-          local_name: file.suggested,
-          download_url: candidate.href || null,
-          entry_count: file.entryCount,
-          started_at: startedDownloadAt,
-          finished_at: timestamp(),
-        };
-        await writeFile(receiptPath, JSON.stringify(completePayload, null, 2));
-        const stop = await stopIfGenerating(tab.page);
-        if (stop.clicked) {
-          this.emit(envelope, 'generation-stopped', { method: stop.label || 'button' });
-          this.bridgeLog(envelope, 'generation-stopped', 'ok', 'stopped generation after tar receipt', {
-            method: stop.label || 'button',
-          });
+        let completePayload = null;
+        let cleanup = null;
+        let cleanupReason = 'download-failed';
+        try {
+          await this.runDismissals(tab.page, envelope, 'download-preflight');
+          const file = await downloadCandidate(tab.page, candidate, outputDir);
+          const receiptPath = join(this.options.artifactsDir, 'receipts', envelope.run_id, `tab-${String(tabId).padStart(2, '0')}-download.json`);
+          await mkdir(resolve(receiptPath, '..'), { recursive: true });
+          const finishedDownloadAt = timestamp();
+          const downloadLatencyMs = Math.max(0, Date.parse(finishedDownloadAt) - Date.parse(startedDownloadAt)) || 0;
+          completePayload = {
+            sha256: file.sha256,
+            size_bytes: file.sizeBytes,
+            local_path: file.path,
+            receipt_path: receiptPath,
+            original_name: file.suggested,
+            local_name: file.suggested,
+            download_url: candidate.href || null,
+            entry_count: file.entryCount,
+            started_at: startedDownloadAt,
+            finished_at: finishedDownloadAt,
+            download_latency_ms: downloadLatencyMs,
+          };
+          await writeFile(receiptPath, JSON.stringify(completePayload, null, 2));
+          cleanupReason = 'download-complete';
+        } finally {
+          cleanup = await finalizeTabAfterDownload(this, tab, envelope, cleanupReason);
         }
-        const closed = await this.closeTabAfterReceipt(tab, envelope, 'download-complete');
         this.emit(envelope, 'download-complete', completePayload);
         this.bridgeLog(envelope, 'download-complete', 'ok', 'download receipt written and tab closed', {
-          sha256: file.sha256,
-          size_bytes: String(file.sizeBytes),
-          entry_count: String(file.entryCount),
-          receipt_path: receiptPath,
-          local_path: file.path,
-          tab_closed: String(closed),
+          sha256: completePayload.sha256,
+          size_bytes: String(completePayload.size_bytes),
+          entry_count: String(completePayload.entry_count),
+          receipt_path: completePayload.receipt_path,
+          local_path: completePayload.local_path,
+          generation_stop_method: cleanup?.stopMethod || '',
+          tab_closed: String(Boolean(cleanup?.closed)),
+          cleanup_errors: (cleanup?.errors || []).join(';'),
         });
+        if (!cleanup?.closed || cleanup.errors.length > 0) {
+          throw new Error(`download completed but tab cleanup failed for tab ${tabId}: ${(cleanup?.errors || ['tab-not-closed']).join('; ')}`);
+        }
+        return;
+      }
+
+      if (status.messageStreamError && messageStreamRetries < this.options.messageStreamRetryLimit) {
+        messageStreamRetries += 1;
+        const retry = await retryMessageStreamError(tab.page);
+        this.bridgeLog(
+          envelope,
+          'message-stream-retry',
+          retry.clicked ? 'clicked' : 'not-clicked',
+          retry.clicked ? 'clicked ChatGPT message stream Retry' : 'message stream error detected but Retry was not clicked',
+          {
+            attempt: String(messageStreamRetries),
+            max_attempts: String(this.options.messageStreamRetryLimit),
+            detected: String(Boolean(retry.detected)),
+            button_label: retry.buttonLabel || '',
+            reason: retry.reason || '',
+            excerpt: compact(retry.excerpt || '', 200),
+          },
+          retry.clicked ? 'warn' : 'error',
+        );
+        if (retry.clicked) {
+          await sleep(this.options.messageStreamRetryDelayMs);
+          continue;
+        }
+      }
+
+      if (status.messageStreamError) {
+        await emitNoTarErrorAndCleanup(
+          this,
+          tab,
+          envelope,
+          'message-stream-no-tar',
+          `assistant hit message stream error without tar.gz after ${messageStreamRetries} retry attempts`,
+        );
         return;
       }
 
       if (!status.activeStop && status.finalActions > 0) {
-        this.emit(envelope, 'error', {
-          kind: 'done-no-tar',
-          message: 'assistant finished but no tar.gz download candidate was found',
-          recoverable: false,
-          stack: null,
-        });
+        await emitNoTarErrorAndCleanup(
+          this,
+          tab,
+          envelope,
+          'done-no-tar',
+          'assistant finished but no tar.gz download candidate was found',
+        );
         return;
       }
 
       await sleep(Math.min(completionMs, pollMs));
     }
 
-    this.emit(envelope, 'error', {
-      kind: 'timeout-no-tar',
-      message: `timed out after ${this.options.tarWaitMinutes} minutes waiting for tar.gz download candidate`,
-      recoverable: false,
-      stack: null,
-    });
+    await emitNoTarErrorAndCleanup(
+      this,
+      tab,
+      envelope,
+      'timeout-no-tar',
+      `timed out after ${this.options.tarWaitMinutes} minutes waiting for tar.gz download candidate`,
+    );
   }
 
   async runDismissals(page, envelope, phase) {
@@ -470,6 +567,128 @@ class ChromeBridge {
         excerpt: compact(rateLimit.excerpt || '', 200),
       }, 'warn');
     }
+  }
+
+  startGlobalDismissalSweep(envelope) {
+    if (this.globalDismissalTimer || this.options.globalModalSweepMs <= 0) {
+      return;
+    }
+    this.globalDismissalTimer = setInterval(() => {
+      void this.sweepAllChatGptModals(envelope, 'global-modal-sweep').catch((error) => {
+        this.logError('global-modal-sweep', error);
+      });
+    }, this.options.globalModalSweepMs);
+    this.globalDismissalTimer.unref?.();
+    this.bridgeLog(envelope, 'global-modal-sweep', 'started', 'global ChatGPT modal sweeper started', {
+      interval_ms: String(this.options.globalModalSweepMs),
+      max_expected_latency_ms: String(this.options.globalModalSweepMs),
+    });
+  }
+
+  async sweepAllChatGptModals(envelope, phase) {
+    if (!this.context || this.globalDismissalRunning) {
+      return { pages: 0, dismissed: 0 };
+    }
+    this.globalDismissalRunning = true;
+    let pages = 0;
+    let dismissed = 0;
+    try {
+      for (const page of this.context.pages()) {
+        if (!page || page.isClosed() || !isChatGptPageUrl(page.url())) {
+          continue;
+        }
+        pages += 1;
+        const tabId = this.tabIdForPage(page);
+        const rateLimit = await dismissRateLimitModal(page);
+        if (!rateLimit.detected) {
+          continue;
+        }
+        if (rateLimit.dismissed) {
+          dismissed += 1;
+        }
+        const orphan = tabId == null;
+        this.emit(envelope, 'rate-limit-detected', {
+          dismissed: Boolean(rateLimit.dismissed),
+          excerpt: rateLimit.excerpt || '',
+          page_url: page.url(),
+          source_phase: phase,
+          global_sweep: true,
+          orphan,
+        }, tabId ?? undefined);
+        this.bridgeLog(
+          envelope,
+          'global-rate-limit-sweep',
+          rateLimit.dismissed ? 'clicked' : 'detected',
+          rateLimit.dismissed ? 'dismissed rate-limit modal from global sweep' : 'rate-limit modal detected without safe click in global sweep',
+          {
+            source_phase: phase,
+            page_url: page.url(),
+            tab_id: tabId == null ? '' : String(tabId),
+            orphan: String(orphan),
+            button_label: rateLimit.buttonLabel || '',
+            reason: rateLimit.reason || '',
+            excerpt: compact(rateLimit.excerpt || '', 200),
+          },
+          'warn',
+        );
+      }
+      return { pages, dismissed };
+    } finally {
+      this.globalDismissalRunning = false;
+    }
+  }
+
+  tabIdForPage(page) {
+    for (const [tabId, tab] of this.tabs.entries()) {
+      if (tab.page === page) {
+        return tabId;
+      }
+    }
+    return null;
+  }
+
+  async recoverKnownRunChatGptTabs(envelope, phase) {
+    if (!this.context || !this.options.recoverKnownRunTabs) {
+      return { scanned: 0, matched: 0, closed: 0, downloaded: 0 };
+    }
+    const known = await collectKnownRunChatGptUrls(this.options.knownRunArtifactsDir, envelope.run_id);
+    if (known.size === 0) {
+      this.bridgeLog(envelope, phase, 'skipped', 'no known prior run ChatGPT URLs found for recovery', {
+        artifacts_dir: this.options.knownRunArtifactsDir,
+      });
+      return { scanned: 0, matched: 0, closed: 0, downloaded: 0 };
+    }
+    let scanned = 0;
+    let matched = 0;
+    let closed = 0;
+    let downloaded = 0;
+    for (const page of this.context.pages()) {
+      if (!page || page.isClosed() || !isChatGptPageUrl(page.url())) {
+        continue;
+      }
+      scanned += 1;
+      const normalized = normalizeChatGptUrl(page.url());
+      const source = known.get(normalized);
+      if (!source) {
+        continue;
+      }
+      matched += 1;
+      const summary = await recoverKnownRunPage(this, page, envelope, source, phase);
+      if (summary.closed) {
+        closed += 1;
+      }
+      if (summary.downloaded) {
+        downloaded += 1;
+      }
+    }
+    this.bridgeLog(envelope, phase, 'done', 'known prior run ChatGPT tab recovery finished', {
+      artifacts_dir: this.options.knownRunArtifactsDir,
+      scanned: String(scanned),
+      matched: String(matched),
+      closed: String(closed),
+      downloaded: String(downloaded),
+    });
+    return { scanned, matched, closed, downloaded };
   }
 
   async handleGitHubToolPrompts(page, envelope) {
@@ -564,13 +783,34 @@ class ChromeBridge {
         sleep(drainTimeoutMs),
       ]).catch(() => undefined);
     }
-    for (const tab of this.tabs.values()) {
+    if (this.globalDismissalTimer) {
+      clearInterval(this.globalDismissalTimer);
+      this.globalDismissalTimer = null;
+    }
+    await this.sweepAllChatGptModals(envelope ?? systemEnvelope(reason), 'shutdown-global-modal-sweep').catch(() => undefined);
+    for (const [tabId, tab] of this.tabs.entries()) {
       if (tab.page && !tab.page.isClosed()) {
+        const pageUrl = tab.page.url();
+        if (envelope) {
+          const stop = await stopIfGenerating(tab.page).catch((error) => ({
+            clicked: false,
+            reason: `shutdown-stop-failed:${error?.message || String(error)}`,
+          }));
+          this.emit(envelope, 'generation-stopped', {
+            method: stop.clicked ? (stop.label || 'button') : `shutdown-not-active:${stop.reason || 'not-found'}`,
+          }, tabId);
+        }
         await tab.page.close().catch(() => undefined);
+        if (envelope) {
+          this.emit(envelope, 'tab-closed', {
+            page_url: pageUrl,
+            reason,
+          }, tabId);
+        }
       }
     }
     if (envelope) {
-      this.emit(envelope, 'bridge-shutting-down', { reason });
+      this.emit(envelope, 'bridge-shutting-down', { reason }, undefined);
     }
     await this.browser?.close().catch(() => undefined);
   }
@@ -613,15 +853,32 @@ class ChromeBridge {
   }
 }
 
-async function ensureManagedChromeRunning(options) {
-  const endpoint = parseCdpEndpoint(options.cdpUrl);
-  rejectKnownBadCdpEndpoint(endpoint, options.cdpUrlExplicit);
+async function ensureManagedChromeRunning(options, logStartup = null) {
+  const requestedEndpoint = parseCdpEndpoint(options.cdpUrl);
+  const requestedProbe = await probeCdpEndpoint(requestedEndpoint, 750);
+  const managedProbes = needsManagedCdpRecovery(requestedEndpoint, requestedProbe)
+    ? await probeManagedCdpCandidates(750)
+    : null;
+  const startupPlan = planCdpEndpointRecovery(requestedEndpoint, requestedProbe, managedProbes);
+  if (startupPlan.recovery) {
+    logStartup?.('cdp-recovery', startupPlan.fatal ? 'failed' : 'redirected', startupPlan.fatal
+      ? 'local Chrome CDP port 922 is not usable and no managed Jailgun Chrome port is available'
+      : 'local Chrome CDP port 922 is not usable; switching to managed Jailgun Chrome', {
+      ...cdpRecoveryLogFields(startupPlan.recovery),
+      cdp_endpoint_source: options.cdpEndpointSource || 'unknown',
+      cdp_endpoint_configured: String(Boolean(options.cdpEndpointConfigured)),
+    }, startupPlan.fatal ? 'error' : 'warn');
+  }
+  if (startupPlan.fatal) {
+    throw cdpRecoveryError(startupPlan.fatal);
+  }
 
-  const portOpen = await isPortOpen(endpoint.hostname, endpoint.port, 750);
-  if (portOpen && await canReadCdpVersion(endpoint, 750)) {
+  const endpoint = startupPlan.endpoint;
+  const probe = startupPlan.probe ?? requestedProbe;
+  if (probe.status === 'cdp') {
     return { cdpUrl: endpoint.origin, started: false };
   }
-  if (portOpen) {
+  if (probe.status === 'open-non-cdp') {
     throw new Error(`Port ${endpoint.hostname}:${endpoint.port} is open, but it is not responding as Chrome CDP at ${endpoint.origin}/json/version`);
   }
 
@@ -692,25 +949,147 @@ function parseCdpEndpoint(value) {
   };
 }
 
-function rejectKnownBadCdpEndpoint(endpoint, explicit) {
-  if (!explicit) {
-    return;
+function planCdpEndpointRecovery(endpoint, probe, managedProbes = null) {
+  if (probe.status === 'cdp' || !isLegacyLocalCdpEndpoint(endpoint)) {
+    return { endpoint, probe, recovery: null, fatal: null };
   }
-  if (isLocalCdpHost(endpoint.hostname) && endpoint.port === 922) {
-    throw new Error('Chrome CDP port 922 is almost certainly a typo. The managed Jailgun Chrome default is http://127.0.0.1:9224; omit --cdp-url or use that URL explicitly.');
+  const managedProbeResults = normalizedManagedProbeResults(managedProbes);
+  const checked = [];
+  const blocked = [];
+  for (const candidate of managedProbeResults) {
+    checked.push(candidate.endpoint.origin);
+    if (candidate.probe.status === 'cdp' || candidate.probe.status === 'closed') {
+      return {
+        endpoint: candidate.endpoint,
+        probe: candidate.probe,
+        recovery: {
+          requested_cdp_url: endpoint.origin,
+          fallback_cdp_url: candidate.endpoint.origin,
+          selected_cdp_url: candidate.endpoint.origin,
+          reason: probe.reason || probe.status,
+          checked_cdp_urls: checked,
+          blocked_cdp_urls: blocked.map((blockedCandidate) => blockedCandidate.endpoint.origin),
+        },
+        fatal: null,
+      };
+    }
+    blocked.push(candidate);
   }
+  const firstBlocked = blocked[0] ?? managedProbeResults[0] ?? { endpoint: managedCdpEndpoint(), probe: { reason: 'not probed' } };
+  return {
+    endpoint: null,
+    probe: null,
+    recovery: {
+      requested_cdp_url: endpoint.origin,
+      fallback_cdp_url: '',
+      selected_cdp_url: '',
+      reason: probe.reason || probe.status,
+      checked_cdp_urls: checked,
+      blocked_cdp_urls: blocked.map((blockedCandidate) => blockedCandidate.endpoint.origin),
+    },
+    fatal: {
+      requested_cdp_url: endpoint.origin,
+      checked_cdp_urls: checked,
+      checked_endpoint: firstBlocked.endpoint.origin,
+      checked_port: firstBlocked.endpoint.port,
+      next_action: lsofCommandForPort(firstBlocked.endpoint.port),
+      reason: firstBlocked.probe.reason || 'managed Chrome CDP candidate is not usable',
+    },
+  };
+}
+
+function managedCdpEndpoint() {
+  return parseCdpEndpoint(`http://${DEFAULT_CDP_HOST}:${DEFAULT_CDP_PORT}`);
+}
+
+function managedCdpEndpoints() {
+  const endpoints = [];
+  for (let port = DEFAULT_CDP_PORT; port <= MANAGED_CDP_MAX_PORT; port += 1) {
+    endpoints.push(parseCdpEndpoint(`http://${DEFAULT_CDP_HOST}:${port}`));
+  }
+  return endpoints;
+}
+
+async function probeManagedCdpCandidates(timeoutMs) {
+  const results = [];
+  for (const endpoint of managedCdpEndpoints()) {
+    const probe = await probeCdpEndpoint(endpoint, timeoutMs);
+    results.push({ endpoint, probe });
+    if (probe.status === 'cdp' || probe.status === 'closed') {
+      break;
+    }
+  }
+  return results;
+}
+
+function normalizedManagedProbeResults(managedProbes) {
+  if (Array.isArray(managedProbes) && managedProbes.length > 0) {
+    return managedProbes;
+  }
+  return [{
+    endpoint: managedCdpEndpoint(),
+    probe: {
+      status: 'closed',
+      reason: 'managed Chrome default port selected',
+    },
+  }];
+}
+
+function needsManagedCdpRecovery(endpoint, probe) {
+  return probe.status !== 'cdp' && isLegacyLocalCdpEndpoint(endpoint);
+}
+
+function cdpRecoveryLogFields(recovery) {
+  return {
+    requested_cdp_url: recovery.requested_cdp_url,
+    fallback_cdp_url: recovery.fallback_cdp_url,
+    selected_cdp_url: recovery.selected_cdp_url,
+    reason: recovery.reason,
+    checked_cdp_urls: recovery.checked_cdp_urls.join(','),
+    blocked_cdp_urls: recovery.blocked_cdp_urls.join(','),
+  };
+}
+
+function cdpRecoveryError(fatal) {
+  return new Error([
+    `Cannot recover from local Chrome CDP port 922 at ${fatal.requested_cdp_url}: every managed Chrome CDP candidate is occupied by a non-CDP listener.`,
+    `Checked endpoint: ${fatal.checked_endpoint}/json/version`,
+    `Checked port: ${fatal.checked_port}`,
+    `Next action: ${fatal.next_action}`,
+  ].join('\n'));
+}
+
+function lsofCommandForPort(port) {
+  return `lsof -nP -iTCP:${port} -sTCP:LISTEN`;
+}
+
+function isLegacyLocalCdpEndpoint(endpoint) {
+  return isLocalCdpHost(endpoint.hostname) && endpoint.port === LEGACY_LOCAL_CDP_PORT;
 }
 
 function isLocalCdpHost(hostname) {
-  return hostname === '127.0.0.1' || hostname === 'localhost' || hostname === '::1';
+  return hostname === '127.0.0.1' || hostname === 'localhost' || hostname === '::1' || hostname === '[::1]';
 }
 
-async function canReadCdpVersion(endpoint, timeoutMs) {
+async function probeCdpEndpoint(endpoint, timeoutMs) {
+  const portOpen = await isPortOpen(endpoint.hostname, endpoint.port, timeoutMs);
+  if (!portOpen) {
+    return {
+      status: 'closed',
+      reason: `port ${endpoint.hostname}:${endpoint.port} is closed or unreachable`,
+    };
+  }
   try {
     await fetchCdpVersion(endpoint, timeoutMs);
-    return true;
-  } catch {
-    return false;
+    return {
+      status: 'cdp',
+      reason: 'Chrome CDP version endpoint responded',
+    };
+  } catch (error) {
+    return {
+      status: 'open-non-cdp',
+      reason: error?.message || String(error),
+    };
   }
 }
 
@@ -1398,24 +1777,70 @@ async function readGenerationStatus(page) {
     ].join(' ').replace(/\s+/g, ' ').trim();
     let activeStop = false;
     let finalActions = 0;
+    let retryAvailable = false;
     for (const el of controls) {
       if (!visible(el) || disabled(el)) continue;
       const text = label(el);
       if (/\b(stop answering|stop generating|stop responding|stop thinking|stop)\b/i.test(text)) activeStop = true;
       if (/\b(copy response|good response|bad response|more actions|sources)\b/i.test(text)) finalActions += 1;
+      if (/^\s*retry\s*$/i.test(text)) retryAvailable = true;
     }
-    return { activeStop, finalActions };
+    const pageText = String(document.body?.innerText || document.body?.textContent || '');
+    const messageStreamError = /error in message stream/i.test(pageText);
+    return { activeStop, finalActions, messageStreamError, retryAvailable };
   });
 }
 
-async function downloadCandidate(page, candidate, outputDir) {
-  const downloadPromise = page.waitForEvent('download', { timeout: 120000 });
+async function retryMessageStreamError(page) {
+  try {
+    return await page.evaluate(() => {
+      const controls = Array.from(document.querySelectorAll('button,[role="button"],a,[aria-label],[title]'));
+      const textOf = (el) => String(el?.innerText || el?.textContent || '').replace(/\s+/g, ' ').trim();
+      const pageText = textOf(document.body);
+      const detected = /error in message stream/i.test(pageText);
+      const visible = (el) => {
+        const style = window.getComputedStyle(el);
+        const rect = el.getBoundingClientRect();
+        return style.visibility !== 'hidden' && style.display !== 'none' && rect.width > 0 && rect.height > 0;
+      };
+      const disabled = (el) => el.hasAttribute?.('disabled') || /^true$/i.test(el.getAttribute?.('aria-disabled') || '');
+      const label = (el) => [
+        el.innerText || el.textContent || '',
+        el.getAttribute?.('aria-label') || '',
+        el.getAttribute?.('title') || '',
+      ].join(' ').replace(/\s+/g, ' ').trim();
+      if (!detected) {
+        return { detected: false, clicked: false, buttonLabel: '', excerpt: '', reason: 'message-stream-error-not-detected' };
+      }
+      for (const el of controls) {
+        if (!visible(el) || disabled(el)) continue;
+        const text = label(el);
+        if (!/^\s*retry\s*$/i.test(text)) continue;
+        el.click();
+        return { detected: true, clicked: true, buttonLabel: text, excerpt: pageText.slice(0, 240), reason: '' };
+      }
+      return { detected: true, clicked: false, buttonLabel: '', excerpt: pageText.slice(0, 240), reason: 'retry-control-not-found' };
+    });
+  } catch (error) {
+    return {
+      detected: false,
+      clicked: false,
+      buttonLabel: '',
+      excerpt: '',
+      reason: `evaluate-failed: ${error.message}`,
+    };
+  }
+}
+
+async function downloadCandidate(page, candidate, outputDir, timeoutMs = 120000) {
+  const downloadPromise = page.waitForEvent('download', { timeout: timeoutMs });
   const locator = page.locator('a,button,[role="button"],[download],[href]').nth(candidate.index);
   await locator.scrollIntoViewIfNeeded({ timeout: 5000 }).catch(() => undefined);
-  await locator.click({ timeout: 120000 });
+  await locator.click({ timeout: timeoutMs });
   const download = await downloadPromise;
   const suggested = normalizeTarName(download.suggestedFilename() || basename(candidate.href || '') || 'chatgpt-output.tar.gz');
   const path = join(outputDir, suggested);
+  await mkdir(outputDir, { recursive: true });
   await download.saveAs(path);
   const failure = await download.failure();
   if (failure) {
@@ -1456,7 +1881,7 @@ async function dismissRateLimitModal(page) {
         if (!view) return true;
         const style = view.getComputedStyle(el);
         const rect = el.getBoundingClientRect();
-        return style.visibility !== 'hidden' && style.display !== 'none' && rect.width >= 0 && rect.height >= 0;
+        return style.visibility !== 'hidden' && style.display !== 'none' && rect.width > 0 && rect.height > 0;
       };
       const disabled = (el) => el.hasAttribute('disabled') || /^true$/i.test(el.getAttribute('aria-disabled') || '');
       const textOf = (el) => String(el.textContent || '').replace(/\s+/g, ' ').trim();
@@ -1720,6 +2145,250 @@ async function stopIfGenerating(page) {
   });
 }
 
+async function finalizeTabAfterDownload(bridge, tab, envelope, reason) {
+  const errors = [];
+  let stopMethod = 'not-run:page-closed';
+  let closed = false;
+  const context = terminalCleanupContext(reason);
+
+  if (tab.page && !tab.page.isClosed()) {
+    try {
+      const stop = await stopIfGenerating(tab.page);
+      stopMethod = stop.clicked ? (stop.label || 'button') : `not-active:${stop.reason || 'not-found'}`;
+      bridge.emit(envelope, 'generation-stopped', { method: stopMethod });
+      bridge.bridgeLog(
+        envelope,
+        'generation-stopped',
+        stop.clicked ? 'ok' : 'not-active',
+        stop.clicked ? `stopped generation ${context}` : `generation was not active ${context}`,
+        { method: stopMethod },
+      );
+    } catch (error) {
+      const message = error?.message || String(error);
+      errors.push(`stop:${message}`);
+      bridge.bridgeLog(envelope, 'generation-stopped', 'failed', `failed to stop generation ${context}`, {
+        reason: message,
+      }, 'error');
+    }
+  }
+
+  if (tab.page && !tab.page.isClosed()) {
+    try {
+      closed = await bridge.closeTabAfterReceipt(tab, envelope, reason);
+    } catch (error) {
+      const message = error?.message || String(error);
+      errors.push(`close:${message}`);
+      bridge.bridgeLog(envelope, 'tab-closed', 'failed', `failed to close tab ${context}`, {
+        reason: message,
+      }, 'error');
+    }
+  }
+
+  return { stopMethod, closed, errors };
+}
+
+async function emitNoTarErrorAndCleanup(bridge, tab, envelope, kind, message) {
+  const cleanup = await finalizeTabAfterDownload(bridge, tab, envelope, kind);
+  bridge.emit(envelope, 'error', {
+    kind,
+    message,
+    recoverable: false,
+    stack: null,
+    cleanup_stop_method: cleanup.stopMethod,
+    tab_closed: cleanup.closed,
+    cleanup_errors: cleanup.errors.join(';'),
+  });
+  bridge.bridgeLog(envelope, kind, 'failed', message, {
+    cleanup_stop_method: cleanup.stopMethod,
+    tab_closed: String(Boolean(cleanup.closed)),
+    cleanup_errors: cleanup.errors.join(';'),
+  }, 'error');
+  return cleanup;
+}
+
+function terminalCleanupContext(reason) {
+  if (reason === 'download-complete') {
+    return 'after tar receipt';
+  }
+  if (reason === 'download-failed') {
+    return 'after failed tar download';
+  }
+  if (reason === 'done-no-tar') {
+    return 'after assistant finished without a tar';
+  }
+  if (reason === 'timeout-no-tar') {
+    return 'after tar wait timed out';
+  }
+  return `after ${reason}`;
+}
+
+async function collectKnownRunChatGptUrls(artifactsDir, currentRunId) {
+  const known = new Map();
+  let entries = [];
+  try {
+    entries = await readdir(artifactsDir, { withFileTypes: true });
+  } catch {
+    return known;
+  }
+  for (const entry of entries) {
+    if (!entry.isDirectory()) {
+      continue;
+    }
+    const eventsPath = join(artifactsDir, entry.name, 'events.ndjson');
+    let data = '';
+    try {
+      data = await readFile(eventsPath, 'utf8');
+    } catch {
+      continue;
+    }
+    for (const line of data.split(/\r?\n/)) {
+      if (!line.trim()) {
+        continue;
+      }
+      let event;
+      try {
+        event = JSON.parse(line);
+      } catch {
+        continue;
+      }
+      if (event.run_id === currentRunId) {
+        continue;
+      }
+      const pageUrl = event.fields?.page_url;
+      if (!isChatGptPageUrl(pageUrl)) {
+        continue;
+      }
+      const normalized = normalizeChatGptUrl(pageUrl);
+      if (!normalized) {
+        continue;
+      }
+      known.set(normalized, {
+        runId: event.run_id || entry.name,
+        tabId: event.tab_id ?? null,
+        url: pageUrl,
+      });
+    }
+  }
+  return known;
+}
+
+async function recoverKnownRunPage(bridge, page, envelope, source, phase) {
+  const pageUrl = page.url();
+  const outputDir = join(
+    bridge.options.downloadsDir,
+    envelope.run_id,
+    'orphan-recovery',
+    sanitizePathSegment(source.runId || 'unknown-run'),
+    sanitizePathSegment(source.tabId == null ? conversationIdFromChatGptUrl(pageUrl) : `tab-${source.tabId}`),
+  );
+  let downloaded = false;
+  let closed = false;
+  let localPath = '';
+  try {
+    await dismissPopups(page).catch(() => undefined);
+    await dismissRateLimitModal(page).catch(() => undefined);
+    const discovery = await discoverTarCandidates(page);
+    const ranked = rankCandidates(discovery.candidates, bridge.options.tarTargetName);
+    if (ranked.length > 0) {
+      const candidate = ranked[0];
+      bridge.bridgeLog(envelope, phase, 'download-started', 'recovering download from known abandoned run tab', {
+        source_run_id: source.runId || '',
+        source_tab_id: source.tabId == null ? '' : String(source.tabId),
+        page_url: pageUrl,
+        candidate_index: String(candidate.index),
+        candidate_count: String(ranked.length),
+        output_dir: outputDir,
+      }, 'warn');
+      const file = await downloadCandidate(page, candidate, outputDir, 30000);
+      localPath = file.path;
+      downloaded = true;
+      const receiptPath = join(
+        bridge.options.artifactsDir,
+        'receipts',
+        envelope.run_id,
+        `orphan-${sanitizePathSegment(source.runId || 'unknown-run')}-${sanitizePathSegment(source.tabId == null ? conversationIdFromChatGptUrl(pageUrl) : `tab-${source.tabId}`)}.json`,
+      );
+      await mkdir(resolve(receiptPath, '..'), { recursive: true });
+      await writeFile(receiptPath, JSON.stringify({
+        recovered_from_run_id: source.runId || null,
+        recovered_from_tab_id: source.tabId,
+        page_url: pageUrl,
+        local_path: file.path,
+        original_name: file.suggested,
+        local_name: file.suggested,
+        sha256: file.sha256,
+        size_bytes: file.sizeBytes,
+        entry_count: file.entryCount,
+        recovered_at: timestamp(),
+      }, null, 2));
+      bridge.bridgeLog(envelope, phase, 'downloaded', 'recovered tar download from known abandoned run tab', {
+        source_run_id: source.runId || '',
+        source_tab_id: source.tabId == null ? '' : String(source.tabId),
+        page_url: pageUrl,
+        local_path: file.path,
+        receipt_path: receiptPath,
+        sha256: file.sha256,
+        size_bytes: String(file.sizeBytes),
+        entry_count: String(file.entryCount),
+      }, 'warn');
+    } else {
+      bridge.bridgeLog(envelope, phase, 'no-candidate', 'known abandoned run tab had no tar candidate during recovery', {
+        source_run_id: source.runId || '',
+        source_tab_id: source.tabId == null ? '' : String(source.tabId),
+        page_url: pageUrl,
+        scanned_control_count: String(discovery.scannedControlCount ?? 0),
+      }, 'warn');
+    }
+  } catch (error) {
+    bridge.bridgeLog(envelope, phase, 'download-failed', 'failed to recover tar from known abandoned run tab', {
+      source_run_id: source.runId || '',
+      source_tab_id: source.tabId == null ? '' : String(source.tabId),
+      page_url: pageUrl,
+      reason: error?.message || String(error),
+    }, 'warn');
+  } finally {
+    if (!page.isClosed()) {
+      try {
+        const stop = await stopIfGenerating(page);
+        bridge.bridgeLog(envelope, phase, stop.clicked ? 'stopped' : 'not-active', 'stopped known abandoned run tab before close', {
+          source_run_id: source.runId || '',
+          source_tab_id: source.tabId == null ? '' : String(source.tabId),
+          page_url: pageUrl,
+          method: stop.clicked ? (stop.label || 'button') : `not-active:${stop.reason || 'not-found'}`,
+        }, 'warn');
+      } catch (error) {
+        bridge.bridgeLog(envelope, phase, 'stop-failed', 'failed to stop known abandoned run tab before close', {
+          source_run_id: source.runId || '',
+          source_tab_id: source.tabId == null ? '' : String(source.tabId),
+          page_url: pageUrl,
+          reason: error?.message || String(error),
+        }, 'warn');
+      }
+    }
+    if (!page.isClosed()) {
+      try {
+        await page.close({ runBeforeUnload: false });
+        closed = true;
+        bridge.bridgeLog(envelope, phase, 'closed', 'closed known abandoned run tab', {
+          source_run_id: source.runId || '',
+          source_tab_id: source.tabId == null ? '' : String(source.tabId),
+          page_url: pageUrl,
+          downloaded: String(downloaded),
+          local_path: localPath,
+        }, 'warn');
+      } catch (error) {
+        bridge.bridgeLog(envelope, phase, 'close-failed', 'failed to close known abandoned run tab', {
+          source_run_id: source.runId || '',
+          source_tab_id: source.tabId == null ? '' : String(source.tabId),
+          page_url: pageUrl,
+          reason: error?.message || String(error),
+        }, 'error');
+      }
+    }
+  }
+  return { downloaded, closed };
+}
+
 function parseArgs(argv) {
   const parsed = {};
   for (let i = 0; i < argv.length; i += 1) {
@@ -1787,6 +2456,15 @@ function toCamel(value) {
   return value.replace(/-([a-z])/g, (_, ch) => ch.toUpperCase());
 }
 
+function firstSetting(entries) {
+  for (const [source, value] of entries) {
+    if (value !== undefined && value !== null && value !== '') {
+      return { source, value };
+    }
+  }
+  return null;
+}
+
 function numberFrom(value, defaultValue) {
   if (value === undefined || value === null || value === '') {
     return defaultValue;
@@ -1798,12 +2476,72 @@ function numberFrom(value, defaultValue) {
   return number;
 }
 
+function booleanFrom(value, defaultValue) {
+  if (value === undefined || value === null || value === '') {
+    return defaultValue;
+  }
+  if (typeof value === 'boolean') {
+    return value;
+  }
+  if (/^(1|true|yes|on)$/i.test(String(value))) {
+    return true;
+  }
+  if (/^(0|false|no|off)$/i.test(String(value))) {
+    return false;
+  }
+  return defaultValue;
+}
+
 function resolvePath(value) {
   return isAbsolute(value) ? value : resolve(process.cwd(), value);
 }
 
 function timestamp() {
   return new Date().toISOString();
+}
+
+function systemEnvelope(reason) {
+  return {
+    v: PROTOCOL_VERSION,
+    type: 'system',
+    run_id: 'unknown',
+    id: `system-${Date.now()}`,
+    ts: timestamp(),
+    payload: { reason },
+  };
+}
+
+function isChatGptPageUrl(value) {
+  try {
+    return new URL(value).hostname === 'chatgpt.com';
+  } catch {
+    return false;
+  }
+}
+
+function normalizeChatGptUrl(value) {
+  try {
+    const url = new URL(value);
+    if (url.hostname !== 'chatgpt.com') {
+      return null;
+    }
+    return `${url.origin}${url.pathname.replace(/\/+$/, '')}`;
+  } catch {
+    return null;
+  }
+}
+
+function conversationIdFromChatGptUrl(value) {
+  try {
+    const parts = new URL(value).pathname.split('/').filter(Boolean);
+    return parts[parts.length - 1] || 'chatgpt-page';
+  } catch {
+    return 'chatgpt-page';
+  }
+}
+
+function sanitizePathSegment(value) {
+  return String(value || 'unknown').replace(/[^A-Za-z0-9._-]+/g, '-').slice(0, 120) || 'unknown';
 }
 
 function compact(value, max = 240) {
@@ -1880,6 +2618,199 @@ function sleep(ms) {
   return new Promise((resolvePromise) => setTimeout(resolvePromise, ms));
 }
 
+async function assertDownloadCleanupSequencing() {
+  const calls = [];
+  const envelope = {
+    v: PROTOCOL_VERSION,
+    type: 'monitor-tab',
+    run_id: 'run-test',
+    tab_id: 3,
+    ts: timestamp(),
+    payload: {},
+  };
+  const tab = {
+    page: {
+      isClosed: () => false,
+      evaluate: async () => {
+        calls.push('stopIfGenerating');
+        return { clicked: true, label: 'Stop generating' };
+      },
+    },
+  };
+  const bridge = {
+    emit: (_envelope, type) => {
+      calls.push(`emit:${type}`);
+    },
+    bridgeLog: () => undefined,
+    closeTabAfterReceipt: async () => {
+      calls.push('closeTabAfterReceipt');
+      bridge.emit(envelope, 'tab-closed', { page_url: 'https://chatgpt.com/c/test', reason: 'download-complete' });
+      tab.page = null;
+      return true;
+    },
+  };
+
+  const cleanup = await finalizeTabAfterDownload(bridge, tab, envelope, 'download-complete');
+  const expected = [
+    'stopIfGenerating',
+    'emit:generation-stopped',
+    'closeTabAfterReceipt',
+    'emit:tab-closed',
+  ];
+  if (JSON.stringify(calls) !== JSON.stringify(expected)) {
+    throw new Error(`download cleanup sequence failed: ${JSON.stringify(calls)}`);
+  }
+  if (!cleanup.closed || cleanup.stopMethod !== 'Stop generating' || cleanup.errors.length > 0) {
+    throw new Error(`download cleanup result failed: ${JSON.stringify(cleanup)}`);
+  }
+}
+
+async function assertNoTarCleanupSequencing() {
+  const calls = [];
+  const envelope = {
+    v: PROTOCOL_VERSION,
+    type: 'monitor-tab',
+    run_id: 'run-test',
+    tab_id: 4,
+    ts: timestamp(),
+    payload: {},
+  };
+  const tab = {
+    page: {
+      isClosed: () => false,
+      evaluate: async () => {
+        calls.push('stopIfGenerating');
+        return { clicked: false, reason: 'not-found' };
+      },
+    },
+  };
+  const bridge = {
+    emit: (_envelope, type) => {
+      calls.push(`emit:${type}`);
+    },
+    bridgeLog: () => undefined,
+    closeTabAfterReceipt: async () => {
+      calls.push('closeTabAfterReceipt');
+      bridge.emit(envelope, 'tab-closed', { page_url: 'https://chatgpt.com/c/test', reason: 'done-no-tar' });
+      tab.page = null;
+      return true;
+    },
+  };
+
+  const cleanup = await emitNoTarErrorAndCleanup(
+    bridge,
+    tab,
+    envelope,
+    'done-no-tar',
+    'assistant finished but no tar.gz download candidate was found',
+  );
+  const expected = [
+    'stopIfGenerating',
+    'emit:generation-stopped',
+    'closeTabAfterReceipt',
+    'emit:tab-closed',
+    'emit:error',
+  ];
+  if (JSON.stringify(calls) !== JSON.stringify(expected)) {
+    throw new Error(`no-tar cleanup sequence failed: ${JSON.stringify(calls)}`);
+  }
+  if (!cleanup.closed || cleanup.stopMethod !== 'not-active:not-found' || cleanup.errors.length > 0) {
+    throw new Error(`no-tar cleanup result failed: ${JSON.stringify(cleanup)}`);
+  }
+}
+
+async function assertMessageStreamRetryClicksRetry() {
+  let clicked = false;
+  const retryButton = {
+    innerText: 'Retry',
+    textContent: 'Retry',
+    hasAttribute: () => false,
+    getAttribute: () => '',
+    getBoundingClientRect: () => ({ width: 80, height: 28 }),
+    click: () => {
+      clicked = true;
+    },
+  };
+  const fakeDocument = {
+    body: {
+      innerText: 'Error in message stream Retry',
+      textContent: 'Error in message stream Retry',
+    },
+    querySelectorAll: () => [retryButton],
+  };
+  const fakeWindow = {
+    getComputedStyle: () => ({ visibility: 'visible', display: 'block' }),
+  };
+  const page = {
+    evaluate: async (fn) => {
+      const previousDocument = globalThis.document;
+      const previousWindow = globalThis.window;
+      globalThis.document = fakeDocument;
+      globalThis.window = fakeWindow;
+      try {
+        return fn();
+      } finally {
+        if (previousDocument === undefined) {
+          delete globalThis.document;
+        } else {
+          globalThis.document = previousDocument;
+        }
+        if (previousWindow === undefined) {
+          delete globalThis.window;
+        } else {
+          globalThis.window = previousWindow;
+        }
+      }
+    },
+  };
+
+  const status = await readGenerationStatus(page);
+  if (!status.messageStreamError || !status.retryAvailable) {
+    throw new Error(`message stream status detection failed: ${JSON.stringify(status)}`);
+  }
+  const retry = await retryMessageStreamError(page);
+  if (!retry.clicked || !clicked || retry.buttonLabel !== 'Retry') {
+    throw new Error(`message stream retry click failed: ${JSON.stringify({ retry, clicked })}`);
+  }
+}
+
+async function assertKnownRunUrlCollection() {
+  const root = await mkdtemp(join(tmpdir(), 'jailgun-known-run-'));
+  try {
+    await mkdir(join(root, 'run-old'), { recursive: true });
+    await mkdir(join(root, 'run-current'), { recursive: true });
+    await writeFile(join(root, 'run-old', 'events.ndjson'), [
+      JSON.stringify({
+        run_id: 'run-old',
+        tab_id: 4,
+        fields: { page_url: 'https://chatgpt.com/c/old-conversation/' },
+      }),
+      JSON.stringify({
+        run_id: 'run-old',
+        tab_id: 5,
+        fields: { page_url: 'https://example.invalid/c/not-chatgpt' },
+      }),
+    ].join('\n'));
+    await writeFile(join(root, 'run-current', 'events.ndjson'), JSON.stringify({
+      run_id: 'run-current',
+      tab_id: 1,
+      fields: { page_url: 'https://chatgpt.com/c/current-conversation' },
+    }));
+    const known = await collectKnownRunChatGptUrls(root, 'run-current');
+    if (!known.has('https://chatgpt.com/c/old-conversation')) {
+      throw new Error(`known run URL collection missed prior ChatGPT URL: ${JSON.stringify([...known.keys()])}`);
+    }
+    if (known.has('https://chatgpt.com/c/current-conversation')) {
+      throw new Error('known run URL collection included current run URL');
+    }
+    if ([...known.keys()].some((url) => url.includes('example.invalid'))) {
+      throw new Error(`known run URL collection included non-ChatGPT URL: ${JSON.stringify([...known.keys()])}`);
+    }
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+}
+
 async function runSelfTest() {
   const name = normalizeTarName('jekko-fixes.tgz');
   if (name !== 'jekko-fixes.tar.gz') {
@@ -1892,6 +2823,68 @@ async function runSelfTest() {
   if (!ranked[0].text.includes('jekko-fixes')) {
     throw new Error('target tar ranking failed');
   }
+  const legacyFallback = planCdpEndpointRecovery(
+    parseCdpEndpoint('http://127.0.0.1:922'),
+    { status: 'closed', reason: 'connection refused' },
+    [
+      {
+        endpoint: parseCdpEndpoint('http://127.0.0.1:9224'),
+        probe: { status: 'closed', reason: 'connection refused' },
+      },
+    ],
+  );
+  if (legacyFallback.endpoint.origin !== 'http://127.0.0.1:9224' || !legacyFallback.recovery) {
+    throw new Error(`local CDP port 922 redirect failed: ${JSON.stringify(legacyFallback)}`);
+  }
+  const legacyBlockedDefault = planCdpEndpointRecovery(
+    parseCdpEndpoint('http://localhost:922'),
+    { status: 'open-non-cdp', reason: 'Unexpected token < in JSON' },
+    [
+      {
+        endpoint: parseCdpEndpoint('http://127.0.0.1:9224'),
+        probe: { status: 'open-non-cdp', reason: 'not Chrome CDP' },
+      },
+      {
+        endpoint: parseCdpEndpoint('http://127.0.0.1:9225'),
+        probe: { status: 'closed', reason: 'connection refused' },
+      },
+    ],
+  );
+  if (legacyBlockedDefault.endpoint.origin !== 'http://127.0.0.1:9225' || legacyBlockedDefault.recovery.blocked_cdp_urls[0] !== 'http://127.0.0.1:9224') {
+    throw new Error(`managed CDP port scan failed: ${JSON.stringify(legacyBlockedDefault)}`);
+  }
+  const allManagedBlocked = planCdpEndpointRecovery(
+    parseCdpEndpoint('http://127.0.0.1:922'),
+    { status: 'closed', reason: 'connection refused' },
+    managedCdpEndpoints().map((endpoint) => ({
+      endpoint,
+      probe: { status: 'open-non-cdp', reason: 'not Chrome CDP' },
+    })),
+  );
+  if (!allManagedBlocked.fatal || allManagedBlocked.fatal.checked_port !== 9224 || !allManagedBlocked.fatal.next_action.includes('lsof -nP -iTCP:9224')) {
+    throw new Error(`blocked managed CDP ports should return a clear fatal plan: ${JSON.stringify(allManagedBlocked)}`);
+  }
+  const validLegacy = planCdpEndpointRecovery(
+    parseCdpEndpoint('http://localhost:922'),
+    { status: 'cdp', reason: 'ok' },
+  );
+  if (validLegacy.endpoint.origin !== 'http://localhost:922' || validLegacy.recovery) {
+    throw new Error(`valid local CDP port 922 should stay selected: ${JSON.stringify(validLegacy)}`);
+  }
+  const remoteLegacy = planCdpEndpointRecovery(
+    parseCdpEndpoint('http://cdp.example.test:922'),
+    { status: 'closed', reason: 'unreachable' },
+  );
+  if (remoteLegacy.endpoint.origin !== 'http://cdp.example.test:922' || remoteLegacy.recovery) {
+    throw new Error(`remote CDP should stay selected: ${JSON.stringify(remoteLegacy)}`);
+  }
+  const customLocal = planCdpEndpointRecovery(
+    parseCdpEndpoint('http://127.0.0.1:9333'),
+    { status: 'closed', reason: 'connection refused' },
+  );
+  if (customLocal.endpoint.origin !== 'http://127.0.0.1:9333' || customLocal.recovery) {
+    throw new Error(`custom local CDP should keep existing behavior: ${JSON.stringify(customLocal)}`);
+  }
   validateEnvelope({
     v: 1,
     type: 'hello',
@@ -1899,6 +2892,10 @@ async function runSelfTest() {
     ts: timestamp(),
     payload: {},
   });
+  await assertDownloadCleanupSequencing();
+  await assertNoTarCleanupSequencing();
+  await assertMessageStreamRetryClicksRetry();
+  await assertKnownRunUrlCollection();
   process.stdout.write('chrome-bridge self-test passed\n');
 }
 
@@ -1996,4 +2993,22 @@ const EXCLUDED_DIRECTORIES = new Set([
 ]);
 
 const bridge = new ChromeBridge(settings);
+installSignalHandlers(bridge);
 await bridge.run();
+
+function installSignalHandlers(bridgeInstance) {
+  const exits = new Map([
+    ['SIGHUP', 129],
+    ['SIGINT', 130],
+    ['SIGTERM', 143],
+  ]);
+  for (const [signal, code] of exits.entries()) {
+    process.once(signal, () => {
+      void bridgeInstance
+        .shutdown(`signal-${signal}`, 0, bridgeInstance.lastEnvelope ?? systemEnvelope(`signal-${signal}`))
+        .finally(() => {
+          process.exit(code);
+        });
+    });
+  }
+}
