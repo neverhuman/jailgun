@@ -103,6 +103,14 @@ pub struct JobStatus {
     pub deletions: Option<u32>,
     #[serde(default)]
     pub top_paths: Vec<String>,
+    #[serde(default)]
+    pub changed_paths: Vec<String>,
+    #[serde(default)]
+    pub pre_status: Vec<String>,
+    #[serde(default)]
+    pub post_status: Vec<String>,
+    #[serde(default)]
+    pub shortstat: Option<String>,
     /// Preserved verbatim so forensics work even when our typed fields evolve
     /// out of sync with the launcher's emitted shape.
     #[serde(default)]

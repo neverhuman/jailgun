@@ -57,7 +57,13 @@ const fixtures = {
     kind: 'run-started',
     severity: 'info',
     message: 'run started',
-    fields: { config: 'config/jailgun.example.toml', tabs: '5' }
+    fields: {
+      config: 'config/jailgun.example.toml',
+      tabs: '5',
+      batch_tabs: '5',
+      loop_count: '0',
+      planned_tabs: '5'
+    }
   },
   'tab-opened.json': {
     run_id: 'run-fixture',

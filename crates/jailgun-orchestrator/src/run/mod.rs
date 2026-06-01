@@ -30,6 +30,9 @@ use crate::{
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct RunSummary {
     pub run_id: String,
+    pub batch_tabs: u16,
+    pub loop_count: u16,
+    pub planned_tabs: u16,
     pub total_tabs: u16,
     pub downloaded: u16,
     pub deployed: u16,
@@ -50,6 +53,13 @@ pub async fn run_orchestration(opts: RunOptions) -> Result<OrchestratorHandle, O
             "bridge_cmd cannot be empty; pass --bridge-cmd or set JAILGUN_BRIDGE_CMD".into(),
         ));
     }
+    let batch_tabs = opts.tabs();
+    let planned_tabs = opts.planned_tabs().ok_or_else(|| {
+        OrchestratorError::Config(format!(
+            "invalid loop configuration: batch_tabs={batch_tabs}, loop_count={}, planned_tabs must be positive and fit in u16",
+            opts.loop_count
+        ))
+    })?;
     let (events_tx, events_rx) = broadcast::channel(opts.event_buffer.max(64));
     let (completion_tx, completion_rx) = oneshot::channel();
     let (shutdown_tx, shutdown_rx) = watch::channel(false);
@@ -60,7 +70,15 @@ pub async fn run_orchestration(opts: RunOptions) -> Result<OrchestratorHandle, O
     .await?;
 
     tokio::spawn(async move {
-        let summary = drive_run(opts, bridge, events_tx, shutdown_rx).await;
+        let summary = drive_run(
+            opts,
+            batch_tabs,
+            planned_tabs,
+            bridge,
+            events_tx,
+            shutdown_rx,
+        )
+        .await;
         let _ = completion_tx.send(summary);
     });
 
@@ -78,15 +96,19 @@ pub use events::map_bridge_event;
 
 async fn drive_run(
     opts: RunOptions,
+    batch_tabs: u16,
+    planned_tabs: u16,
     mut bridge: BridgeHandle,
     events: broadcast::Sender<JailgunEvent>,
     mut shutdown_rx: watch::Receiver<bool>,
 ) -> RunSummary {
     let opts = Arc::new(opts);
-    let total_tabs = opts.tabs();
     let mut summary = RunSummary {
         run_id: opts.run_id.clone(),
-        total_tabs,
+        batch_tabs,
+        loop_count: opts.loop_count,
+        planned_tabs,
+        total_tabs: planned_tabs,
         downloaded: 0,
         deployed: 0,
         failures: Vec::new(),
@@ -95,8 +117,7 @@ async fn drive_run(
     };
     publish(
         &events,
-        JailgunEvent::new(opts.run_id.clone(), EventKind::RunStarted, "run started")
-            .with_field("tabs", total_tabs.to_string()),
+        run_started_event(&opts.run_id, batch_tabs, opts.loop_count, planned_tabs),
     );
 
     if let Err(error) = send_bridge_hello(&opts, &bridge.commands_tx).await {
@@ -112,9 +133,9 @@ async fn drive_run(
         return summary;
     }
 
-    let mut tracker = RunTracker::new(total_tabs, !opts.no_deploy && opts.config.deploy.enabled);
-    let mut launcher = LaunchScheduler::new(total_tabs);
-    let (launch_tx, mut launch_rx) = mpsc::channel::<LaunchTrigger>(total_tabs as usize + 1);
+    let mut tracker = RunTracker::new(planned_tabs, !opts.no_deploy && opts.config.deploy.enabled);
+    let mut launcher = LaunchScheduler::new(planned_tabs);
+    let (launch_tx, mut launch_rx) = mpsc::channel::<LaunchTrigger>(planned_tabs as usize + 1);
     if let Err(error) = launcher
         .launch_next(&opts, &bridge.commands_tx, &events)
         .await
@@ -125,9 +146,9 @@ async fn drive_run(
     }
 
     let (deploy_result_tx, mut deploy_result_rx) =
-        mpsc::channel::<DeployResult>(total_tabs as usize + 1);
+        mpsc::channel::<DeployResult>(planned_tabs as usize + 1);
     let deploy_semaphore = Arc::new(Semaphore::new(opts.deploy_concurrency.max(1) as usize));
-    let deadline = tokio::time::sleep(run_deadline(&opts, total_tabs));
+    let deadline = tokio::time::sleep(run_deadline(&opts, planned_tabs));
     tokio::pin!(deadline);
 
     loop {
@@ -339,7 +360,11 @@ async fn send_tab_commands_for_tab(
         &opts.run_id,
         Some(tab_id),
         BridgeCommand::SubmitPrompt(SubmitPromptPayload {
-            prompt: prompt_for_tab(&opts.prompt_text, tab_id, opts.tabs()),
+            prompt: prompt_for_tab(
+                &opts.prompt_text,
+                tab_id,
+                opts.planned_tabs().unwrap_or(opts.tabs()),
+            ),
             submit_timeout_ms: 45_000,
         }),
     )
@@ -887,6 +912,19 @@ fn prompt_for_tab(prompt: &str, tab_id: u16, total_tabs: u16) -> String {
     )
 }
 
+fn run_started_event(
+    run_id: &str,
+    batch_tabs: u16,
+    loop_count: u16,
+    planned_tabs: u16,
+) -> JailgunEvent {
+    JailgunEvent::new(run_id.to_string(), EventKind::RunStarted, "run started")
+        .with_field("tabs", planned_tabs.to_string())
+        .with_field("batch_tabs", batch_tabs.to_string())
+        .with_field("loop_count", loop_count.to_string())
+        .with_field("planned_tabs", planned_tabs.to_string())
+}
+
 fn publish(events: &broadcast::Sender<JailgunEvent>, event: JailgunEvent) {
     let _ = events.send(event);
 }
@@ -966,6 +1004,7 @@ impl JsonReceiptWriter for LocalReceiptWriter {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use jailgun_core::JailgunConfig;
 
     #[test]
     fn prompt_for_tab_prefixes_and_replaces_placeholders() {
@@ -973,6 +1012,60 @@ mod tests {
         let got = prompt_for_tab(prompt, 2, 7);
         assert!(got.starts_with("Batch tab: 2 of 7."));
         assert!(got.contains("Build 2 of 7."));
+    }
+
+    #[test]
+    fn planned_tabs_scale_with_loop_count_and_run_started_event_carries_metadata() {
+        let opts = RunOptions {
+            run_id: "run-1".into(),
+            config: JailgunConfig::default(),
+            prompt_text: "hello".into(),
+            tabs_override: Some(7),
+            loop_count: 3,
+            no_deploy: false,
+            dry_run: false,
+            profile_dir: PathBuf::from("/tmp/profile"),
+            downloads_dir: PathBuf::from("/tmp/downloads"),
+            artifacts_dir: PathBuf::from("/tmp/artifacts"),
+            bridge_cmd: vec!["bridge".into()],
+            bridge_env: Default::default(),
+            repo_url: "https://example.com/repo.git".into(),
+            deploy_remote_host: None,
+            deploy_remote_dir: None,
+            deploy_remote_command: None,
+            deploy_expected_top_level: None,
+            ci_tracker_enabled: false,
+            ci_repo: None,
+            ci_branch: "main".into(),
+            ci_max_attempts: 1,
+            ci_poll_seconds: 1,
+            status_max_minutes: 1,
+            event_buffer: 64,
+            deploy_concurrency: 1,
+        };
+
+        assert_eq!(opts.batch_tabs(), 7);
+        assert_eq!(opts.planned_tabs(), Some(28));
+
+        let event = run_started_event(
+            &opts.run_id,
+            opts.batch_tabs(),
+            opts.loop_count,
+            opts.planned_tabs().unwrap(),
+        );
+        assert_eq!(event.fields.get("tabs").map(String::as_str), Some("28"));
+        assert_eq!(
+            event.fields.get("batch_tabs").map(String::as_str),
+            Some("7")
+        );
+        assert_eq!(
+            event.fields.get("loop_count").map(String::as_str),
+            Some("3")
+        );
+        assert_eq!(
+            event.fields.get("planned_tabs").map(String::as_str),
+            Some("28")
+        );
     }
 
     #[test]

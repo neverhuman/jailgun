@@ -79,6 +79,10 @@ pub struct DownloadCompletePayload {
     pub local_name: String,
     #[serde(default)]
     pub download_url: Option<String>,
+    #[serde(default)]
+    pub entry_count: Option<u64>,
+    #[serde(default)]
+    pub download_latency_ms: Option<u64>,
     pub started_at: String,
     pub finished_at: String,
 }
@@ -254,6 +258,8 @@ mod tests {
             original_name: "patch.tar.gz".into(),
             local_name: "patch.tar.gz".into(),
             download_url: Some("blob:https://chatgpt.com/x".into()),
+            entry_count: Some(12),
+            download_latency_ms: Some(8_000),
             started_at: "2026-05-31T12:00:00Z".into(),
             finished_at: "2026-05-31T12:00:08Z".into(),
         };

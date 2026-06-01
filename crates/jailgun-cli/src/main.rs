@@ -3,12 +3,15 @@ use std::{
     env, fs,
     net::SocketAddr,
     path::{Path, PathBuf},
+    time::Duration,
 };
 
 use anyhow::{Context, Result};
 use async_trait::async_trait;
 use clap::{Parser, Subcommand, ValueEnum};
-use jailgun_core::{repo_policy, validate_tar_gz, CleanupPolicy, JailgunConfig, TarValidation};
+use jailgun_core::{
+    repo_policy, validate_tar_gz, CleanupPolicy, JailgunConfig, JailgunEvent, TarValidation,
+};
 use jailgun_deploy::{
     cleanup_remote_checkout, deploy_remote,
     shell::{SshCiTracker, SshRemoteGit, SshRemoteJob, SshRemoteUpload},
@@ -19,6 +22,7 @@ use jailgun_notify::{
     write_chat_id_cache, CommitSummary, TelegramConfig,
 };
 use jailgun_server::{api_router, router_with_static, AppState};
+use tokio::sync::broadcast;
 
 #[derive(Debug, Parser)]
 #[command(name = "jailgun")]
@@ -98,6 +102,8 @@ enum Command {
         run_id: Option<String>,
         #[arg(long)]
         tabs: Option<u16>,
+        #[arg(long, default_value_t = 0, env = "JAILGUN_LOOPS")]
+        loops: u16,
         #[arg(long)]
         source_repo_url: Option<String>,
         #[arg(long)]
@@ -150,6 +156,18 @@ enum Command {
         telegram_token_file: PathBuf,
         #[arg(long, default_value = "telegram/chat_id.cache")]
         telegram_chat_id_cache: PathBuf,
+        /// Start the live dashboard/API server for this run and stream run
+        /// events to its WebSocket replay buffer.
+        #[arg(long)]
+        serve: bool,
+        #[arg(long, default_value = "127.0.0.1:8787")]
+        addr: SocketAddr,
+        #[arg(long)]
+        dashboard_dist: Option<PathBuf>,
+        /// Keep the live dashboard/API server alive after the run completes so
+        /// external monitors can capture final proof.
+        #[arg(long, default_value_t = 0)]
+        dashboard_hold_seconds: u64,
     },
     TelegramSend {
         #[arg(long, default_value = "telegram/token.env")]
@@ -421,6 +439,7 @@ async fn main() -> Result<()> {
             prompt_file,
             run_id,
             tabs,
+            loops,
             source_repo_url,
             source_ref,
             deploy,
@@ -447,6 +466,10 @@ async fn main() -> Result<()> {
             notify_telegram,
             telegram_token_file,
             telegram_chat_id_cache,
+            serve,
+            addr,
+            dashboard_dist,
+            dashboard_hold_seconds,
         } => {
             let mut config = JailgunConfig::from_toml_path(&config)
                 .with_context(|| format!("loading {}", config.display()))?;
@@ -468,6 +491,7 @@ async fn main() -> Result<()> {
                 &config.paths.downloads_dir_env,
                 artifacts_dir.join("downloads"),
             )?;
+            let receipt_dir = artifacts_dir.join("receipts");
             let profile_dir = path_arg_or_env_or_default(
                 profile_dir,
                 &config.browser.profile_dir_env,
@@ -523,11 +547,26 @@ async fn main() -> Result<()> {
                 .or_insert_with(|| default_managed_chrome_state_dir().display().to_string());
             let bridge_cmd = bridge_command(bridge_cmd)?;
             let run_id = run_id.unwrap_or_else(default_run_id);
+            let live_dashboard = if serve {
+                Some(
+                    start_live_dashboard(
+                        config.clone(),
+                        receipt_dir,
+                        event_buffer,
+                        addr,
+                        dashboard_dist,
+                    )
+                    .await?,
+                )
+            } else {
+                None
+            };
             let opts = jailgun_orchestrator::RunOptions {
                 run_id,
                 config,
                 prompt_text,
                 tabs_override: tabs,
+                loop_count: loops,
                 no_deploy,
                 dry_run,
                 profile_dir,
@@ -550,6 +589,9 @@ async fn main() -> Result<()> {
                 deploy_concurrency,
             };
             let handle = jailgun_orchestrator::run_orchestration(opts).await?;
+            let dashboard_forwarder = live_dashboard.as_ref().map(|dashboard| {
+                spawn_run_event_forwarder(handle.events_rx.resubscribe(), dashboard.state.clone())
+            });
             if notify_telegram {
                 tokio::spawn(jailgun_notify::run_telegram_subscriber(
                     handle.events_rx.resubscribe(),
@@ -557,7 +599,25 @@ async fn main() -> Result<()> {
                     telegram_chat_id_cache,
                 ));
             }
-            stream_run(handle).await?;
+            let result = stream_run(handle).await;
+            if let Some(task) = dashboard_forwarder {
+                task.abort();
+            }
+            if serve && dashboard_hold_seconds > 0 {
+                eprintln!("dashboard hold for {dashboard_hold_seconds}s before shutdown");
+                tokio::time::sleep(Duration::from_secs(dashboard_hold_seconds)).await;
+            }
+            if let Some(dashboard) = live_dashboard {
+                dashboard.server_task.abort();
+            }
+            let summary = result?;
+            if !summary.failures.is_empty() {
+                anyhow::bail!(
+                    "run completed with {} failure(s): {:?}",
+                    summary.failures.len(),
+                    summary.failures
+                );
+            }
         }
         Command::TelegramSend {
             token_file,
@@ -649,7 +709,10 @@ async fn main() -> Result<()> {
             let config = JailgunConfig::default();
             let state = AppState::fixture(config);
             match kind {
-                FixtureKind::Runs => println!("{}", serde_json::to_string_pretty(&state.runs)?),
+                FixtureKind::Runs => {
+                    let runs = state.runs.read().await;
+                    println!("{}", serde_json::to_string_pretty(&*runs)?)
+                }
                 FixtureKind::Config => println!(
                     "{}",
                     serde_json::to_string_pretty(&state.config.redacted_for_display())?
@@ -690,6 +753,61 @@ fn validate_telegram_notify(token_file: &Path, chat_id_cache: &Path) -> Result<(
         );
     }
     Ok(())
+}
+
+struct LiveDashboard {
+    server_task: tokio::task::JoinHandle<std::io::Result<()>>,
+    state: AppState,
+}
+
+async fn start_live_dashboard(
+    config: JailgunConfig,
+    receipt_dir: PathBuf,
+    event_buffer: usize,
+    addr: SocketAddr,
+    dashboard_dist: Option<PathBuf>,
+) -> Result<LiveDashboard> {
+    let dashboard_dist = resolve_dashboard_dist(dashboard_dist)?;
+    let (state, _rx) = AppState::live(config, receipt_dir, event_buffer);
+    let router = router_with_static(state.clone(), dashboard_dist.clone());
+    let (bound_addr, server_task) = jailgun_server::spawn_server(addr, router)
+        .await
+        .with_context(|| format!("binding live dashboard server at http://{addr}"))?;
+    eprintln!(
+        "dashboard listening on http://{bound_addr} (live=true, dist={})",
+        dashboard_dist.display()
+    );
+    Ok(LiveDashboard { server_task, state })
+}
+
+fn resolve_dashboard_dist(value: Option<PathBuf>) -> Result<PathBuf> {
+    let dir = value.unwrap_or_else(|| PathBuf::from("apps/dashboard/dist"));
+    if !dir.join("index.html").is_file() {
+        anyhow::bail!(
+            "dashboard assets not found at {}; run `npm run build --workspace apps/dashboard` or pass --dashboard-dist",
+            dir.display()
+        );
+    }
+    Ok(dir)
+}
+
+fn spawn_run_event_forwarder(
+    mut rx: broadcast::Receiver<JailgunEvent>,
+    state: AppState,
+) -> tokio::task::JoinHandle<()> {
+    tokio::spawn(async move {
+        loop {
+            match rx.recv().await {
+                Ok(event) => {
+                    state.record_event(event).await;
+                }
+                Err(broadcast::error::RecvError::Lagged(dropped)) => {
+                    eprintln!("dashboard event forwarder lagged; dropped {dropped} event(s)");
+                }
+                Err(broadcast::error::RecvError::Closed) => break,
+            }
+        }
+    })
 }
 
 fn infer_github_repo(url: &str) -> Option<String> {
@@ -806,13 +924,30 @@ fn bridge_command(args: Vec<String>) -> Result<Vec<String>> {
             }
             Ok(parts)
         }
-        Err(env::VarError::NotPresent) => {
-            anyhow::bail!("bridge command must be provided with --bridge-cmd or JAILGUN_BRIDGE_CMD")
-        }
+        Err(env::VarError::NotPresent) => default_bridge_command(),
         Err(env::VarError::NotUnicode(_)) => {
             anyhow::bail!("JAILGUN_BRIDGE_CMD is not valid UTF-8")
         }
     }
+}
+
+fn default_bridge_command() -> Result<Vec<String>> {
+    for path in default_bridge_candidates() {
+        if path.is_file() {
+            return Ok(vec!["node".to_string(), path.display().to_string()]);
+        }
+    }
+    anyhow::bail!(
+        "bridge command must be provided with --bridge-cmd or JAILGUN_BRIDGE_CMD; default bridge was not found at apps/chrome-bridge/bin/chrome-bridge.mjs"
+    )
+}
+
+fn default_bridge_candidates() -> Vec<PathBuf> {
+    vec![
+        PathBuf::from("apps/chrome-bridge/bin/chrome-bridge.mjs"),
+        PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .join("../../apps/chrome-bridge/bin/chrome-bridge.mjs"),
+    ]
 }
 
 fn parse_env_overrides(values: Vec<String>) -> Result<BTreeMap<String, String>> {
@@ -865,8 +1000,11 @@ fn default_run_id() -> String {
     format!("run-{}", uuid::Uuid::new_v4())
 }
 
-async fn stream_run(mut handle: jailgun_orchestrator::OrchestratorHandle) -> Result<()> {
+async fn stream_run(
+    mut handle: jailgun_orchestrator::OrchestratorHandle,
+) -> Result<jailgun_orchestrator::RunSummary> {
     let mut events_open = true;
+    let summary;
     loop {
         tokio::select! {
             event = handle.events_rx.recv(), if events_open => {
@@ -880,21 +1018,22 @@ async fn stream_run(mut handle: jailgun_orchestrator::OrchestratorHandle) -> Res
                     }
                 }
             }
-            summary = &mut handle.completion => {
-                let summary = summary.context("orchestrator task ended before sending a summary")?;
+            completion = &mut handle.completion => {
+                let completed = completion.context("orchestrator task ended before sending a summary")?;
                 println!(
                     "{}",
                     serde_json::to_string(&serde_json::json!({
                         "type": "run-summary",
-                        "summary": summary,
+                        "summary": completed,
                     }))?
                 );
+                summary = completed;
                 break;
             }
         }
     }
     let _ = handle.shutdown.send(true);
-    Ok(())
+    Ok(summary)
 }
 
 struct LocalReceiptWriter {
