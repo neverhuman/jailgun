@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { expect, it, vi } from 'vitest';
 
 import { App } from './App';
@@ -6,20 +6,24 @@ import { MockWebSocket, jsonResponse, setupDashboardMocks } from './App.testSupp
 
 setupDashboardMocks();
 
-it('applies WebSocket event updates', async () => {
+it('applies WebSocket event updates to the active run', async () => {
   render(<App />);
-  await screen.findAllByText('fixture-run');
+  await screen.findAllByText(/fixture-run/);
   const socket = MockWebSocket.instances[0];
   socket.emit({
     run_id: 'fixture-run',
-    tab_id: 4,
+    tab_id: 1,
     timestamp: '2026-01-01T00:00:10Z',
     kind: 'remote-safety',
     severity: 'warn',
     message: 'preserved divergent head',
-    fields: { policy: 'preserve-reset' }
+    fields: { policy: 'preserve-reset', phase: 'upload-verified' }
   });
-  await waitFor(() => expect(screen.getByText('preserved divergent head')).toBeInTheDocument());
+  // Expand the affected tab drilldown so the message becomes visible.
+  fireEvent.click(screen.getByLabelText('expand tab 1'));
+  await waitFor(() =>
+    expect(screen.getByText('preserved divergent head')).toBeInTheDocument()
+  );
 });
 
 it('creates a visible run from WebSocket events when the API starts empty', async () => {
@@ -49,7 +53,6 @@ it('creates a visible run from WebSocket events when the API starts empty', asyn
     fields: { sha256: 'abcdef0123456789' }
   });
 
-  await waitFor(() => expect(screen.getAllByText('live-run').length).toBeGreaterThan(0));
-  expect(screen.getByText('Tab 1')).toBeInTheDocument();
-  expect(screen.getByText('download complete')).toBeInTheDocument();
+  await waitFor(() => expect(screen.getAllByText(/live-run/).length).toBeGreaterThan(0));
+  expect(screen.getByLabelText('tab 1 row')).toBeInTheDocument();
 });

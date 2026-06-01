@@ -1,0 +1,67 @@
+import { ChevronDown, ChevronRight, Lock } from 'lucide-react';
+import { useState } from 'react';
+
+import type { JailgunEvent, TabSnapshot } from '../types';
+import { TabDrilldown } from './TabDrilldown';
+import { TabProgressBar } from './TabProgressBar';
+import { isTabClosed, isTabFailed, isTabPassed, summarizeOutcome } from './stages';
+
+interface TabRowProps {
+  tab: TabSnapshot;
+  events: JailgunEvent[];
+  receipts: unknown[];
+  lastEventAt: number | undefined;
+  initialExpanded?: boolean;
+}
+
+export function TabRow({ tab, events, receipts, lastEventAt, initialExpanded = false }: TabRowProps) {
+  const [expanded, setExpanded] = useState(initialExpanded);
+  const closed = isTabClosed(tab);
+  const failed = isTabFailed(tab);
+  const passed = isTabPassed(tab);
+  const summary = summarizeOutcome(events, tab.tab_id);
+  const outcomeLabel = failed
+    ? summary.outcome || 'failed'
+    : passed
+      ? summary.outcome || 'passed'
+      : tab.deploy_status || tab.status || 'pending';
+  const latency = tab.download_latency_ms ? `${tab.download_latency_ms} ms` : null;
+
+  return (
+    <article
+      className={`tabRow ${failed ? 'failed' : passed ? 'passed' : ''}`}
+      aria-label={`tab ${tab.tab_id} row`}
+    >
+      <div className="tabRowMain">
+        <button
+          type="button"
+          className="tabRowToggle"
+          onClick={() => setExpanded((current) => !current)}
+          aria-expanded={expanded}
+          aria-controls={`tab-${tab.tab_id}-drilldown`}
+          aria-label={expanded ? `collapse tab ${tab.tab_id}` : `expand tab ${tab.tab_id}`}
+        >
+          {expanded ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
+        </button>
+        <div className="tabRowIdent">
+          <span className="tabRowNumber">Tab {tab.tab_id}</span>
+          {closed ? (
+            <span className="closedPill" aria-label="tab closed">
+              <Lock size={11} /> Closed
+            </span>
+          ) : null}
+          {latency ? <span className="tabRowLatency">{latency}</span> : null}
+        </div>
+        <TabProgressBar tab={tab} events={events} lastEventAt={lastEventAt} />
+        <span className={`tabRowOutcome ${failed ? 'failed' : passed ? 'passed' : ''}`} aria-label="tab outcome">
+          {outcomeLabel}
+        </span>
+      </div>
+      {expanded ? (
+        <div id={`tab-${tab.tab_id}-drilldown`}>
+          <TabDrilldown tab={tab} events={events} receipts={receipts} />
+        </div>
+      ) : null}
+    </article>
+  );
+}

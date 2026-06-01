@@ -6,18 +6,24 @@ import { setupDashboardMocks } from './App.testSupport';
 
 setupDashboardMocks();
 
-it('renders live runs table and tab cards', async () => {
+it('renders the run header and per-tab rows', async () => {
   render(<App />);
-  expect(await screen.findByText('fixture-run')).toBeInTheDocument();
-  expect(screen.getByRole('table')).toBeInTheDocument();
-  expect(screen.getByText('Tab 1')).toBeInTheDocument();
-  expect(screen.getByText('remote-job-launched')).toBeInTheDocument();
+  expect(await screen.findByText('fixture-run', { exact: false })).toBeInTheDocument();
+  expect(screen.getByLabelText('run progress metrics')).toBeInTheDocument();
+  expect(screen.getByLabelText('tab 1 row')).toBeInTheDocument();
+  expect(screen.getByLabelText('tab 2 row')).toBeInTheDocument();
+  expect(screen.getByLabelText('tab 3 row')).toBeInTheDocument();
 });
 
-it('renders chart and prompt counters', async () => {
+it('renders a 5-segment progress bar for every tab', async () => {
   render(<App />);
-  expect(await screen.findByLabelText('download latency chart')).toBeInTheDocument();
-  const counters = screen.getByLabelText('GitHub prompt counters');
-  expect(counters).toHaveTextContent('Denied');
-  expect(counters).toHaveTextContent('Info Allowed');
+  await screen.findByLabelText('tab 1 row');
+  expect(screen.getByLabelText('tab 1 progress')).toBeInTheDocument();
+  expect(screen.getByLabelText('tab 2 progress')).toBeInTheDocument();
+  expect(screen.getByLabelText('tab 3 progress')).toBeInTheDocument();
+});
+
+it('renders elapsed time in the run header', async () => {
+  render(<App />);
+  expect(await screen.findByLabelText('elapsed time')).toBeInTheDocument();
 });

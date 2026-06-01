@@ -6,7 +6,7 @@ import { setupDashboardMocks } from './App.testSupport';
 
 setupDashboardMocks();
 
-it('uses explicit fixture mode for empty/error states when fetch fails', async () => {
+it('falls back to fixture mode when fetch fails', async () => {
   vi.stubGlobal(
     'fetch',
     vi.fn(async () => {
@@ -14,5 +14,5 @@ it('uses explicit fixture mode for empty/error states when fetch fails', async (
     })
   );
   render(<App />);
-  expect((await screen.findAllByText('fixture-run')).length).toBeGreaterThan(0);
+  expect((await screen.findAllByText(/fixture-run/)).length).toBeGreaterThan(0);
 });

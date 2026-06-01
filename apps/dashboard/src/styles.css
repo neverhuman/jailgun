@@ -319,3 +319,476 @@ code {
   }
 }
 
+/* ===== Redesigned run header + per-tab progress ===== */
+
+.runHeader {
+  background: #ffffff;
+  border: 1px solid #dce4dc;
+  border-radius: 10px;
+  padding: 18px;
+  margin-bottom: 16px;
+  box-shadow: 0 1px 2px rgba(22, 32, 25, 0.05);
+}
+
+.runHeaderTop {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 16px;
+  margin-bottom: 14px;
+}
+
+.runHeaderMetrics {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+  gap: 10px;
+}
+
+.runMetric {
+  display: grid;
+  grid-template-columns: 22px 1fr;
+  gap: 4px 8px;
+  padding: 10px 12px;
+  border-radius: 8px;
+  background: #f8faf6;
+  border: 1px solid #e6ece4;
+}
+
+.runMetric.ok svg {
+  color: #2f7d42;
+}
+
+.runMetric.warn svg {
+  color: #9d651b;
+}
+
+.runMetric.danger svg {
+  color: #b43b33;
+}
+
+.runMetricLabel {
+  color: #657167;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  grid-column: 2;
+}
+
+.runMetricValue {
+  grid-column: 2;
+  font-size: 20px;
+  line-height: 1.1;
+}
+
+.runElapsed {
+  text-align: right;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.runElapsedLabel {
+  color: #657167;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.runElapsedValue {
+  font-size: 20px;
+  font-family: "SFMono-Regular", Consolas, monospace;
+}
+
+.tabList {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 16px;
+}
+
+.tabRow {
+  background: #ffffff;
+  border: 1px solid #dce4dc;
+  border-radius: 10px;
+  padding: 12px 14px;
+  box-shadow: 0 1px 2px rgba(22, 32, 25, 0.04);
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.tabRow.passed {
+  border-color: #c5dec9;
+}
+
+.tabRow.failed {
+  border-color: #e7b0ab;
+  box-shadow: 0 1px 6px rgba(180, 59, 51, 0.08);
+}
+
+.tabRowMain {
+  display: grid;
+  grid-template-columns: 28px minmax(140px, auto) minmax(0, 1fr) minmax(110px, auto);
+  align-items: center;
+  gap: 14px;
+}
+
+.tabRowToggle {
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #657167;
+  padding: 4px;
+  border-radius: 6px;
+}
+
+.tabRowToggle:hover {
+  background: #eef2ec;
+  color: #162019;
+}
+
+.tabRowIdent {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.tabRowNumber {
+  font-weight: 600;
+  font-size: 14px;
+}
+
+.tabRowLatency {
+  font-size: 11px;
+  color: #657167;
+  font-family: "SFMono-Regular", Consolas, monospace;
+}
+
+.closedPill {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  background: #eef2ec;
+  border: 1px solid #dce4dc;
+  border-radius: 999px;
+  padding: 2px 8px;
+  font-size: 11px;
+  color: #647067;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.tabRowOutcome {
+  font-size: 12px;
+  font-family: "SFMono-Regular", Consolas, monospace;
+  color: #647067;
+  text-align: right;
+  overflow-wrap: anywhere;
+}
+
+.tabRowOutcome.passed {
+  color: #2f7d42;
+}
+
+.tabRowOutcome.failed {
+  color: #b43b33;
+}
+
+/* Progress bar segments */
+
+.progressBar {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 4px;
+  position: relative;
+  align-items: stretch;
+  min-height: 32px;
+}
+
+.progressSegment {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  border: 1px solid #dce4dc;
+  border-radius: 6px;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: #647067;
+  background: #f3f6f1;
+  min-height: 30px;
+  padding: 4px 6px;
+}
+
+.progressLabel {
+  font-weight: 600;
+  font-size: 11px;
+}
+
+.progressSegment.pending {
+  background: repeating-linear-gradient(
+    45deg,
+    #f3f6f1,
+    #f3f6f1 4px,
+    #eef2ec 4px,
+    #eef2ec 8px
+  );
+  color: #8a958a;
+}
+
+.progressSegment.active {
+  background: linear-gradient(180deg, #5a8bbf, #3b6ea5);
+  border-color: #2f5a8a;
+  color: #ffffff;
+  animation: progressActivePulse 1.5s ease-in-out infinite;
+}
+
+.progressSegment.active.flash {
+  animation: progressFlash 0.9s ease-out;
+}
+
+@keyframes progressActivePulse {
+  0%, 100% {
+    box-shadow: 0 0 0 0 rgba(91, 139, 191, 0.0);
+  }
+  50% {
+    box-shadow: 0 0 0 4px rgba(91, 139, 191, 0.35);
+  }
+}
+
+@keyframes progressFlash {
+  0% {
+    background: #c4dcf2;
+    transform: scale(1.02);
+  }
+  100% {
+    background: linear-gradient(180deg, #5a8bbf, #3b6ea5);
+    transform: scale(1);
+  }
+}
+
+.progressSegment.done {
+  background: linear-gradient(180deg, #4a9c5d, #2f7d42);
+  border-color: #246633;
+  color: #ffffff;
+}
+
+.progressSegment.failed {
+  background: linear-gradient(180deg, #d05952, #b43b33);
+  border-color: #8a2a23;
+  color: #ffffff;
+}
+
+.progressFailureButton {
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  color: #ffffff;
+  display: flex;
+  align-items: center;
+  padding: 0;
+}
+
+.progressFailureButton:focus-visible {
+  outline: 2px solid #ffffff;
+  outline-offset: 1px;
+  border-radius: 4px;
+}
+
+.failureTooltip {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  z-index: 30;
+  width: min(520px, 96vw);
+  max-height: 400px;
+  overflow: auto;
+  background: #1a1f1c;
+  color: #f0f4ee;
+  border: 1px solid #2b332d;
+  border-radius: 8px;
+  padding: 10px 12px;
+  box-shadow: 0 8px 18px rgba(22, 32, 25, 0.25);
+  font-size: 12px;
+}
+
+.failureTooltipHeader {
+  margin: 0 0 8px;
+  color: #ffd0cc;
+  font-family: "SFMono-Regular", Consolas, monospace;
+  font-size: 11px;
+  white-space: pre-wrap;
+}
+
+.failureTooltipBody {
+  margin: 0;
+  font-family: "SFMono-Regular", Consolas, monospace;
+  font-size: 11px;
+  white-space: pre-wrap;
+  line-height: 1.4;
+}
+
+/* Drilldown */
+
+.tabDrilldown {
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px dashed #dce4dc;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.tabDrilldownGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 10px 16px;
+}
+
+.tabDrilldownField {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.tabDrilldownLabel {
+  color: #657167;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.tabDrilldownValue {
+  font-size: 13px;
+  overflow-wrap: anywhere;
+}
+
+.conversationLink {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: #2f5a8a;
+  text-decoration: none;
+  font-family: "SFMono-Regular", Consolas, monospace;
+  font-size: 12px;
+}
+
+.conversationLink:hover {
+  text-decoration: underline;
+}
+
+.filesChangedList {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 4px 12px;
+}
+
+.filesChangedList li {
+  font-size: 12px;
+  overflow-wrap: anywhere;
+}
+
+.logToggleButton {
+  background: #eef2ec;
+  border: 1px solid #dce4dc;
+  border-radius: 6px;
+  padding: 4px 8px;
+  font-size: 12px;
+  color: #162019;
+  cursor: pointer;
+}
+
+.logToggleButton:hover {
+  background: #e0e7df;
+}
+
+.logTail {
+  margin: 8px 0 0;
+  padding: 10px 12px;
+  background: #1a1f1c;
+  color: #f0f4ee;
+  border-radius: 6px;
+  font-family: "SFMono-Regular", Consolas, monospace;
+  font-size: 11px;
+  line-height: 1.4;
+  max-height: 320px;
+  overflow: auto;
+  white-space: pre-wrap;
+}
+
+.tabEventList {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.tabEventList li {
+  display: grid;
+  grid-template-columns: 50px 120px minmax(0, 1fr);
+  gap: 8px;
+  padding: 6px 0;
+  border-bottom: 1px solid #e7ece5;
+  font-size: 12px;
+}
+
+.eventKind {
+  color: #647067;
+  font-family: "SFMono-Regular", Consolas, monospace;
+}
+
+.eventMessage {
+  overflow-wrap: anywhere;
+}
+
+.tabReceiptList {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.otherRuns {
+  background: #ffffff;
+  border: 1px solid #dce4dc;
+  border-radius: 10px;
+  padding: 14px;
+}
+
+.otherRuns h2 {
+  margin-bottom: 10px;
+}
+
+@media (max-width: 760px) {
+  .tabRowMain {
+    grid-template-columns: 28px minmax(110px, auto) minmax(0, 1fr);
+  }
+
+  .tabRowOutcome {
+    grid-column: 2 / -1;
+    text-align: left;
+  }
+
+  .progressBar {
+    grid-column: 1 / -1;
+    margin-top: 6px;
+  }
+
+  .progressSegment {
+    font-size: 10px;
+  }
+
+  .progressLabel {
+    font-size: 10px;
+  }
+}
+

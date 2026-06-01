@@ -15,6 +15,7 @@ export interface DashboardState {
   connection: EventStreamStatus;
   dataSource: DataSource;
   error: string | null;
+  lastEventAt: Record<number, number>;
   selectRun: (runId: string) => void;
   refresh: () => Promise<void>;
 }
@@ -27,6 +28,7 @@ export function useDashboardData(): DashboardState {
   const [connection, setConnection] = useState<EventStreamStatus>('connecting');
   const [dataSource, setDataSource] = useState<DataSource>('api');
   const [error, setError] = useState<string | null>(null);
+  const [lastEventAt, setLastEventAt] = useState<Record<number, number>>({});
   const selectedRunIdRef = useRef<string | null>(null);
 
   const refresh = useCallback(async () => {
@@ -75,6 +77,10 @@ export function useDashboardData(): DashboardState {
           setEvents((current) => [event, ...current].slice(0, 80));
           setRuns((current) => applyEventToRuns(current, event));
           setSelectedRunId((current) => current ?? event.run_id);
+          if (event.tab_id !== null) {
+            const tabId = event.tab_id;
+            setLastEventAt((current) => ({ ...current, [tabId]: Date.now() }));
+          }
         },
         { mode: dataSource, onError: (eventError) => setError(eventError.message) }
       );
@@ -117,6 +123,7 @@ export function useDashboardData(): DashboardState {
     connection,
     dataSource,
     error,
+    lastEventAt,
     selectRun,
     refresh
   };
@@ -200,7 +207,9 @@ function applyEventToTab(tab: RunSnapshot['tabs'][number], event: JailgunEvent):
 
 function tabStatusForEvent(event: JailgunEvent, current: string): string {
   if (event.fields.tab_status) return event.fields.tab_status;
+  if (event.kind === 'download-started') return 'downloading';
   if (event.kind === 'download-receipt') return 'downloaded';
+  if (event.kind === 'generation-stopped') return 'generation-stopped';
   if (event.kind === 'deploy-finished') return event.severity === 'error' ? 'error' : 'deployed';
   if (event.kind === 'tab-closed') return 'closed';
   return current;
