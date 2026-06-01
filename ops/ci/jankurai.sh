@@ -212,6 +212,10 @@ check_git_freshness() {
     return
   fi
 
+  if [[ "${JANKURAI_CHECK_GIT_DIFF:-}" == "0" ]]; then
+    return
+  fi
+
   if [[ "${CI:-}" != "true" && "${JANKURAI_CHECK_GIT_DIFF:-0}" != "1" ]]; then
     return
   fi
