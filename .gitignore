@@ -3,6 +3,7 @@ AGENT_CHAT.md
 .env
 .env.*
 !.env.example
+!.env.live-7tab.example
 *.log
 *.color.log
 *.pid
