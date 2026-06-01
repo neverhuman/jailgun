@@ -72,7 +72,7 @@ export function deriveStages(tab: TabSnapshot): StageState[] {
   // Stage 2 — tar captured
   const tarStatus: StageStatus = tarCaptured ? 'done' : pollingStatus === 'failed' ? 'failed' : 'pending';
 
-  // Stage 3 — upload to xbabe2
+  // Stage 3 — upload to remote host
   let uploadStatus: StageStatus;
   if (deploy === 'upload-sha-mismatch') {
     uploadStatus = 'failed';

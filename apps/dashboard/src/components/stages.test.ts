@@ -106,7 +106,7 @@ describe('summarizeOutcome', () => {
             outcome: 'succeeded',
             exit_code: '0',
             remote_command: 'bash ci-fast-push.sh',
-            remote_target: 'xbabe2:/home/ubuntu/jekko',
+            remote_target: 'remote-host:/srv/example-project',
             log_tail: 'lane PASS',
             files_changed: 'src/a.rs\nsrc/b.rs',
             local_sha256: 'aaa',
@@ -119,7 +119,7 @@ describe('summarizeOutcome', () => {
     expect(summary.outcome).toBe('succeeded');
     expect(summary.exitCode).toBe('0');
     expect(summary.remoteCommand).toBe('bash ci-fast-push.sh');
-    expect(summary.remoteTarget).toBe('xbabe2:/home/ubuntu/jekko');
+    expect(summary.remoteTarget).toBe('remote-host:/srv/example-project');
     expect(summary.logTail).toBe('lane PASS');
     expect(summary.filesChanged).toEqual(['src/a.rs', 'src/b.rs']);
     expect(summary.localSha).toBe('aaa');
