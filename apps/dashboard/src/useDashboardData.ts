@@ -99,11 +99,17 @@ export function useDashboardData(): DashboardState {
       return;
     }
     let ignore = false;
-    void fetchReceipts(selectedRunId, { mode: dataSource }).then((result) => {
-      if (!ignore) {
-        setReceipts(result.receipts);
-      }
-    });
+    void fetchReceipts(selectedRunId, { mode: dataSource })
+      .then((result) => {
+        if (!ignore) {
+          setReceipts(result.receipts);
+        }
+      })
+      .catch(() => {
+        if (!ignore) {
+          setReceipts([]);
+        }
+      });
     return () => {
       ignore = true;
     };
