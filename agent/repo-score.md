@@ -7,9 +7,9 @@
 - Target stack ID: `rust-ts-vite-react-postgres-bounded-python`
 - Target stack: `Rust core + TypeScript/React/Vite + PostgreSQL + generated contracts + exception-only Python AI/data service`
 - Repo: `.`
-- Run ID: `1780292842`
-- Started at: `1780292842`
-- Elapsed: `13307` ms
+- Run ID: `1780340925`
+- Started at: `1780340925`
+- Elapsed: `56542` ms
 - Scope: `full`
 - Raw score: `87`
 - Final score: `70`
@@ -92,7 +92,7 @@
 | Contract and boundary integrity | 13 | 88 | 11.44 | contract surface found; generated contract artifacts found |
 | Proof lanes and test routing | 12 | 100 | 12.00 | one-command setup/validation lane found; deterministic fast lane found |
 | Security and supply-chain posture | 12 | 100 | 12.00 | lockfile present; secret or dependency scan tooling found |
-| Code shape and semantic surface | 12 | 27 | 3.24 | largest authored code file: crates/jailgun-orchestrator/src/run/mod.rs (1014 LOC); code file exceeds 500 LOC |
+| Code shape and semantic surface | 12 | 27 | 3.24 | largest authored code file: crates/jailgun-cli/src/main.rs (1133 LOC); code file exceeds 500 LOC |
 | Data truth and workflow safety | 8 | 100 | 8.00 | database surface present; structured db boundary manifest present |
 | Observability and repair evidence | 8 | 88 | 7.04 | observability libraries or patterns found; ops/observability directory present |
 | Context economy and agent instructions | 7 | 93 | 6.51 | root `AGENTS.md` present; root `AGENTS.md` stays short |
@@ -182,8 +182,8 @@ No audited runtime boundary reclassifications declared.
    Reason: `Code shape and semantic surface` scored 27 below the standard floor of 85
    Fix: split large or ambiguous authored code into smaller semantic modules with focused tests
    Rerun: `just fast`
-   Fingerprint: `sha256:032bb4db2149ede5cc2a04c1944e4d7e8a90abcc7f4e0da9c1149d797483684d`
-   Evidence: largest authored code file: crates/jailgun-orchestrator/src/run/mod.rs (1014 LOC), code file exceeds 500 LOC, code file exceeds 1000 LOC, most code files stay under 300 LOC
+   Fingerprint: `sha256:0983bd55e812b8e68528776c6b23f823ba82de85f5f67856a53d0ac385d275ef`
+   Evidence: largest authored code file: crates/jailgun-cli/src/main.rs (1133 LOC), code file exceeds 500 LOC, code file exceeds 1000 LOC, most code files stay under 300 LOC
 2. `medium` `proof` `Justfile`
    Rule: `HLT-018-PERF-CONCURRENCY-DRIFT`
    Check: `HLT-018-PERF-CONCURRENCY-DRIFT:proof` `soft` confidence `0.76`
@@ -194,17 +194,17 @@ No audited runtime boundary reclassifications declared.
    Rerun: `just fast`
    Fingerprint: `sha256:a256a7390d4b91a5b0a95d6f092e524c8f4080f27fe2b62e28cf0801343d0fef`
    Evidence: build acceleration markers found, targeted test/build commands found, locked dependency graph present, CI cache hint found
-3. `high` `vibe` `apps/browser-adapter/src/chatUpload.ts:424`
+3. `high` `vibe` `crates/jailgun-cli/src/main.rs:498`
    Rule: `HLT-001-DEAD-MARKER`
    Check: `HLT-001-DEAD-MARKER:vibe` `hard` confidence `0.88`
-   Route: TLR `Entropy`, lane `fast`, owner `browser-adapter`
+   Route: TLR `Entropy`, lane `fast`, owner `rust-cli`
    Docs: `docs/audit-rubric.md#future-hostile-language-rule`
    Reason: fallback soup detected in product code
    Fix: collapse fallback chains into explicit typed states with bounded retry policy, telemetry, and documented repair guidance
    Rerun: `just fast`
-   Fingerprint: `sha256:45b72d17c740195c924e362c3f9581db6f23de62e382c555591148c96c3c2b35`
-   Evidence: apps/browser-adapter/src/chatUpload.ts:424 return null;
-4. `high` `security` `crates/jailgun-cli/src/main.rs:983`
+   Fingerprint: `sha256:bfe786fac7e70a6195cf9817d7361690ed46c17d1e8e79d877161fa2324cba0b`
+   Evidence: crates/jailgun-cli/src/main.rs:498 .or_else(|| env::var(&config.source_archive.repo_url_env).ok())
+4. `high` `security` `crates/jailgun-cli/src/main.rs:1118`
    Rule: `HLT-022-AUTHZ-ISOLATION-GAP`
    Check: `HLT-022-AUTHZ-ISOLATION-GAP:security` `hard` confidence `0.88`
    Route: TLR `Business truth`, lane `db`, owner `rust-cli`
@@ -228,7 +228,7 @@ No audited runtime boundary reclassifications declared.
    Route: `Business truth`/`db`
 2. `medium` `HLT-018-PERF-CONCURRENCY-DRIFT` `Justfile` - add fast deterministic build/test targets, caches, and narrow proof lanes for agent iteration
    Route: `Verification`/`fast`
-3. `high` `HLT-001-DEAD-MARKER` `apps/browser-adapter/src/chatUpload.ts` - collapse fallback chains into explicit typed states with bounded retry policy, telemetry, and documented repair guidance
+3. `high` `HLT-001-DEAD-MARKER` `crates/jailgun-cli/src/main.rs` - collapse fallback chains into explicit typed states with bounded retry policy, telemetry, and documented repair guidance
    Route: `Entropy`/`fast`
 4. `medium` `HLT-001-DEAD-MARKER` `.` - split large or ambiguous authored code into smaller semantic modules with focused tests
    Route: `Entropy`/`fast`

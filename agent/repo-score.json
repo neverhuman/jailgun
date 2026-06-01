@@ -1,17 +1,17 @@
 {
-  "report_fingerprint": "sha256:6eb089577889208098afd775f56a23e0d4de363d619004071314de3c437f2a4d",
-  "input_fingerprint": "sha256:a8366fffff64773e59eac7ce5bc7f32b55c5d2e8291c89f4f9fbfc31468d334f",
+  "report_fingerprint": "sha256:8f07be50b67c58b868f59746382f60d6c869c25cfe79c9c0a11428102f1dfa57",
+  "input_fingerprint": "sha256:3507fc281ee81e49e6d61db4c67db000dfd01de1df52a1c8397b77b0c2d80403",
   "policy_fingerprint": "sha256:2e02fe1c1919de94a47a99164c962683a934c73ca5bb30bec62384f7b17fe742",
   "manifest_fingerprints": {
-    "owner_map": "sha256:89a7e7fbf34ac713ba7a2d6b72c59a1e056b591e74b4ea4a2fc555a47cc1de71",
+    "owner_map": "sha256:df0834474569b72ae63ca9845b7e8d25af3a84d1aec5e54872a617bf9570b7c5",
     "test_map": "sha256:f497c15a319c3d2b2addc8c04a1751e8bee32a27403d54afcee3daea9436cde2",
     "generated_zones": "sha256:eb2cb0462a9f165fd321c43da2668a397fa9bcca5b7f7087c1edbf7823e6eebc",
     "boundaries": "sha256:e603dc2c37fd526ad62380eb9f3d8dda55bfd85d62125e9479e2ecc8004bf771",
     "proof_lanes": "sha256:15ec3d011b63046bbc896e0de66f4c8ec26bc4b72e286200e2ece5f714024c73",
     "standard_version": "sha256:e89e3b08c1e1ab55b195b4041787100956f3888aaba37595bce4403606dcb996"
   },
-  "dirty_worktree": false,
-  "generated_at": "1780292842",
+  "dirty_worktree": true,
+  "generated_at": "1780340925",
   "schema_url": "schemas/repo-score.schema.json",
   "standard": "jankurai",
   "standard_version": "0.9.0",
@@ -24,13 +24,13 @@
   "observed_conformance_level": "HL2",
   "conformance_decision": "block",
   "conformance_blockers": [
-    "HLT-001-DEAD-MARKER on apps/browser-adapter/src/chatUpload.ts",
+    "HLT-001-DEAD-MARKER on crates/jailgun-cli/src/main.rs",
     "HLT-022-AUTHZ-ISOLATION-GAP on crates/jailgun-cli/src/main.rs"
   ],
   "repo": ".",
-  "run_id": "1780292842",
-  "started_at": "1780292842",
-  "elapsed_ms": 13307,
+  "run_id": "1780340925",
+  "started_at": "1780340925",
+  "elapsed_ms": 56542,
   "scope": {
     "mode": "full",
     "paths": []
@@ -57,11 +57,11 @@
     }
   },
   "git": {
-    "head": "6d747d1",
+    "head": "e6fb9d1",
     "base": null,
     "changed_files": 0,
     "mode": "full",
-    "dirty_worktree": false
+    "dirty_worktree": true
   },
   "policy": {
     "path": "./agent/audit-policy.toml",
@@ -336,7 +336,7 @@
         "security lane present",
         "canonical security lane wrapper present",
         "agent-readiness audit gate found in CI",
-        "rust bad-behavior advisory signals: 287",
+        "rust bad-behavior advisory signals: 308",
         "typescript bad-behavior advisory signals: 1",
         "ci bad-behavior advisory signals: 1",
         "gittools bad-behavior advisory signals: 2",
@@ -352,13 +352,13 @@
       "score": 27,
       "weighted_points": 3.24,
       "evidence": [
-        "largest authored code file: crates/jailgun-orchestrator/src/run/mod.rs (1014 LOC)",
+        "largest authored code file: crates/jailgun-cli/src/main.rs (1133 LOC)",
         "code file exceeds 500 LOC",
         "code file exceeds 1000 LOC",
         "most code files stay under 300 LOC",
         "copy-code advisory classes found: 2 (advisory only, no score impact)",
         "fallback soup marker found",
-        "rust bad-behavior advisory signals: 287",
+        "rust bad-behavior advisory signals: 308",
         "typescript bad-behavior advisory signals: 1",
         "ci bad-behavior advisory signals: 1",
         "gittools bad-behavior advisory signals: 2",
@@ -472,7 +472,7 @@
         "apps/chrome-bridge/bin/chrome-bridge.mjs",
         "ops/ci/ux-qa.sh",
         "package-lock.json",
-        "scripts/render-dashboard-ux-qa.mjs"
+        "scripts/monitor-live-run.mjs"
       ],
       "design_tokens": [
         "ops/ci/ux-qa.sh",
@@ -491,6 +491,7 @@
       ],
       "playwright_visual": [
         "ops/ci/ux-qa.sh",
+        "scripts/monitor-live-run.mjs",
         "scripts/render-dashboard-ux-qa.mjs"
       ],
       "storybook": [
@@ -1092,7 +1093,7 @@
   "copy_code": {
     "schema_version": "1.1.0",
     "generated_by": "jankurai copy-code",
-    "generated_at": "2026-06-01T05:47:09.303259+00:00",
+    "generated_at": "2026-06-01T19:07:48.950220+00:00",
     "repo": ".",
     "auditor_version": "1.4.3",
     "status": "review",
@@ -1130,7 +1131,7 @@
       ]
     },
     "summary": {
-      "files_scanned": 174,
+      "files_scanned": 199,
       "files_considered": 61,
       "active_files": 61,
       "exact_file_classes": 0,
@@ -1458,7 +1459,7 @@
       "problem": "`Code shape and semantic surface` scored 27 below the standard floor of 85",
       "agent_fix": "split large or ambiguous authored code into smaller semantic modules with focused tests",
       "evidence": [
-        "largest authored code file: crates/jailgun-orchestrator/src/run/mod.rs (1014 LOC)",
+        "largest authored code file: crates/jailgun-cli/src/main.rs (1133 LOC)",
         "code file exceeds 500 LOC",
         "code file exceeds 1000 LOC",
         "most code files stay under 300 LOC"
@@ -1468,7 +1469,7 @@
       "confidence": 0.76,
       "evidence_kind": "repository-scan",
       "rerun_command": "just fast",
-      "fingerprint": "sha256:032bb4db2149ede5cc2a04c1944e4d7e8a90abcc7f4e0da9c1149d797483684d",
+      "fingerprint": "sha256:0983bd55e812b8e68528776c6b23f823ba82de85f5f67856a53d0ac385d275ef",
       "rule_id": "HLT-001-DEAD-MARKER",
       "tlr": "Entropy",
       "lane": "fast",
@@ -1502,24 +1503,24 @@
     {
       "severity": "high",
       "category": "vibe",
-      "path": "apps/browser-adapter/src/chatUpload.ts",
+      "path": "crates/jailgun-cli/src/main.rs",
       "problem": "fallback soup detected in product code",
       "agent_fix": "collapse fallback chains into explicit typed states with bounded retry policy, telemetry, and documented repair guidance",
       "evidence": [
-        "apps/browser-adapter/src/chatUpload.ts:424 return null;"
+        "crates/jailgun-cli/src/main.rs:498 .or_else(|| env::var(&config.source_archive.repo_url_env).ok())"
       ],
       "check_id": "HLT-001-DEAD-MARKER:vibe",
       "hardness": "hard",
       "confidence": 0.88,
       "evidence_kind": "repository-scan",
       "rerun_command": "just fast",
-      "fingerprint": "sha256:45b72d17c740195c924e362c3f9581db6f23de62e382c555591148c96c3c2b35",
+      "fingerprint": "sha256:bfe786fac7e70a6195cf9817d7361690ed46c17d1e8e79d877161fa2324cba0b",
       "rule_id": "HLT-001-DEAD-MARKER",
       "tlr": "Entropy",
       "lane": "fast",
       "docs_url": "docs/audit-rubric.md#future-hostile-language-rule",
-      "owner": "browser-adapter",
-      "line": 424
+      "owner": "rust-cli",
+      "line": 498
     },
     {
       "severity": "high",
@@ -1541,7 +1542,7 @@
       "lane": "db",
       "docs_url": "docs/audit-rubric.md#top-level-risk-mapping",
       "owner": "rust-cli",
-      "line": 983,
+      "line": 1118,
       "matched_term": "rls",
       "reason": "authz/data isolation requires negative proof evidence"
     }
@@ -1568,12 +1569,12 @@
       "why": "`Build speed signals` scored 70 below the standard floor of 85"
     },
     {
-      "path": "apps/browser-adapter/src/chatUpload.ts",
+      "path": "crates/jailgun-cli/src/main.rs",
       "priority": "high",
       "rule_id": "HLT-001-DEAD-MARKER",
       "tlr": "Entropy",
       "lane": "fast",
-      "owner": "browser-adapter",
+      "owner": "rust-cli",
       "task": "collapse fallback chains into explicit typed states with bounded retry policy, telemetry, and documented repair guidance",
       "why": "fallback soup detected in product code"
     },
