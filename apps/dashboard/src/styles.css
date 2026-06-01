@@ -696,6 +696,19 @@ code {
   overflow-wrap: anywhere;
 }
 
+.gitStatusGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 10px 16px;
+}
+
+.statusList {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
 .logToggleButton {
   background: #eef2ec;
   border: 1px solid #dce4dc;
@@ -792,3 +805,57 @@ code {
   }
 }
 
+/* ===== FINISHED / PRESERVED / FAILED row-level pill ===== */
+
+.finishStatePill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.finishStatePill code {
+  font-family: "SFMono-Regular", Consolas, monospace;
+  font-size: 11px;
+  letter-spacing: 0;
+  text-transform: none;
+}
+
+.finishStatePill.passed {
+  background: #e1efe4;
+  color: #1f5a2d;
+  border: 1px solid #b7d6bd;
+}
+
+.finishStatePill.preserved {
+  background: #fbedd7;
+  color: #6c4715;
+  border: 1px solid #e9c98a;
+}
+
+.finishStatePill.failed {
+  background: #f6dad7;
+  color: #7d2925;
+  border: 1px solid #e3a8a2;
+}
+
+.tabRowMain {
+  grid-template-columns: 28px minmax(140px, auto) minmax(0, 1fr) minmax(96px, auto) minmax(110px, auto);
+}
+
+@media (max-width: 760px) {
+  .tabRowMain {
+    grid-template-columns: 28px minmax(110px, auto) minmax(0, 1fr) minmax(96px, auto);
+  }
+
+  .finishStatePill {
+    grid-column: 2 / -1;
+    justify-self: start;
+  }
+}

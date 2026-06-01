@@ -4,7 +4,7 @@ import { useState } from 'react';
 import type { JailgunEvent, TabSnapshot } from '../types';
 import { TabDrilldown } from './TabDrilldown';
 import { TabProgressBar } from './TabProgressBar';
-import { isTabClosed, isTabFailed, isTabPassed, summarizeOutcome } from './stages';
+import { isTabClosed, isTabFailed, isTabPassed, summarizeOutcome, type OutcomeSummary } from './stages';
 
 interface TabRowProps {
   tab: TabSnapshot;
@@ -53,6 +53,7 @@ export function TabRow({ tab, events, receipts, lastEventAt, initialExpanded = f
           {latency ? <span className="tabRowLatency">{latency}</span> : null}
         </div>
         <TabProgressBar tab={tab} events={events} lastEventAt={lastEventAt} />
+        <FinishStatePill passed={passed} failed={failed} summary={summary} />
         <span className={`tabRowOutcome ${failed ? 'failed' : passed ? 'passed' : ''}`} aria-label="tab outcome">
           {outcomeLabel}
         </span>
@@ -64,4 +65,36 @@ export function TabRow({ tab, events, receipts, lastEventAt, initialExpanded = f
       ) : null}
     </article>
   );
+}
+
+interface FinishStatePillProps {
+  passed: boolean;
+  failed: boolean;
+  summary: OutcomeSummary;
+}
+
+function FinishStatePill({ passed, failed, summary }: FinishStatePillProps) {
+  if (passed) {
+    const sha = summary.postHead ? summary.postHead.slice(0, 10) : null;
+    return (
+      <span className="finishStatePill passed" aria-label="tab outcome state">
+        FINISHED{sha ? <> · <code>{sha}</code></> : null}
+      </span>
+    );
+  }
+  if (failed && summary.outcome === 'failed-preserved') {
+    return (
+      <span className="finishStatePill preserved" aria-label="tab outcome state">
+        PRESERVED
+      </span>
+    );
+  }
+  if (failed) {
+    return (
+      <span className="finishStatePill failed" aria-label="tab outcome state">
+        FAILED
+      </span>
+    );
+  }
+  return null;
 }

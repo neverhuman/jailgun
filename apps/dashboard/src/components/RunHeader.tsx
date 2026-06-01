@@ -1,22 +1,27 @@
-import { Activity, AlertTriangle, CheckCircle2, Download, GitBranch, Lock, XCircle } from 'lucide-react';
-import { useEffect, useState } from 'react';
+import { Activity, AlertTriangle, CheckCircle2, Download, GitBranch, Lock, Send, XCircle } from 'lucide-react';
+import { useEffect, useMemo, useState } from 'react';
 
-import type { RunSnapshot } from '../types';
-import { isTabClosed, isTabFailed, isTabPassed } from './stages';
+import type { JailgunEvent, RunSnapshot } from '../types';
+import { isTabClosed, isTabFailed, isTabPassed, summarizeOutcome } from './stages';
 
 interface RunHeaderProps {
   run: RunSnapshot;
   connection: string;
   dataSource: string;
+  events?: JailgunEvent[];
 }
 
-export function RunHeader({ run, connection, dataSource }: RunHeaderProps) {
+export function RunHeader({ run, connection, dataSource, events = [] }: RunHeaderProps) {
   const tabs = run.tabs;
   const downloaded = tabs.filter((tab) => tab.archive_sha256).length;
   const passed = tabs.filter(isTabPassed).length;
   const failed = tabs.filter(isTabFailed).length;
   const closed = tabs.filter(isTabClosed).length;
   const inFlight = tabs.length - passed - failed;
+  const pushed = useMemo(
+    () => tabs.filter((tab) => Boolean(summarizeOutcome(events, tab.tab_id).postHead)).length,
+    [events, tabs]
+  );
 
   return (
     <header className="runHeader" aria-label="run header">
@@ -34,6 +39,7 @@ export function RunHeader({ run, connection, dataSource }: RunHeaderProps) {
         <RunMetric icon={<Download size={18} />} label="Tar captured" value={downloaded} tone="ok" />
         <RunMetric icon={<CheckCircle2 size={18} />} label="Passed" value={passed} tone="ok" />
         <RunMetric icon={<XCircle size={18} />} label="Failed" value={failed} tone={failed > 0 ? 'danger' : 'neutral'} />
+        <RunMetric icon={<Send size={18} />} label="Pushed" value={pushed} tone={pushed > 0 ? 'ok' : 'neutral'} />
         <RunMetric icon={<Lock size={18} />} label="Closed" value={closed} />
         <RunMetric icon={<GitBranch size={18} />} label="Deploy queue" value={run.deploy_queue} />
         <RunMetric icon={<AlertTriangle size={18} />} label="In flight" value={inFlight} tone={inFlight > 0 ? 'warn' : 'neutral'} />

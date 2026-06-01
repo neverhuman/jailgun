@@ -61,6 +61,12 @@ export function TabDrilldown({ tab, events, receipts }: TabDrilldownProps) {
         <DrilldownField label="Remote target">
           <code>{summary.remoteTarget ?? '—'}</code>
         </DrilldownField>
+        <DrilldownField label="Post commit">
+          <code>{summary.postHead ? summary.postHead.slice(0, 12) : '—'}</code>
+        </DrilldownField>
+        <DrilldownField label="Local CI">
+          <code>{localCiLabel(summary)}</code>
+        </DrilldownField>
         <DrilldownField label="Download latency">
           <code>{tab.download_latency_ms ? `${tab.download_latency_ms} ms` : '—'}</code>
         </DrilldownField>
@@ -71,6 +77,7 @@ export function TabDrilldown({ tab, events, receipts }: TabDrilldownProps) {
 
       <section aria-label="files changed">
         <h4>Files changed ({summary.filesChanged.length})</h4>
+        {summary.shortstat ? <p className="muted">{summary.shortstat}</p> : null}
         {summary.filesChanged.length === 0 ? (
           <p className="muted">No files reported yet.</p>
         ) : (
@@ -82,6 +89,14 @@ export function TabDrilldown({ tab, events, receipts }: TabDrilldownProps) {
             ))}
           </ul>
         )}
+      </section>
+
+      <section aria-label="remote git status">
+        <h4>Git status</h4>
+        <div className="gitStatusGrid">
+          <StatusList label="Before" items={summary.preStatus} />
+          <StatusList label="After" items={summary.postStatus} />
+        </div>
       </section>
 
       {summary.logTail ? (
@@ -138,6 +153,39 @@ function DrilldownField({ label, children }: { label: string; children: React.Re
       <span className="tabDrilldownValue">{children}</span>
     </div>
   );
+}
+
+function StatusList({ label, items }: { label: string; items: string[] }) {
+  return (
+    <div className="statusList">
+      <span className="tabDrilldownLabel">{label}</span>
+      {items.length === 0 ? (
+        <code>clean</code>
+      ) : (
+        <ul className="filesChangedList">
+          {items.map((item) => (
+            <li key={item}>
+              <code>{item}</code>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+}
+
+function localCiLabel(summary: ReturnType<typeof summarizeOutcome>): string {
+  const log = summary.logTail ?? '';
+  if (
+    summary.remoteCommand?.includes('ci-fast-push') &&
+    log.includes('ci-fast-push: jekko-fast passed') &&
+    /cargo test:\s+\d+ passed/.test(log)
+  ) {
+    return 'xbabe2 passed';
+  }
+  if (summary.ciState === 'passed') return 'GitHub passed';
+  if (summary.ciState === 'skipped') return 'GitHub skipped';
+  return summary.ciState ?? 'pending';
 }
 
 function extractConversationId(url: string): string {

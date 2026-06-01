@@ -108,7 +108,7 @@ describe('summarizeOutcome', () => {
             remote_command: 'bash ci-fast-push.sh',
             remote_target: 'remote-host:/srv/example-project',
             log_tail: 'lane PASS',
-            files_changed: 'src/a.rs\nsrc/b.rs',
+            top_paths: 'src/a.rs,src/b.rs',
             local_sha256: 'aaa',
             remote_sha256: 'bbb'
           }
@@ -131,5 +131,94 @@ describe('summarizeOutcome', () => {
     expect(summary.outcome).toBe('');
     expect(summary.filesChanged).toEqual([]);
     expect(summary.logTail).toBeNull();
+  });
+
+  it('extracts post_head and ci_state from deploy-finished event', () => {
+    const summary = summarizeOutcome(
+      [
+        {
+          run_id: 'r',
+          tab_id: 7,
+          timestamp: '2026-01-01T00:00:01Z',
+          kind: 'deploy-finished',
+          severity: 'info',
+          message: 'deploy done',
+          fields: {
+            outcome: 'succeeded',
+            post_head: 'df9437530a1110e1a784a53fa7feaefca43383ab',
+            ci_state: 'passed'
+          }
+        }
+      ],
+      7
+    );
+    expect(summary.postHead).toBe('df9437530a1110e1a784a53fa7feaefca43383ab');
+    expect(summary.ciState).toBe('passed');
+  });
+
+  it('parses pre_status and post_status as newline-delimited file lists', () => {
+    const summary = summarizeOutcome(
+      [
+        {
+          run_id: 'r',
+          tab_id: 2,
+          timestamp: '2026-01-01T00:00:02Z',
+          kind: 'deploy-finished',
+          severity: 'info',
+          message: 'deploy done',
+          fields: {
+            outcome: 'succeeded',
+            pre_status: '?? new.rs\nM existing.rs',
+            post_status: '   '
+          }
+        }
+      ],
+      2
+    );
+    expect(summary.preStatus).toEqual(['?? new.rs', 'M existing.rs']);
+    expect(summary.postStatus).toEqual([]);
+  });
+
+  it('prefers changed_paths over top_paths when both present', () => {
+    const summary = summarizeOutcome(
+      [
+        {
+          run_id: 'r',
+          tab_id: 3,
+          timestamp: '2026-01-01T00:00:03Z',
+          kind: 'deploy-finished',
+          severity: 'info',
+          message: 'deploy done',
+          fields: {
+            outcome: 'succeeded',
+            changed_paths: 'crates/x.rs\ncrates/y.rs\ncrates/z.rs',
+            top_paths: 'unused/path.rs'
+          }
+        }
+      ],
+      3
+    );
+    expect(summary.filesChanged).toEqual(['crates/x.rs', 'crates/y.rs', 'crates/z.rs']);
+  });
+
+  it('captures shortstat when present', () => {
+    const summary = summarizeOutcome(
+      [
+        {
+          run_id: 'r',
+          tab_id: 5,
+          timestamp: '2026-01-01T00:00:04Z',
+          kind: 'deploy-finished',
+          severity: 'info',
+          message: 'deploy done',
+          fields: {
+            outcome: 'succeeded',
+            shortstat: ' 3 files changed, 12 insertions(+), 4 deletions(-)'
+          }
+        }
+      ],
+      5
+    );
+    expect(summary.shortstat).toBe(' 3 files changed, 12 insertions(+), 4 deletions(-)');
   });
 });

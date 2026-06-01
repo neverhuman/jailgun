@@ -10,7 +10,7 @@ export interface StageState {
   detail: string;
 }
 
-const SUCCESS_OUTCOMES = new Set(['succeeded', 'done', 'validated', 'ok', 'success']);
+const SUCCESS_OUTCOMES = new Set(['succeeded', 'succeeded-ci-skipped', 'done', 'validated', 'ok', 'success']);
 const FAILURE_OUTCOMES = new Set([
   'failed',
   'failed-hard',
@@ -39,7 +39,8 @@ const UPLOAD_DONE_STATES = new Set([
   'done',
   'validated',
   'succeeded',
-  'succeeded-ci-failed'
+  'succeeded-ci-failed',
+  'succeeded-ci-skipped'
 ]);
 const CI_RUNNING_STATES = new Set(['running', 'unpacking', 'command-running', 'remote-job-launched']);
 const CI_DONE_STATES = new Set([
@@ -47,6 +48,7 @@ const CI_DONE_STATES = new Set([
   'validated',
   'succeeded',
   'succeeded-ci-failed',
+  'succeeded-ci-skipped',
   'success'
 ]);
 
@@ -180,6 +182,11 @@ export interface OutcomeSummary {
   remoteTarget: string | null;
   logTail: string | null;
   filesChanged: string[];
+  shortstat: string | null;
+  preStatus: string[];
+  postStatus: string[];
+  postHead: string | null;
+  ciState: string | null;
   localSha: string | null;
   remoteSha: string | null;
 }
@@ -189,11 +196,15 @@ export function summarizeOutcome(events: JailgunEvent[], tabId: number): Outcome
     (event) => event.kind === 'deploy-finished' && event.tab_id === tabId
   );
   const fields = deployFinished?.fields ?? {};
-  const filesField = fields.files_changed ?? fields.top_paths ?? '';
+  const filesField = fields.changed_paths ?? fields.top_paths ?? '';
   const filesChanged = filesField
     .split(/\r?\n|,/)
     .map((value) => value.trim())
     .filter((value) => value.length > 0);
+  const parseLines = (value: string | undefined) => (value ?? '')
+    .split(/\r?\n/)
+    .map((item) => item.trim())
+    .filter((item) => item.length > 0);
   return {
     outcome: fields.outcome ?? '',
     exitCode: fields.exit_code ?? null,
@@ -201,6 +212,11 @@ export function summarizeOutcome(events: JailgunEvent[], tabId: number): Outcome
     remoteTarget: fields.remote_target ?? null,
     logTail: fields.log_tail ?? null,
     filesChanged,
+    shortstat: fields.shortstat ?? null,
+    preStatus: parseLines(fields.pre_status),
+    postStatus: parseLines(fields.post_status),
+    postHead: fields.post_head ?? null,
+    ciState: fields.ci_state ?? null,
     localSha: fields.local_sha256 ?? null,
     remoteSha: fields.remote_sha256 ?? null
   };

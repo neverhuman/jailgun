@@ -29,7 +29,7 @@ export function App() {
         </section>
       ) : (
         <>
-          <RunHeader run={activeRun} connection={connection} dataSource={dataSource} />
+          <RunHeader run={activeRun} connection={connection} dataSource={dataSource} events={events} />
 
           <section className="tabList" aria-label="tabs">
             {activeRun.tabs.length === 0 ? (
