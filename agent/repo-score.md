@@ -7,15 +7,15 @@
 - Target stack ID: `rust-ts-vite-react-postgres-bounded-python`
 - Target stack: `Rust core + TypeScript/React/Vite + PostgreSQL + generated contracts + exception-only Python AI/data service`
 - Repo: `.`
-- Run ID: `1780266344`
-- Started at: `1780266344`
-- Elapsed: `9300` ms
+- Run ID: `1780291180`
+- Started at: `1780291180`
+- Elapsed: `13318` ms
 - Scope: `full`
-- Raw score: `89`
+- Raw score: `87`
 - Final score: `70`
 - Decision: `advisory`
 - Minimum score: `85`
-- Caps applied: `fallback-soup-in-product-code`
+- Caps applied: `fallback-soup-in-product-code, authz-or-data-isolation-gap`
 
 ## Hard Rule Caps
 
@@ -46,7 +46,7 @@
 | `secret-like-content-detected` | 60 | no |
 | `false-green-test-risk` | 76 | no |
 | `destructive-migration-risk` | 70 | no |
-| `authz-or-data-isolation-gap` | 78 | no |
+| `authz-or-data-isolation-gap` | 78 | yes |
 | `input-boundary-gap` | 78 | no |
 | `agent-tool-supply-chain-gap` | 78 | no |
 | `release-readiness-gap` | 80 | no |
@@ -70,9 +70,9 @@
 
 ## Copy-Code Redundancy
 
-- Status: `review` hard=`0` warning=`3` files=`61`
+- Status: `review` hard=`0` warning=`2` files=`61`
 - Policy: min-lines=`10` min-tokens=`100` max-findings=`50` include-tests=`false` strict=`false`
-- Duplicate volume: lines=`15` tokens=`45` bytes=`456`
+- Duplicate volume: lines=`2` tokens=`2` bytes=`20`
 
 - Notes:
   - hard classes are limited to exact active-source file matches and substantial exact same-name units
@@ -81,19 +81,18 @@
 
 | Kind | Severity | Language | Lines | Tokens | Instances | Reason |
 | --- | --- | --- | ---: | ---: | --- | --- |
-| `ExactUnitSameName` | `Warning` | `rust` | 10 | 33 | `crates/jailgun-cli/src/main.rs:753-763, crates/jailgun-orchestrator/src/run/mod.rs:486-496` | `same-name semantic unit copied across multiple files` |
-| `ExactUnitSameName` | `Warning` | `rust` | 4 | 12 | `crates/jailgun-deploy/src/deploy.rs:376-380, crates/jailgun-orchestrator/src/run/mod.rs:469-473` | `same-name semantic unit copied across multiple files` |
-| `ExactUnitDifferentName` | `Warning` | `rust` | 1 | 0 | `crates/jailgun-core/src/agent_error.rs:35-36, crates/jailgun-deploy/src/deploy/model.rs:149-150, crates/jailgun-server/src/bus.rs:27-28` | `same body appears under different names across files` |
+| `ExactUnitDifferentName` | `Warning` | `rust` | 1 | 0 | `crates/jailgun-core/src/agent_error.rs:35-36, crates/jailgun-deploy/src/deploy/model.rs:151-152, crates/jailgun-server/src/bus.rs:27-28` | `same body appears under different names across files` |
+| `ExactUnitDifferentName` | `Warning` | `rust` | 1 | 2 | `crates/jailgun-deploy/src/deploy/events.rs:195-196, crates/jailgun-orchestrator/src/run/mod.rs:816-817` | `same body appears under different names across files` |
 
 ## Dimensions
 
 | Dimension | Weight | Score | Weighted | Evidence |
 | --- | ---: | ---: | ---: | --- |
-| Ownership and navigation surface | 13 | 100 | 13.00 | root `AGENTS.md` present; owner map present |
+| Ownership and navigation surface | 13 | 98 | 12.74 | root `AGENTS.md` present; owner map present |
 | Contract and boundary integrity | 13 | 88 | 11.44 | contract surface found; generated contract artifacts found |
 | Proof lanes and test routing | 12 | 100 | 12.00 | one-command setup/validation lane found; deterministic fast lane found |
 | Security and supply-chain posture | 12 | 100 | 12.00 | lockfile present; secret or dependency scan tooling found |
-| Code shape and semantic surface | 12 | 47 | 5.64 | largest authored code file: crates/jailgun-cli/src/main.rs (820 LOC); code file exceeds 500 LOC |
+| Code shape and semantic surface | 12 | 27 | 3.24 | largest authored code file: crates/jailgun-orchestrator/src/run/mod.rs (1014 LOC); code file exceeds 500 LOC |
 | Data truth and workflow safety | 8 | 100 | 8.00 | database surface present; structured db boundary manifest present |
 | Observability and repair evidence | 8 | 88 | 7.04 | observability libraries or patterns found; ops/observability directory present |
 | Context economy and agent instructions | 7 | 93 | 6.51 | root `AGENTS.md` present; root `AGENTS.md` stays short |
@@ -180,11 +179,11 @@ No audited runtime boundary reclassifications declared.
    Check: `HLT-001-DEAD-MARKER:shape` `soft` confidence `0.76`
    Route: TLR `Entropy`, lane `fast`, owner `tools`
    Docs: `docs/audit-rubric.md#future-hostile-language-rule`
-   Reason: `Code shape and semantic surface` scored 47 below the standard floor of 85
+   Reason: `Code shape and semantic surface` scored 27 below the standard floor of 85
    Fix: split large or ambiguous authored code into smaller semantic modules with focused tests
    Rerun: `just fast`
-   Fingerprint: `sha256:380bd00df776291ef5247a5a6c7fa1be3ad353f14151ad7a87034c967291c565`
-   Evidence: largest authored code file: crates/jailgun-cli/src/main.rs (820 LOC), code file exceeds 500 LOC, most code files stay under 300 LOC, copy-code advisory classes found: 3 (advisory only, no score impact)
+   Fingerprint: `sha256:032bb4db2149ede5cc2a04c1944e4d7e8a90abcc7f4e0da9c1149d797483684d`
+   Evidence: largest authored code file: crates/jailgun-orchestrator/src/run/mod.rs (1014 LOC), code file exceeds 500 LOC, code file exceeds 1000 LOC, most code files stay under 300 LOC
 2. `medium` `proof` `Justfile`
    Rule: `HLT-018-PERF-CONCURRENCY-DRIFT`
    Check: `HLT-018-PERF-CONCURRENCY-DRIFT:proof` `soft` confidence `0.76`
@@ -205,6 +204,17 @@ No audited runtime boundary reclassifications declared.
    Rerun: `just fast`
    Fingerprint: `sha256:45b72d17c740195c924e362c3f9581db6f23de62e382c555591148c96c3c2b35`
    Evidence: apps/browser-adapter/src/chatUpload.ts:424 return null;
+4. `high` `security` `crates/jailgun-cli/src/main.rs:983`
+   Rule: `HLT-022-AUTHZ-ISOLATION-GAP`
+   Check: `HLT-022-AUTHZ-ISOLATION-GAP:security` `hard` confidence `0.88`
+   Route: TLR `Business truth`, lane `db`, owner `rust-cli`
+   Docs: `docs/audit-rubric.md#top-level-risk-mapping`
+   Matched term: `rls`
+   Reason: authz/data isolation requires negative proof evidence
+   Fix: add owner/non-owner authorization tests or RLS evidence for the touched data boundary
+   Rerun: `just fast`
+   Fingerprint: `sha256:b9ba8df40da33de885e0f0b175d3a2fe5afeafefdd9347dd065d0b988debbe8a`
+   Evidence: fn infers_github_owner_repo_from_supported_remote_urls() {
 
 ## Policy
 
@@ -214,9 +224,11 @@ No audited runtime boundary reclassifications declared.
 
 ## Agent Fix Queue
 
-1. `medium` `HLT-018-PERF-CONCURRENCY-DRIFT` `Justfile` - add fast deterministic build/test targets, caches, and narrow proof lanes for agent iteration
+1. `high` `HLT-022-AUTHZ-ISOLATION-GAP` `crates/jailgun-cli/src/main.rs` - add owner/non-owner authorization tests or RLS evidence for the touched data boundary
+   Route: `Business truth`/`db`
+2. `medium` `HLT-018-PERF-CONCURRENCY-DRIFT` `Justfile` - add fast deterministic build/test targets, caches, and narrow proof lanes for agent iteration
    Route: `Verification`/`fast`
-2. `high` `HLT-001-DEAD-MARKER` `apps/browser-adapter/src/chatUpload.ts` - collapse fallback chains into explicit typed states with bounded retry policy, telemetry, and documented repair guidance
+3. `high` `HLT-001-DEAD-MARKER` `apps/browser-adapter/src/chatUpload.ts` - collapse fallback chains into explicit typed states with bounded retry policy, telemetry, and documented repair guidance
    Route: `Entropy`/`fast`
-3. `medium` `HLT-001-DEAD-MARKER` `.` - split large or ambiguous authored code into smaller semantic modules with focused tests
+4. `medium` `HLT-001-DEAD-MARKER` `.` - split large or ambiguous authored code into smaller semantic modules with focused tests
    Route: `Entropy`/`fast`
