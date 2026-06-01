@@ -216,34 +216,33 @@ export async function closeTabAfterReceipt(
 
 export function collectRateLimitModalFromDom(root: ParentNode = document): RateLimitModalCandidate | null {
   const dialogs = queryAll<HTMLElement>(root, RATE_LIMIT_DIALOG_SELECTOR);
-  for (let dialogIndex = 0; dialogIndex < dialogs.length; dialogIndex += 1) {
-    const dialog = dialogs[dialogIndex];
+  const matches: RateLimitModalCandidate[] = [];
+  dialogs.forEach((dialog, dialogIndex) => {
     if (!isVisible(dialog)) {
-      continue;
+      return;
     }
     const text = normalizedText(dialog);
     if (!RATE_LIMIT_PHRASE_PRIMARY.test(text) || !RATE_LIMIT_PHRASE_SECONDARY.test(text)) {
-      continue;
+      return;
     }
     const buttons = queryAll<HTMLElement>(dialog, RATE_LIMIT_BUTTON_SELECTOR);
-    for (let buttonIndex = 0; buttonIndex < buttons.length; buttonIndex += 1) {
-      const button = buttons[buttonIndex];
+    buttons.forEach((button, buttonIndex) => {
       if (!isClickableControl(button) || !isVisible(button)) {
-        continue;
+        return;
       }
       const label = bestLabel(button);
       if (!RATE_LIMIT_BUTTON_LABEL.test(label)) {
-        continue;
+        return;
       }
-      return {
+      matches.push({
         dialogIndex,
         buttonIndex,
         buttonLabel: label,
         excerpt: text.slice(0, 240)
-      };
-    }
-  }
-  return null;
+      });
+    });
+  });
+  return matches[0] ?? null;
 }
 
 export interface RateLimitDismissalResult {

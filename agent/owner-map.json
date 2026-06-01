@@ -23,6 +23,7 @@
     "crates/jailgun-orchestrator/": "rust-core",
     "apps/browser-adapter/": "browser-adapter",
     "apps/chrome-bridge/": "browser-adapter",
+    "apps/fake-chatgpt/": "browser-adapter",
     "apps/dashboard/": "dashboard-ui",
     ".github/": "ci-release",
     "ops/": "ci-release",

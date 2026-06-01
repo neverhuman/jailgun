@@ -416,19 +416,10 @@ function formatObservation(observation: SendButtonObservation | null): string {
 }
 
 function firstNonEmpty(values: Array<string | null>): string | null {
-  for (const value of values) {
-    if (value && value.trim()) {
-      return value.trim();
-    }
-  }
-  return null;
+  const match = values.find((value): value is string => Boolean(value && value.trim()));
+  return match ? match.trim() : null;
 }
 
 function firstMatching(values: Array<string | null>, pattern: RegExp): string | null {
-  for (const value of values) {
-    if (value && pattern.test(value)) {
-      return value;
-    }
-  }
-  return null;
+  return values.find((value): value is string => Boolean(value && pattern.test(value))) ?? null;
 }
