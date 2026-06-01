@@ -181,7 +181,7 @@ function localCiLabel(summary: ReturnType<typeof summarizeOutcome>): string {
     log.includes('ci-fast-push: jekko-fast passed') &&
     /cargo test:\s+\d+ passed/.test(log)
   ) {
-    return 'xbabe2 passed';
+    return 'remote host passed';
   }
   if (summary.ciState === 'passed') return 'GitHub passed';
   if (summary.ciState === 'skipped') return 'GitHub skipped';
