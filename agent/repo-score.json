@@ -1,6 +1,6 @@
 {
-  "report_fingerprint": "sha256:575bc6e8ec7ab9c215e1e5e3328de14c1b73cb4166687b28028897c7acb1f11f",
-  "input_fingerprint": "sha256:6d69c1318391cf9d3043f609ecf424e20ccacb642a471cdc5710f00071dcc98d",
+  "report_fingerprint": "sha256:04bd288d9cb6d56bf88b9423c9c411e7a83ac8bd5145820160b0407c3d3fe1ca",
+  "input_fingerprint": "sha256:8e3fd1270f6cf8a26646d113aba65ce5b8d1107758a964a1c54fb56a78008a76",
   "policy_fingerprint": "sha256:2e02fe1c1919de94a47a99164c962683a934c73ca5bb30bec62384f7b17fe742",
   "manifest_fingerprints": {
     "owner_map": "sha256:89a7e7fbf34ac713ba7a2d6b72c59a1e056b591e74b4ea4a2fc555a47cc1de71",
@@ -11,7 +11,7 @@
     "standard_version": "sha256:e89e3b08c1e1ab55b195b4041787100956f3888aaba37595bce4403606dcb996"
   },
   "dirty_worktree": false,
-  "generated_at": "1780291796",
+  "generated_at": "1780292354",
   "schema_url": "schemas/repo-score.schema.json",
   "standard": "jankurai",
   "standard_version": "0.9.0",
@@ -28,9 +28,9 @@
     "HLT-022-AUTHZ-ISOLATION-GAP on crates/jailgun-cli/src/main.rs"
   ],
   "repo": ".",
-  "run_id": "1780291796",
-  "started_at": "1780291796",
-  "elapsed_ms": 13513,
+  "run_id": "1780292354",
+  "started_at": "1780292354",
+  "elapsed_ms": 13457,
   "scope": {
     "mode": "full",
     "paths": []
@@ -57,7 +57,7 @@
     }
   },
   "git": {
-    "head": "c4e8fa1",
+    "head": "e9a12e5",
     "base": null,
     "changed_files": 0,
     "mode": "full",
@@ -1092,7 +1092,7 @@
   "copy_code": {
     "schema_version": "1.1.0",
     "generated_by": "jankurai copy-code",
-    "generated_at": "2026-06-01T05:29:42.931082+00:00",
+    "generated_at": "2026-06-01T05:39:01.143216+00:00",
     "repo": ".",
     "auditor_version": "1.4.3",
     "status": "review",

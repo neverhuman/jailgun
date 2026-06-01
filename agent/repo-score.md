@@ -7,9 +7,9 @@
 - Target stack ID: `rust-ts-vite-react-postgres-bounded-python`
 - Target stack: `Rust core + TypeScript/React/Vite + PostgreSQL + generated contracts + exception-only Python AI/data service`
 - Repo: `.`
-- Run ID: `1780291796`
-- Started at: `1780291796`
-- Elapsed: `13513` ms
+- Run ID: `1780292354`
+- Started at: `1780292354`
+- Elapsed: `13457` ms
 - Scope: `full`
 - Raw score: `87`
 - Final score: `70`
