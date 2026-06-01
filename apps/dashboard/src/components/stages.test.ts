@@ -12,7 +12,8 @@ function makeTab(overrides: Partial<TabSnapshot> = {}): TabSnapshot {
     download_latency_ms: null,
     deploy_status: 'pending',
     prompt_policy_decision: null,
-    ...overrides
+    ...overrides,
+    early_stop_outcome: overrides.early_stop_outcome ?? null
   };
 }
 

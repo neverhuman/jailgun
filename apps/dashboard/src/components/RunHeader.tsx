@@ -1,4 +1,4 @@
-import { Activity, AlertTriangle, CheckCircle2, Download, GitBranch, Lock, Send, XCircle } from 'lucide-react';
+import { Activity, AlertTriangle, CheckCircle2, Download, GitBranch, Hand, Lock, Send, XCircle } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 
 import type { JailgunEvent, RunSnapshot } from '../types';
@@ -57,9 +57,25 @@ export function RunHeader({ run, connection, dataSource, events = [] }: RunHeade
         <RunMetric icon={<Lock size={18} />} label="Closed" value={closed} />
         <RunMetric icon={<GitBranch size={18} />} label="Deploy queue" value={run.deploy_queue} />
         <RunMetric icon={<AlertTriangle size={18} />} label="In flight" value={inFlight} tone={inFlight > 0 ? 'warn' : 'neutral'} />
+        <RunMetric
+          icon={<Hand size={18} />}
+          label="Early stops"
+          value={`${run.early_stops_succeeded}/${run.early_stops_attempted}`}
+          tone={earlyStopTone(run.early_stops_succeeded, run.early_stops_attempted)}
+        />
       </div>
     </header>
   );
+}
+
+function earlyStopTone(
+  succeeded: number,
+  attempted: number
+): 'neutral' | 'ok' | 'warn' | 'danger' {
+  if (attempted === 0) return 'neutral';
+  if (succeeded === attempted) return 'ok';
+  if (succeeded === 0) return 'danger';
+  return 'warn';
 }
 
 function calculateLoopsRemaining(loopCount: number, batchTabs: number, observedTabs: number): number {

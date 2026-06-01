@@ -156,15 +156,9 @@ function createRunFromEvent(event: JailgunEvent): RunSnapshot {
     deploy_queue: event.kind === 'deploy-queued' ? 'waiting' : 'idle',
     denied_github_prompts: event.fields.decision === 'deny' ? 1 : 0,
     allowed_info_prompts: event.fields.decision === 'allow-info' ? 1 : 0,
-    tabs: event.tab_id === null ? [] : [{
-      tab_id: event.tab_id,
-      status: tabStatusForEvent(event, event.fields.tab_status ?? 'active'),
-      page_url: event.fields.page_url ?? '',
-      archive_sha256: event.fields.sha256 ?? null,
-      download_latency_ms: parseOptionalNumber(event.fields.download_latency_ms),
-      deploy_status: deployStatusForEvent(event, event.fields.deploy_status ?? 'pending'),
-      prompt_policy_decision: event.fields.decision ?? null
-    }]
+    tabs: event.tab_id === null ? [] : [applyEventToTab(defaultTabSnapshot(event.tab_id), event)],
+    early_stops_succeeded: 0,
+    early_stops_attempted: 0
   };
 }
 
@@ -172,6 +166,7 @@ function applyEventToRun(run: RunSnapshot, event: JailgunEvent): RunSnapshot {
   const decision = event.fields.decision;
   const metadata = event.kind === 'run-started' ? runLoopMetadataFromEvent(event, run) : run;
   const tabs = event.tab_id === null ? run.tabs : upsertTab(run.tabs, event);
+  const earlyStopTotals = recomputeEarlyStopTotals(tabs);
   return {
     ...run,
     ...metadata,
@@ -180,7 +175,36 @@ function applyEventToRun(run: RunSnapshot, event: JailgunEvent): RunSnapshot {
     deploy_queue: queueStateForEvent(event, run.deploy_queue),
     denied_github_prompts: decision === 'deny' ? run.denied_github_prompts + 1 : run.denied_github_prompts,
     allowed_info_prompts: decision === 'allow-info' ? run.allowed_info_prompts + 1 : run.allowed_info_prompts,
-    tabs
+    tabs,
+    early_stops_succeeded: earlyStopTotals.succeeded,
+    early_stops_attempted: earlyStopTotals.attempted
+  };
+}
+
+function recomputeEarlyStopTotals(tabs: RunSnapshot['tabs']): { succeeded: number; attempted: number } {
+  let succeeded = 0;
+  let attempted = 0;
+  for (const tab of tabs) {
+    if (tab.early_stop_outcome === 'succeeded') {
+      succeeded += 1;
+      attempted += 1;
+    } else if (tab.early_stop_outcome === 'attempted') {
+      attempted += 1;
+    }
+  }
+  return { succeeded, attempted };
+}
+
+function defaultTabSnapshot(tabId: number): RunSnapshot['tabs'][number] {
+  return {
+    tab_id: tabId,
+    status: 'active',
+    page_url: '',
+    archive_sha256: null,
+    download_latency_ms: null,
+    deploy_status: 'pending',
+    prompt_policy_decision: null,
+    early_stop_outcome: null
   };
 }
 
@@ -210,18 +234,7 @@ function runLoopMetadataFromEvent(
 function upsertTab(tabs: RunSnapshot['tabs'], event: JailgunEvent): RunSnapshot['tabs'] {
   if (event.tab_id === null) return tabs;
   const existing = tabs.find((tab) => tab.tab_id === event.tab_id);
-  const next = applyEventToTab(
-    existing ?? {
-      tab_id: event.tab_id,
-      status: 'active',
-      page_url: '',
-      archive_sha256: null,
-      download_latency_ms: null,
-      deploy_status: 'pending',
-      prompt_policy_decision: null
-    },
-    event
-  );
+  const next = applyEventToTab(existing ?? defaultTabSnapshot(event.tab_id), event);
   if (!existing) {
     return [...tabs, next].sort((left, right) => left.tab_id - right.tab_id);
   }
@@ -236,8 +249,27 @@ function applyEventToTab(tab: RunSnapshot['tabs'][number], event: JailgunEvent):
     archive_sha256: event.fields.sha256 ?? tab.archive_sha256,
     download_latency_ms: parseOptionalNumber(event.fields.download_latency_ms) ?? tab.download_latency_ms,
     deploy_status: deployStatusForEvent(event, tab.deploy_status),
-    prompt_policy_decision: event.fields.decision ?? tab.prompt_policy_decision
+    prompt_policy_decision: event.fields.decision ?? tab.prompt_policy_decision,
+    early_stop_outcome: nextEarlyStopOutcome(tab.early_stop_outcome, event)
   };
+}
+
+function nextEarlyStopOutcome(
+  current: RunSnapshot['tabs'][number]['early_stop_outcome'],
+  event: JailgunEvent
+): RunSnapshot['tabs'][number]['early_stop_outcome'] {
+  if (event.kind !== 'generation-stopped') return current;
+  const phase = event.fields.phase ?? '';
+  if (phase !== 'pre-download' && phase !== 'post-download') return current;
+  const method = event.fields.method ?? '';
+  const isSuccess =
+    method.length > 0 &&
+    !method.startsWith('not-active') &&
+    !method.startsWith('not-run') &&
+    !method.startsWith('shutdown');
+  if (isSuccess) return 'succeeded';
+  if (current === 'succeeded') return 'succeeded';
+  return 'attempted';
 }
 
 function tabStatusForEvent(event: JailgunEvent, current: string): string {

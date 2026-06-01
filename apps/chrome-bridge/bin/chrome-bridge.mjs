@@ -424,6 +424,26 @@ class ChromeBridge {
           candidates: ranked.slice(0, 5),
           selected_index: candidate.index,
         });
+        const preStop = await stopIfGenerating(tab.page).catch((error) => ({
+          clicked: false,
+          reason: `error:${error?.message || String(error)}`,
+        }));
+        const preStopMethod = preStop.clicked
+          ? (preStop.label || 'button')
+          : `not-active:${preStop.reason || 'not-found'}`;
+        this.emit(envelope, 'generation-stopped', {
+          method: preStopMethod,
+          phase: 'pre-download',
+        });
+        this.bridgeLog(
+          envelope,
+          'generation-stopped',
+          preStop.clicked ? 'ok' : 'not-active',
+          preStop.clicked
+            ? 'stopped generation pre-download'
+            : 'generation not active pre-download',
+          { method: preStopMethod, phase: 'pre-download' },
+        );
         const startedDownloadAt = timestamp();
         const targetPath = join(outputDir, normalizeTarName(candidate.label || candidate.download || candidate.href || 'chatgpt-output.tar.gz'));
         this.emit(envelope, 'download-started', {
@@ -735,7 +755,7 @@ class ChromeBridge {
     const tab = this.requireTab(envelope);
     const result = await stopIfGenerating(tab.page);
     if (result.clicked) {
-      this.emit(envelope, 'generation-stopped', { method: result.label || 'button' });
+      this.emit(envelope, 'generation-stopped', { method: result.label || 'button', phase: 'commanded' });
     }
   }
 
@@ -798,6 +818,7 @@ class ChromeBridge {
           }));
           this.emit(envelope, 'generation-stopped', {
             method: stop.clicked ? (stop.label || 'button') : `shutdown-not-active:${stop.reason || 'not-found'}`,
+            phase: 'shutdown',
           }, tabId);
         }
         await tab.page.close().catch(() => undefined);
@@ -2155,13 +2176,13 @@ async function finalizeTabAfterDownload(bridge, tab, envelope, reason) {
     try {
       const stop = await stopIfGenerating(tab.page);
       stopMethod = stop.clicked ? (stop.label || 'button') : `not-active:${stop.reason || 'not-found'}`;
-      bridge.emit(envelope, 'generation-stopped', { method: stopMethod });
+      bridge.emit(envelope, 'generation-stopped', { method: stopMethod, phase: 'post-download' });
       bridge.bridgeLog(
         envelope,
         'generation-stopped',
         stop.clicked ? 'ok' : 'not-active',
         stop.clicked ? `stopped generation ${context}` : `generation was not active ${context}`,
-        { method: stopMethod },
+        { method: stopMethod, phase: 'post-download' },
       );
     } catch (error) {
       const message = error?.message || String(error);

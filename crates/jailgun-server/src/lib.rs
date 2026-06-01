@@ -286,7 +286,7 @@ async fn apply_event_to_runs(runs: &Arc<RwLock<Vec<RunSnapshot>>>, event: &Jailg
 
 fn create_run_from_event(event: &JailgunEvent) -> RunSnapshot {
     let metadata = run_loop_metadata(event, None);
-    RunSnapshot {
+    let mut run = RunSnapshot {
         run_id: event.run_id.clone(),
         started_at: event.timestamp.clone(),
         finished_at: None,
@@ -316,7 +316,11 @@ fn create_run_from_event(event: &JailgunEvent) -> RunSnapshot {
             .tab_id
             .map(|tab_id| vec![apply_event_to_tab(default_tab_snapshot(tab_id), event)])
             .unwrap_or_default(),
-    }
+        early_stops_succeeded: 0,
+        early_stops_attempted: 0,
+    };
+    recompute_early_stop_counts(&mut run);
+    run
 }
 
 fn apply_event_to_run(mut run: RunSnapshot, event: &JailgunEvent) -> RunSnapshot {
@@ -345,7 +349,27 @@ fn apply_event_to_run(mut run: RunSnapshot, event: &JailgunEvent) -> RunSnapshot
     if let Some(tab_id) = event.tab_id {
         upsert_tab(&mut run.tabs, tab_id, event);
     }
+    recompute_early_stop_counts(&mut run);
     run
+}
+
+fn recompute_early_stop_counts(run: &mut RunSnapshot) {
+    let mut succeeded: u16 = 0;
+    let mut attempted: u16 = 0;
+    for tab in &run.tabs {
+        match tab.early_stop_outcome.as_deref() {
+            Some("succeeded") => {
+                succeeded = succeeded.saturating_add(1);
+                attempted = attempted.saturating_add(1);
+            }
+            Some("attempted") => {
+                attempted = attempted.saturating_add(1);
+            }
+            _ => {}
+        }
+    }
+    run.early_stops_succeeded = succeeded;
+    run.early_stops_attempted = attempted;
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -411,6 +435,7 @@ fn default_tab_snapshot(tab_id: u16) -> TabSnapshot {
         download_latency_ms: None,
         deploy_status: "pending".to_string(),
         prompt_policy_decision: None,
+        early_stop_outcome: None,
     }
 }
 
@@ -435,7 +460,43 @@ fn apply_event_to_tab(mut tab: TabSnapshot, event: &JailgunEvent) -> TabSnapshot
     if let Some(decision) = event.fields.get("decision") {
         tab.prompt_policy_decision = Some(decision.clone());
     }
+    if matches!(event.kind, EventKind::GenerationStopped) {
+        if let Some(outcome) = early_stop_outcome_for_event(event) {
+            tab.early_stop_outcome = Some(merge_early_stop_outcome(
+                tab.early_stop_outcome.as_deref(),
+                outcome,
+            ));
+        }
+    }
     tab
+}
+
+fn early_stop_outcome_for_event(event: &JailgunEvent) -> Option<&'static str> {
+    let phase = event.fields.get("phase").map(String::as_str).unwrap_or("");
+    if !matches!(phase, "pre-download" | "post-download") {
+        return None;
+    }
+    let method = event.fields.get("method").map(String::as_str).unwrap_or("");
+    if early_stop_method_is_success(method) {
+        Some("succeeded")
+    } else {
+        Some("attempted")
+    }
+}
+
+fn merge_early_stop_outcome(current: Option<&str>, incoming: &'static str) -> String {
+    match (current, incoming) {
+        (Some("succeeded"), _) => "succeeded".to_string(),
+        (_, "succeeded") => "succeeded".to_string(),
+        _ => "attempted".to_string(),
+    }
+}
+
+fn early_stop_method_is_success(method: &str) -> bool {
+    !method.is_empty()
+        && !method.starts_with("not-active")
+        && !method.starts_with("not-run")
+        && !method.starts_with("shutdown")
 }
 
 fn tab_status_for_event(event: &JailgunEvent, current: String) -> String {

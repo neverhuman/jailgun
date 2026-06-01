@@ -12,6 +12,8 @@ export const fixtureRuns: RunSnapshot[] = [
     deploy_queue: 'running',
     denied_github_prompts: 2,
     allowed_info_prompts: 1,
+    early_stops_succeeded: 0,
+    early_stops_attempted: 0,
     tabs: [
       {
         tab_id: 1,
@@ -20,7 +22,8 @@ export const fixtureRuns: RunSnapshot[] = [
         archive_sha256: 'abc123',
         download_latency_ms: 1200,
         deploy_status: 'validated',
-        prompt_policy_decision: 'deny'
+        prompt_policy_decision: 'deny',
+        early_stop_outcome: null
       },
       {
         tab_id: 2,
@@ -29,7 +32,8 @@ export const fixtureRuns: RunSnapshot[] = [
         archive_sha256: 'def456',
         download_latency_ms: 1700,
         deploy_status: 'remote-job-launched',
-        prompt_policy_decision: 'allow-info'
+        prompt_policy_decision: 'allow-info',
+        early_stop_outcome: null
       },
       {
         tab_id: 3,
@@ -38,7 +42,8 @@ export const fixtureRuns: RunSnapshot[] = [
         archive_sha256: null,
         download_latency_ms: null,
         deploy_status: 'waiting-for-tar',
-        prompt_policy_decision: null
+        prompt_policy_decision: null,
+        early_stop_outcome: null
       }
     ]
   }

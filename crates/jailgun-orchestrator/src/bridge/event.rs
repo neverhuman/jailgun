@@ -110,6 +110,8 @@ pub struct RateLimitDetectedPayload {
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct GenerationStoppedPayload {
     pub method: String,
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub phase: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]

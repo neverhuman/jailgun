@@ -10,6 +10,8 @@ export interface RunSnapshot {
   deploy_queue: 'idle' | 'waiting' | 'running' | 'blocked' | 'done';
   denied_github_prompts: number;
   allowed_info_prompts: number;
+  early_stops_succeeded: number;
+  early_stops_attempted: number;
 }
 
 export interface TabSnapshot {
@@ -20,6 +22,7 @@ export interface TabSnapshot {
   download_latency_ms: number | null;
   deploy_status: string;
   prompt_policy_decision: string | null;
+  early_stop_outcome: 'succeeded' | 'attempted' | null;
 }
 
 export interface JailgunEvent {

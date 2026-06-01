@@ -99,7 +99,9 @@ function decodeRunSnapshot(value: unknown): RunSnapshot {
     tabs,
     deploy_queue: expectDeployQueue(record.deploy_queue),
     denied_github_prompts: expectNumber(record.denied_github_prompts, 'denied_github_prompts'),
-    allowed_info_prompts: expectNumber(record.allowed_info_prompts, 'allowed_info_prompts')
+    allowed_info_prompts: expectNumber(record.allowed_info_prompts, 'allowed_info_prompts'),
+    early_stops_succeeded: optionalNumber(record.early_stops_succeeded) ?? 0,
+    early_stops_attempted: optionalNumber(record.early_stops_attempted) ?? 0
   };
 }
 
@@ -112,8 +114,26 @@ function decodeTabSnapshot(value: unknown): TabSnapshot {
     archive_sha256: expectNullableString(record.archive_sha256, 'archive_sha256'),
     download_latency_ms: expectNullableNumber(record.download_latency_ms, 'download_latency_ms'),
     deploy_status: expectString(record.deploy_status, 'deploy_status'),
-    prompt_policy_decision: expectNullableString(record.prompt_policy_decision, 'prompt_policy_decision')
+    prompt_policy_decision: expectNullableString(record.prompt_policy_decision, 'prompt_policy_decision'),
+    early_stop_outcome: decodeEarlyStopOutcome(record.early_stop_outcome)
   };
+}
+
+function optionalNumber(value: unknown): number | null {
+  if (value === undefined || value === null) {
+    return null;
+  }
+  if (typeof value !== 'number' || Number.isNaN(value)) {
+    return null;
+  }
+  return value;
+}
+
+function decodeEarlyStopOutcome(value: unknown): 'succeeded' | 'attempted' | null {
+  if (value === 'succeeded' || value === 'attempted') {
+    return value;
+  }
+  return null;
 }
 
 function decodeReceiptResponse(value: unknown): ReceiptResponse {

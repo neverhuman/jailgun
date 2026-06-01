@@ -81,8 +81,12 @@ pub fn map_bridge_event(
                 .with_field("excerpt", payload.excerpt.clone())
         }
         BridgeEvent::GenerationStopped(payload) => {
-            base(EventKind::GenerationStopped, "generation stopped")
-                .with_field("method", payload.method.clone())
+            let mut event = base(EventKind::GenerationStopped, "generation stopped")
+                .with_field("method", payload.method.clone());
+            if !payload.phase.is_empty() {
+                event = event.with_field("phase", payload.phase.clone());
+            }
+            event
         }
         BridgeEvent::TabClosed(payload) => base(EventKind::TabClosed, "tab closed")
             .with_field("page_url", payload.page_url.clone())

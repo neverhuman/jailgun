@@ -39,6 +39,8 @@ pub struct RunSummary {
     pub failures: Vec<(u16, String)>,
     pub denied_github_prompts: u32,
     pub allowed_info_prompts: u32,
+    pub early_stops_succeeded: u16,
+    pub early_stops_attempted: u16,
 }
 
 pub struct OrchestratorHandle {
@@ -114,6 +116,8 @@ async fn drive_run(
         failures: Vec::new(),
         denied_github_prompts: 0,
         allowed_info_prompts: 0,
+        early_stops_succeeded: 0,
+        early_stops_attempted: 0,
     };
     publish(
         &events,
@@ -530,6 +534,8 @@ struct RunTracker {
     downloaded_tabs: BTreeSet<u16>,
     deployed_tabs: BTreeSet<u16>,
     terminal_tabs: BTreeSet<u16>,
+    early_stop_attempt_tabs: BTreeSet<u16>,
+    early_stop_success_tabs: BTreeSet<u16>,
 }
 
 impl RunTracker {
@@ -540,6 +546,8 @@ impl RunTracker {
             downloaded_tabs: BTreeSet::new(),
             deployed_tabs: BTreeSet::new(),
             terminal_tabs: BTreeSet::new(),
+            early_stop_attempt_tabs: BTreeSet::new(),
+            early_stop_success_tabs: BTreeSet::new(),
         }
     }
 
@@ -555,12 +563,29 @@ impl RunTracker {
         self.terminal_tabs.insert(tab_id);
     }
 
+    fn mark_early_stop_attempt(&mut self, tab_id: u16) {
+        self.early_stop_attempt_tabs.insert(tab_id);
+    }
+
+    fn mark_early_stop_success(&mut self, tab_id: u16) {
+        self.early_stop_attempt_tabs.insert(tab_id);
+        self.early_stop_success_tabs.insert(tab_id);
+    }
+
     fn downloaded_count(&self) -> u16 {
         self.downloaded_tabs.len().min(u16::MAX as usize) as u16
     }
 
     fn deployed_count(&self) -> u16 {
         self.deployed_tabs.len().min(u16::MAX as usize) as u16
+    }
+
+    fn early_stop_attempted_count(&self) -> u16 {
+        self.early_stop_attempt_tabs.len().min(u16::MAX as usize) as u16
+    }
+
+    fn early_stop_succeeded_count(&self) -> u16 {
+        self.early_stop_success_tabs.len().min(u16::MAX as usize) as u16
     }
 
     fn tab_is_complete(&self, tab_id: u16) -> bool {
@@ -691,6 +716,22 @@ async fn handle_bridge_envelope(
             }
             _ => {}
         },
+        BridgeEvent::GenerationStopped(payload) => {
+            if let Some(tab_id) = tab_id {
+                if matches!(payload.phase.as_str(), "pre-download" | "post-download") {
+                    tracker.mark_early_stop_attempt(tab_id);
+                    if !payload.method.is_empty()
+                        && !payload.method.starts_with("not-active")
+                        && !payload.method.starts_with("not-run")
+                        && !payload.method.starts_with("shutdown")
+                    {
+                        tracker.mark_early_stop_success(tab_id);
+                    }
+                    summary.early_stops_attempted = tracker.early_stop_attempted_count();
+                    summary.early_stops_succeeded = tracker.early_stop_succeeded_count();
+                }
+            }
+        }
         BridgeEvent::Error(payload) => {
             summary
                 .failures
