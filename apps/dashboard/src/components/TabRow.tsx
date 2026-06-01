@@ -23,7 +23,9 @@ export function TabRow({ tab, events, receipts, lastEventAt, initialExpanded = f
   const outcomeLabel = failed
     ? summary.outcome || 'failed'
     : passed
-      ? summary.outcome || 'passed'
+      ? summary.outcome === 'succeeded-ci-skipped'
+        ? 'succeeded'
+        : summary.outcome || 'passed'
       : tab.deploy_status || tab.status || 'pending';
   const latency = tab.download_latency_ms ? `${tab.download_latency_ms} ms` : null;
 

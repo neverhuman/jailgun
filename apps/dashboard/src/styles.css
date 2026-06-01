@@ -338,6 +338,37 @@ code {
   margin-bottom: 14px;
 }
 
+.runLoopBanner {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-bottom: 14px;
+  padding: 12px 14px;
+  border-radius: 10px;
+  border: 1px solid #e2b84c;
+  background: linear-gradient(135deg, #fff8de 0%, #fff3c4 100%);
+  color: #6b430a;
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.35);
+}
+
+.runLoopBannerLabel {
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.runLoopBannerValue {
+  font-size: 18px;
+  line-height: 1;
+}
+
+.runLoopBannerMeta {
+  font-size: 12px;
+  color: #855812;
+}
+
 .runHeaderMetrics {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));

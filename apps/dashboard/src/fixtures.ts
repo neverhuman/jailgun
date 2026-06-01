@@ -6,6 +6,9 @@ export const fixtureRuns: RunSnapshot[] = [
     started_at: '2026-01-01T00:00:00Z',
     finished_at: null,
     status: 'running',
+    batch_tabs: 3,
+    loop_count: 0,
+    planned_tabs: 3,
     deploy_queue: 'running',
     denied_github_prompts: 2,
     allowed_info_prompts: 1,
@@ -88,4 +91,3 @@ export const fixtureReceipts: ReceiptResponse = {
     }
   ]
 };
-

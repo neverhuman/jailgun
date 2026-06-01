@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { expect, it } from 'vitest';
 
 import { App } from './App';
@@ -97,6 +97,27 @@ it('shows a FINISHED pill with short post_head when deploy succeeds', async () =
   const pills = screen.getAllByLabelText('tab outcome state');
   const finished = pills.find((pill) => pill.textContent?.includes('FINISHED'));
   expect(finished?.textContent).toContain('df94375');
+});
+
+it('shows succeeded rather than succeeded-ci-skipped in the row label when local CI passed', async () => {
+  render(<App />);
+  await screen.findByLabelText('tab 1 row');
+  MockWebSocket.instances[0].emit({
+    run_id: 'fixture-run',
+    tab_id: 1,
+    timestamp: '2026-01-01T00:00:17Z',
+    kind: 'deploy-finished',
+    severity: 'info',
+    message: 'deploy ok',
+    fields: {
+      outcome: 'succeeded-ci-skipped',
+      post_head: 'df9437530a1110e1a784a53fa7feaefca43383ab'
+    }
+  });
+  const tabRow = screen.getByLabelText('tab 1 row');
+  await waitFor(() => {
+    expect(within(tabRow).getByLabelText('tab outcome')).toHaveTextContent('succeeded');
+  });
 });
 
 it('shows a PRESERVED pill when deploy outcome is failed-preserved', async () => {

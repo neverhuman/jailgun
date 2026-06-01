@@ -3,6 +3,9 @@ export interface RunSnapshot {
   started_at: string;
   finished_at: string | null;
   status: string;
+  batch_tabs: number;
+  loop_count: number;
+  planned_tabs: number;
   tabs: TabSnapshot[];
   deploy_queue: 'idle' | 'waiting' | 'running' | 'blocked' | 'done';
   denied_github_prompts: number;
@@ -33,4 +36,3 @@ export interface ReceiptResponse {
   run_id: string;
   receipts: unknown[];
 }
-

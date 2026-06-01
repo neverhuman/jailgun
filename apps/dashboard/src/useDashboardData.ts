@@ -144,11 +144,15 @@ function applyEventToRuns(runs: RunSnapshot[], event: JailgunEvent): RunSnapshot
 }
 
 function createRunFromEvent(event: JailgunEvent): RunSnapshot {
+  const metadata = runLoopMetadataFromEvent(event);
   return {
     run_id: event.run_id,
     started_at: event.timestamp,
     finished_at: null,
     status: event.fields.status ?? 'running',
+    batch_tabs: metadata.batch_tabs,
+    loop_count: metadata.loop_count,
+    planned_tabs: metadata.planned_tabs,
     deploy_queue: event.kind === 'deploy-queued' ? 'waiting' : 'idle',
     denied_github_prompts: event.fields.decision === 'deny' ? 1 : 0,
     allowed_info_prompts: event.fields.decision === 'allow-info' ? 1 : 0,
@@ -166,15 +170,40 @@ function createRunFromEvent(event: JailgunEvent): RunSnapshot {
 
 function applyEventToRun(run: RunSnapshot, event: JailgunEvent): RunSnapshot {
   const decision = event.fields.decision;
+  const metadata = event.kind === 'run-started' ? runLoopMetadataFromEvent(event, run) : run;
   const tabs = event.tab_id === null ? run.tabs : upsertTab(run.tabs, event);
   return {
     ...run,
+    ...metadata,
     status: event.fields.status ?? run.status,
     finished_at: event.kind === 'deploy-finished' ? event.timestamp : run.finished_at,
     deploy_queue: queueStateForEvent(event, run.deploy_queue),
     denied_github_prompts: decision === 'deny' ? run.denied_github_prompts + 1 : run.denied_github_prompts,
     allowed_info_prompts: decision === 'allow-info' ? run.allowed_info_prompts + 1 : run.allowed_info_prompts,
     tabs
+  };
+}
+
+function runLoopMetadataFromEvent(
+  event: JailgunEvent,
+  existing?: Pick<RunSnapshot, 'batch_tabs' | 'loop_count' | 'planned_tabs'>
+): Pick<RunSnapshot, 'batch_tabs' | 'loop_count' | 'planned_tabs'> {
+  const batchTabs =
+    parseOptionalNumber(event.fields.batch_tabs) ??
+    parseOptionalNumber(event.fields.tabs) ??
+    existing?.batch_tabs ??
+    0;
+  const loopCount = parseOptionalNumber(event.fields.loop_count) ?? existing?.loop_count ?? 0;
+  const computedPlannedTabs = batchTabs > 0 ? batchTabs * (loopCount + 1) : null;
+  const plannedTabs =
+    parseOptionalNumber(event.fields.planned_tabs) ??
+    computedPlannedTabs ??
+    existing?.planned_tabs ??
+    0;
+  return {
+    batch_tabs: batchTabs,
+    loop_count: loopCount,
+    planned_tabs: plannedTabs
   };
 }
 

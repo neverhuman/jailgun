@@ -13,11 +13,16 @@ interface RunHeaderProps {
 
 export function RunHeader({ run, connection, dataSource, events = [] }: RunHeaderProps) {
   const tabs = run.tabs;
+  const loopsRemaining = useMemo(
+    () => calculateLoopsRemaining(run.loop_count, run.batch_tabs, tabs.length),
+    [run.batch_tabs, run.loop_count, tabs.length]
+  );
   const downloaded = tabs.filter((tab) => tab.archive_sha256).length;
   const passed = tabs.filter(isTabPassed).length;
   const failed = tabs.filter(isTabFailed).length;
   const closed = tabs.filter(isTabClosed).length;
   const inFlight = tabs.length - passed - failed;
+  const tabsValue = run.loop_count > 0 ? `${tabs.length}/${run.planned_tabs}` : tabs.length;
   const pushed = useMemo(
     () => tabs.filter((tab) => Boolean(summarizeOutcome(events, tab.tab_id).postHead)).length,
     [events, tabs]
@@ -34,8 +39,17 @@ export function RunHeader({ run, connection, dataSource, events = [] }: RunHeade
         </div>
         <RunElapsed startedAt={run.started_at} finishedAt={run.finished_at} />
       </div>
+      {run.loop_count > 0 ? (
+        <div className="runLoopBanner" aria-label="looping status">
+          <span className="runLoopBannerLabel">Looping</span>
+          <strong className="runLoopBannerValue">{loopsRemaining} left</strong>
+          <span className="runLoopBannerMeta">
+            {run.batch_tabs} per batch · {run.planned_tabs} planned
+          </span>
+        </div>
+      ) : null}
       <div className="runHeaderMetrics" aria-label="run progress metrics">
-        <RunMetric icon={<Activity size={18} />} label="Tabs" value={tabs.length} />
+        <RunMetric icon={<Activity size={18} />} label="Tabs" value={tabsValue} />
         <RunMetric icon={<Download size={18} />} label="Tar captured" value={downloaded} tone="ok" />
         <RunMetric icon={<CheckCircle2 size={18} />} label="Passed" value={passed} tone="ok" />
         <RunMetric icon={<XCircle size={18} />} label="Failed" value={failed} tone={failed > 0 ? 'danger' : 'neutral'} />
@@ -46,6 +60,14 @@ export function RunHeader({ run, connection, dataSource, events = [] }: RunHeade
       </div>
     </header>
   );
+}
+
+function calculateLoopsRemaining(loopCount: number, batchTabs: number, observedTabs: number): number {
+  if (loopCount <= 0 || batchTabs <= 0) {
+    return 0;
+  }
+  const batchesStarted = Math.max(0, Math.ceil(observedTabs / batchTabs) - 1);
+  return Math.max(0, loopCount - batchesStarted);
 }
 
 function RunMetric({
