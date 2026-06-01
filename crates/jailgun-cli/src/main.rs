@@ -982,16 +982,16 @@ mod tests {
     #[test]
     fn infers_github_owner_repo_from_supported_remote_urls() {
         assert_eq!(
-            infer_github_repo("git@github.com:neverhuman/jekko.git").as_deref(),
-            Some("neverhuman/jekko")
+            infer_github_repo("git@github.com:example/repo.git").as_deref(),
+            Some("example/repo")
         );
         assert_eq!(
-            infer_github_repo("https://github.com/neverhuman/jekko.git").as_deref(),
-            Some("neverhuman/jekko")
+            infer_github_repo("https://github.com/example/repo.git").as_deref(),
+            Some("example/repo")
         );
         assert_eq!(
-            infer_github_repo("ssh://git@github.com/neverhuman/jekko.git").as_deref(),
-            Some("neverhuman/jekko")
+            infer_github_repo("ssh://git@github.com/example/repo.git").as_deref(),
+            Some("example/repo")
         );
         assert_eq!(infer_github_repo("git@example.com:org/repo.git"), None);
     }

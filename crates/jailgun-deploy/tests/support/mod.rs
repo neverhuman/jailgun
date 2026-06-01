@@ -305,7 +305,7 @@ pub mod fake_e2e {
             status_poll_seconds: 0,
             status_max_minutes: 1,
             ci_tracker_enabled: true,
-            ci_repo: Some("neverhuman/jekko".into()),
+            ci_repo: Some("example/repo".into()),
             ci_branch: "main".into(),
             ci_max_attempts: 1,
             ci_poll_seconds: 0,

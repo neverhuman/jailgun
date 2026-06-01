@@ -573,14 +573,14 @@ mod tests {
 
     #[test]
     fn ci_tracker_args_include_explicit_repo_when_configured() {
-        let tracker = SshCiTracker::with_repo(Some("neverhuman/jekko".into()));
+        let tracker = SshCiTracker::with_repo(Some("example/repo".into()));
         let list_args = tracker.gh_run_list_args("abc123", "main");
         assert!(list_args
             .windows(2)
-            .any(|pair| pair[0] == "--repo" && pair[1] == "neverhuman/jekko"));
+            .any(|pair| pair[0] == "--repo" && pair[1] == "example/repo"));
         let view_args = tracker.gh_run_view_args("42");
         assert!(view_args
             .windows(2)
-            .any(|pair| pair[0] == "--repo" && pair[1] == "neverhuman/jekko"));
+            .any(|pair| pair[0] == "--repo" && pair[1] == "example/repo"));
     }
 }
