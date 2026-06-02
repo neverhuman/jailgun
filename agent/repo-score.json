@@ -1,6 +1,6 @@
 {
-  "report_fingerprint": "sha256:8f07be50b67c58b868f59746382f60d6c869c25cfe79c9c0a11428102f1dfa57",
-  "input_fingerprint": "sha256:3507fc281ee81e49e6d61db4c67db000dfd01de1df52a1c8397b77b0c2d80403",
+  "report_fingerprint": "sha256:c2df3a2521b2ab1ad1e1fb3aac6a46b723fa1e433e7722a92743fd2c003fbdab",
+  "input_fingerprint": "sha256:6a8e820d1d8c3ff31896e8c5091b4e7353d4b1a1237458ef0adbd1c44b8e04f7",
   "policy_fingerprint": "sha256:2e02fe1c1919de94a47a99164c962683a934c73ca5bb30bec62384f7b17fe742",
   "manifest_fingerprints": {
     "owner_map": "sha256:df0834474569b72ae63ca9845b7e8d25af3a84d1aec5e54872a617bf9570b7c5",
@@ -11,7 +11,7 @@
     "standard_version": "sha256:e89e3b08c1e1ab55b195b4041787100956f3888aaba37595bce4403606dcb996"
   },
   "dirty_worktree": true,
-  "generated_at": "1780340925",
+  "generated_at": "1780359073",
   "schema_url": "schemas/repo-score.schema.json",
   "standard": "jankurai",
   "standard_version": "0.9.0",
@@ -24,25 +24,27 @@
   "observed_conformance_level": "HL2",
   "conformance_decision": "block",
   "conformance_blockers": [
-    "HLT-001-DEAD-MARKER on crates/jailgun-cli/src/main.rs",
+    "HLT-003-OWNERLESS-PATH on agent/owner-map.json",
+    "HLT-004-UNMAPPED-PROOF on agent/test-map.json",
+    "HLT-001-DEAD-MARKER on apps/dashboard/src/App.tsx",
     "HLT-022-AUTHZ-ISOLATION-GAP on crates/jailgun-cli/src/main.rs"
   ],
   "repo": ".",
-  "run_id": "1780340925",
-  "started_at": "1780340925",
-  "elapsed_ms": 56542,
+  "run_id": "1780359073",
+  "started_at": "1780359073",
+  "elapsed_ms": 22667,
   "scope": {
     "mode": "full",
     "paths": []
   },
   "score": 70,
-  "raw_score": 87,
+  "raw_score": 85,
   "decision": {
     "status": "advisory",
     "minimum_score": 85,
     "passed": true,
     "hard_findings": 0,
-    "soft_findings": 4,
+    "soft_findings": 7,
     "ratchet": {
       "baseline_score": 70,
       "allowed_drop": 0,
@@ -57,7 +59,7 @@
     }
   },
   "git": {
-    "head": "e6fb9d1",
+    "head": "da02b1f",
     "base": null,
     "changed_files": 0,
     "mode": "full",
@@ -269,8 +271,8 @@
     {
       "name": "Ownership and navigation surface",
       "weight": 13,
-      "score": 98,
-      "weighted_points": 12.74,
+      "score": 83,
+      "weighted_points": 10.79,
       "evidence": [
         "root `AGENTS.md` present",
         "owner map present",
@@ -283,8 +285,6 @@
         "reference-profile cell `ops` is canonical",
         "reference-profile cell `ops` has local AGENTS.md guidance",
         "root `README.md` routes to workspace layout",
-        "owner map covers audited paths",
-        "test map covers audited paths",
         "authored code file exceeds 500 LOC",
         "authored code file exceeds 1000 LOC"
       ],
@@ -336,8 +336,8 @@
         "security lane present",
         "canonical security lane wrapper present",
         "agent-readiness audit gate found in CI",
-        "rust bad-behavior advisory signals: 308",
-        "typescript bad-behavior advisory signals: 1",
+        "rust bad-behavior advisory signals: 313",
+        "typescript bad-behavior advisory signals: 2",
         "ci bad-behavior advisory signals: 1",
         "gittools bad-behavior advisory signals: 2",
         "Rust and npm dependency audits are operational commands",
@@ -352,14 +352,14 @@
       "score": 27,
       "weighted_points": 3.24,
       "evidence": [
-        "largest authored code file: crates/jailgun-cli/src/main.rs (1133 LOC)",
+        "largest authored code file: crates/jailgun-orchestrator/src/run/mod.rs (1148 LOC)",
         "code file exceeds 500 LOC",
         "code file exceeds 1000 LOC",
         "most code files stay under 300 LOC",
-        "copy-code advisory classes found: 2 (advisory only, no score impact)",
+        "copy-code advisory classes found: 3 (advisory only, no score impact)",
         "fallback soup marker found",
-        "rust bad-behavior advisory signals: 308",
-        "typescript bad-behavior advisory signals: 1",
+        "rust bad-behavior advisory signals: 313",
+        "typescript bad-behavior advisory signals: 2",
         "ci bad-behavior advisory signals: 1",
         "gittools bad-behavior advisory signals: 2",
         "no hard bad-behavior findings across detector-backed language families"
@@ -470,9 +470,9 @@
       "artifact_backed_proof": [
         "agent/ux-qa.toml",
         "apps/chrome-bridge/bin/chrome-bridge.mjs",
-        "ops/ci/ux-qa.sh",
-        "package-lock.json",
-        "scripts/monitor-live-run.mjs"
+        "apps/dashboard/src/App.drilldown.test.tsx",
+        "apps/dashboard/src/components/FailureTooltip.tsx",
+        "apps/dashboard/src/components/TabProgressBar.tsx"
       ],
       "design_tokens": [
         "ops/ci/ux-qa.sh",
@@ -1093,7 +1093,7 @@
   "copy_code": {
     "schema_version": "1.1.0",
     "generated_by": "jankurai copy-code",
-    "generated_at": "2026-06-01T19:07:48.950220+00:00",
+    "generated_at": "2026-06-02T00:10:50.713715+00:00",
     "repo": ".",
     "auditor_version": "1.4.3",
     "status": "review",
@@ -1131,22 +1131,64 @@
       ]
     },
     "summary": {
-      "files_scanned": 199,
-      "files_considered": 61,
-      "active_files": 61,
+      "files_scanned": 209,
+      "files_considered": 67,
+      "active_files": 67,
       "exact_file_classes": 0,
       "hard_classes": 0,
-      "warning_classes": 2,
+      "warning_classes": 3,
       "hard_instances": 0,
-      "warning_instances": 5,
-      "duplicate_lines": 2,
-      "duplicate_tokens": 2,
-      "duplicate_bytes": 20,
-      "total_redundant_lines": 3,
-      "total_redundant_tokens": 2,
-      "total_redundant_bytes": 21
+      "warning_instances": 8,
+      "duplicate_lines": 3,
+      "duplicate_tokens": 13,
+      "duplicate_bytes": 119,
+      "total_redundant_lines": 5,
+      "total_redundant_tokens": 24,
+      "total_redundant_bytes": 219
     },
     "classes": [
+      {
+        "id": "copy-code-body-rust-d7d9fecbf8fb6678",
+        "kind": "exact_unit_different_name",
+        "severity": "warning",
+        "confidence": "medium",
+        "language": "rust",
+        "duplicate_lines": 1,
+        "duplicate_tokens": 11,
+        "duplicate_bytes": 99,
+        "instance_count": 3,
+        "total_redundant_lines": 2,
+        "total_redundant_tokens": 22,
+        "total_redundant_bytes": 198,
+        "effective_severity": "warning",
+        "hard_fail": false,
+        "fingerprint": "7ccd68aaf5178e62",
+        "reason": "same body appears under different names across files",
+        "recommended_action": "choose one owner for the shared body or intentionally differentiate the behavior",
+        "instances": [
+          {
+            "path": "crates/jailgun-server/src/lib.rs",
+            "language": "rust",
+            "start_line": 594,
+            "end_line": 595,
+            "unit_name": "ingest_requires_matching_token"
+          },
+          {
+            "path": "crates/jailgun-server/src/lib.rs",
+            "language": "rust",
+            "start_line": 636,
+            "end_line": 637,
+            "unit_name": "ingest_without_token_returns_503"
+          },
+          {
+            "path": "crates/jailgun-server/src/lib.rs",
+            "language": "rust",
+            "start_line": 656,
+            "end_line": 657,
+            "unit_name": "run_started_loop_metadata_is_seeded_and_preserved"
+          }
+        ]
+      },
       {
         "id": "copy-code-body-rust-d10b36aa74a59bcf",
         "kind": "exact_unit_different_name",
@@ -1211,15 +1253,15 @@
           {
             "path": "crates/jailgun-deploy/src/deploy/events.rs",
             "language": "rust",
-            "start_line": 195,
-            "end_line": 196,
+            "start_line": 216,
+            "end_line": 217,
             "unit_name": "outcome_str"
           },
           {
             "path": "crates/jailgun-orchestrator/src/run/mod.rs",
             "language": "rust",
-            "start_line": 816,
-            "end_line": 817,
+            "start_line": 882,
+            "end_line": 883,
             "unit_name": "deploy_outcome_label"
           }
         ]
@@ -1459,7 +1501,7 @@
       "problem": "`Code shape and semantic surface` scored 27 below the standard floor of 85",
       "agent_fix": "split large or ambiguous authored code into smaller semantic modules with focused tests",
       "evidence": [
-        "largest authored code file: crates/jailgun-cli/src/main.rs (1133 LOC)",
+        "largest authored code file: crates/jailgun-orchestrator/src/run/mod.rs (1148 LOC)",
         "code file exceeds 500 LOC",
         "code file exceeds 1000 LOC",
         "most code files stay under 300 LOC"
@@ -1469,7 +1511,7 @@
       "confidence": 0.76,
       "evidence_kind": "repository-scan",
       "rerun_command": "just fast",
-      "fingerprint": "sha256:0983bd55e812b8e68528776c6b23f823ba82de85f5f67856a53d0ac385d275ef",
+      "fingerprint": "sha256:83df48da2ec2b7f66f2730c89203bbc58eb187a33c2eaea62ba4141965464b42",
       "rule_id": "HLT-001-DEAD-MARKER",
       "tlr": "Entropy",
       "lane": "fast",
@@ -1501,26 +1543,92 @@
       "owner": "ci-release"
     },
     {
+      "severity": "medium",
+      "category": "context",
+      "path": "agent/owner-map.json",
+      "problem": "`Ownership and navigation surface` scored 83 below the standard floor of 85",
+      "agent_fix": "tighten owner/test maps and root routing until agents can localize ownership without inference",
+      "evidence": [
+        "root `AGENTS.md` present",
+        "owner map present",
+        "test/proof routing map present",
+        "local `AGENTS.md` file(s)"
+      ],
+      "check_id": "HLT-003-OWNERLESS-PATH:context",
+      "hardness": "soft",
+      "confidence": 0.76,
+      "evidence_kind": "policy-manifest",
+      "rerun_command": "just fast",
+      "fingerprint": "sha256:f22331131a2d75b4ff814289d01473fb3ab281f4b3c8ac366b63eb97cfe85438",
+      "rule_id": "HLT-003-OWNERLESS-PATH",
+      "tlr": "Context/setup",
+      "lane": "fast",
+      "docs_url": "agent/JANKURAI_STANDARD.md#ownership-boundaries",
+      "owner": "repo-governance"
+    },
+    {
+      "severity": "high",
+      "category": "context",
+      "path": "agent/owner-map.json",
+      "problem": "path `.env.live-7tab.example` has no owner-map route",
+      "agent_fix": "add the narrowest stable prefix for this path to `agent/owner-map.json`",
+      "evidence": [
+        ".env.live-7tab.example"
+      ],
+      "check_id": "HLT-003-OWNERLESS-PATH:context",
+      "hardness": "hard",
+      "confidence": 0.88,
+      "evidence_kind": "policy-manifest",
+      "rerun_command": "just fast",
+      "fingerprint": "sha256:07d5e436bb09bfec5a2ab483be7f4bba4c73281b200019abbf585c767bd750d7",
+      "rule_id": "HLT-003-OWNERLESS-PATH",
+      "tlr": "Context/setup",
+      "lane": "fast",
+      "docs_url": "agent/JANKURAI_STANDARD.md#ownership-boundaries",
+      "owner": "repo-governance"
+    },
+    {
+      "severity": "high",
+      "category": "proof",
+      "path": "agent/test-map.json",
+      "problem": "path `.env.live-7tab.example` has no test-map proof route",
+      "agent_fix": "add the narrowest stable prefix and runnable proof command to `agent/test-map.json`",
+      "evidence": [
+        ".env.live-7tab.example"
+      ],
+      "check_id": "HLT-004-UNMAPPED-PROOF:proof",
+      "hardness": "hard",
+      "confidence": 0.88,
+      "evidence_kind": "policy-manifest",
+      "rerun_command": "just fast",
+      "fingerprint": "sha256:aa75117206f500a5d1bbbe7216f33393819c8df163bfd8bf810d26bdb70fdb74",
+      "rule_id": "HLT-004-UNMAPPED-PROOF",
+      "tlr": "Verification",
+      "lane": "fast",
+      "docs_url": "agent/JANKURAI_STANDARD.md#proof-lanes",
+      "owner": "repo-governance"
+    },
+    {
       "severity": "high",
       "category": "vibe",
-      "path": "crates/jailgun-cli/src/main.rs",
+      "path": "apps/dashboard/src/App.tsx",
       "problem": "fallback soup detected in product code",
       "agent_fix": "collapse fallback chains into explicit typed states with bounded retry policy, telemetry, and documented repair guidance",
       "evidence": [
-        "crates/jailgun-cli/src/main.rs:498 .or_else(|| env::var(&config.source_archive.repo_url_env).ok())"
+        "apps/dashboard/src/App.tsx:64 if (others.length === 0) return null;"
       ],
       "check_id": "HLT-001-DEAD-MARKER:vibe",
       "hardness": "hard",
       "confidence": 0.88,
       "evidence_kind": "repository-scan",
       "rerun_command": "just fast",
-      "fingerprint": "sha256:bfe786fac7e70a6195cf9817d7361690ed46c17d1e8e79d877161fa2324cba0b",
+      "fingerprint": "sha256:055a7daac3c239d96f7f6bf50816223a0e02e3aca2ce1aa297c70ff2cabbacc8",
       "rule_id": "HLT-001-DEAD-MARKER",
       "tlr": "Entropy",
       "lane": "fast",
       "docs_url": "docs/audit-rubric.md#future-hostile-language-rule",
-      "owner": "rust-cli",
-      "line": 498
+      "owner": "dashboard-ui",
+      "line": 64
     },
     {
       "severity": "high",
@@ -1542,7 +1650,7 @@
       "lane": "db",
       "docs_url": "docs/audit-rubric.md#top-level-risk-mapping",
       "owner": "rust-cli",
-      "line": 1118,
+      "line": 1122,
       "matched_term": "rls",
       "reason": "authz/data isolation requires negative proof evidence"
     }
@@ -1559,6 +1667,16 @@
       "why": "authorization or data-isolation surface lacks direct negative proof"
     },
     {
+      "path": "agent/test-map.json",
+      "priority": "high",
+      "rule_id": "HLT-004-UNMAPPED-PROOF",
+      "tlr": "Verification",
+      "lane": "fast",
+      "owner": "repo-governance",
+      "task": "add the narrowest stable prefix and runnable proof command to `agent/test-map.json`",
+      "why": "path `.env.live-7tab.example` has no test-map proof route"
+    },
+    {
       "path": "Justfile",
       "priority": "medium",
       "rule_id": "HLT-018-PERF-CONCURRENCY-DRIFT",
@@ -1569,12 +1687,32 @@
       "why": "`Build speed signals` scored 70 below the standard floor of 85"
     },
     {
-      "path": "crates/jailgun-cli/src/main.rs",
+      "path": "agent/owner-map.json",
+      "priority": "high",
+      "rule_id": "HLT-003-OWNERLESS-PATH",
+      "tlr": "Context/setup",
+      "lane": "fast",
+      "owner": "repo-governance",
+      "task": "add the narrowest stable prefix for this path to `agent/owner-map.json`",
+      "why": "path `.env.live-7tab.example` has no owner-map route"
+    },
+    {
+      "path": "agent/owner-map.json",
+      "priority": "medium",
+      "rule_id": "HLT-003-OWNERLESS-PATH",
+      "tlr": "Context/setup",
+      "lane": "fast",
+      "owner": "repo-governance",
+      "task": "tighten owner/test maps and root routing until agents can localize ownership without inference",
+      "why": "`Ownership and navigation surface` scored 83 below the standard floor of 85"
+    },
+    {
+      "path": "apps/dashboard/src/App.tsx",
       "priority": "high",
       "rule_id": "HLT-001-DEAD-MARKER",
       "tlr": "Entropy",
       "lane": "fast",
-      "owner": "rust-cli",
+      "owner": "dashboard-ui",
       "task": "collapse fallback chains into explicit typed states with bounded retry policy, telemetry, and documented repair guidance",
       "why": "fallback soup detected in product code"
     },
