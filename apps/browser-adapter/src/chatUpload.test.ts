@@ -39,6 +39,7 @@ describe('uploadSourceArchiveThenSubmitPrompt', () => {
       },
       confirmUpload: async () => {
         events.push('confirm');
+        return true;
       },
       submitPrompt: async (_page, prompt) => {
         await expect(stat(tempRoot)).rejects.toThrow();
@@ -78,6 +79,7 @@ describe('uploadSourceArchiveThenSubmitPrompt', () => {
           },
           confirmUpload: async () => {
             events.push('confirm');
+            return true;
           },
           archiveCleanup: async () => {
             events.push('cleanup');
