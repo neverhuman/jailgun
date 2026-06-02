@@ -18,8 +18,9 @@ use jailgun_deploy::{
     CleanupRequest, DeployError, DeployOutcome, DeployReceipt, DeployRequest, JsonReceiptWriter,
 };
 use jailgun_notify::{
-    build_commit_message, collect_commit_summary, read_chat_id_cache, send_telegram_message,
-    write_chat_id_cache, CommitSummary, TelegramConfig,
+    build_commit_message, collect_commit_summary, commit_notice_to_payload, run_jmcp_subscriber,
+    CommitNotice, CommitSummary, JmcpEnvelope, JmcpInbox, NotifyTextPayload, Payload, Routing,
+    TaskRef,
 };
 use jailgun_server::{api_router, router_with_static, AppState};
 use tokio::sync::broadcast;
@@ -150,12 +151,13 @@ enum Command {
         ci_max_attempts: u32,
         #[arg(long, default_value_t = 30)]
         ci_poll_seconds: u16,
+        /// Enable the JMCP notification subscriber. Writes envelopes to
+        /// `--jmcp-inbox-dir`. The bridge there picks them up and ships them
+        /// to the user; jailgun never touches the Telegram bot directly.
         #[arg(long)]
-        notify_telegram: bool,
-        #[arg(long, default_value = "telegram/token.env")]
-        telegram_token_file: PathBuf,
-        #[arg(long, default_value = "telegram/chat_id.cache")]
-        telegram_chat_id_cache: PathBuf,
+        notify_jmcp: bool,
+        #[arg(long, default_value = "~/code/jmcp/inbox")]
+        jmcp_inbox_dir: PathBuf,
         /// Start the live dashboard/API server for this run and stream run
         /// events to its WebSocket replay buffer.
         #[arg(long)]
@@ -169,23 +171,22 @@ enum Command {
         #[arg(long, default_value_t = 0)]
         dashboard_hold_seconds: u64,
     },
-    TelegramSend {
-        #[arg(long, default_value = "telegram/token.env")]
-        token_file: PathBuf,
-        #[arg(long, default_value = "telegram/chat_id.cache")]
-        chat_id_cache: PathBuf,
-        #[arg(long)]
-        chat_id: Option<String>,
+    /// Write a one-off JMCP envelope (plain text body) to the outbox.
+    JmcpSend {
+        #[arg(long, default_value = "~/code/jmcp/inbox")]
+        jmcp_inbox_dir: PathBuf,
         #[arg(long)]
         message: String,
+        #[arg(long, default_value = "Jailgun notice")]
+        title: String,
+        #[arg(long, default_value = "📨")]
+        summary_emoji: String,
     },
+    /// Write a commit-notice JMCP envelope to the outbox. Invoked by the
+    /// post-commit hook so a successful commit is reported via JMCP.
     NotifyCommit {
-        #[arg(long, default_value = "telegram/token.env")]
-        token_file: PathBuf,
-        #[arg(long, default_value = "telegram/chat_id.cache")]
-        chat_id_cache: PathBuf,
-        #[arg(long)]
-        chat_id: Option<String>,
+        #[arg(long, default_value = "~/code/jmcp/inbox")]
+        jmcp_inbox_dir: PathBuf,
         #[arg(long, default_value = ".")]
         repo: PathBuf,
         #[arg(long, default_value = "HEAD")]
@@ -206,15 +207,13 @@ enum Command {
         /// Required for POST /api/events. When unset, the endpoint returns 503.
         #[arg(long, env = "JAILGUN_INGEST_TOKEN")]
         ingest_token: Option<String>,
-        /// Spawn a Telegram subscriber on the live broadcast that pings the
-        /// configured bot for three milestones: job started on a tab, tar
+        /// Spawn a JMCP subscriber on the live broadcast that writes
+        /// envelopes for three milestones: job started on a tab, tar
         /// acquired, and deploy success with CI passed (or any failure).
         #[arg(long)]
-        notify_telegram: bool,
-        #[arg(long, default_value = "telegram/token.env")]
-        telegram_token_file: PathBuf,
-        #[arg(long, default_value = "telegram/chat_id.cache")]
-        telegram_chat_id_cache: PathBuf,
+        notify_jmcp: bool,
+        #[arg(long, default_value = "~/code/jmcp/inbox")]
+        jmcp_inbox_dir: PathBuf,
     },
     Fixture {
         #[arg(value_enum)]
@@ -463,9 +462,8 @@ async fn main() -> Result<()> {
             ci_branch,
             ci_max_attempts,
             ci_poll_seconds,
-            notify_telegram,
-            telegram_token_file,
-            telegram_chat_id_cache,
+            notify_jmcp,
+            jmcp_inbox_dir,
             serve,
             addr,
             dashboard_dist,
@@ -473,8 +471,9 @@ async fn main() -> Result<()> {
         } => {
             let mut config = JailgunConfig::from_toml_path(&config)
                 .with_context(|| format!("loading {}", config.display()))?;
-            if notify_telegram {
-                validate_telegram_notify(&telegram_token_file, &telegram_chat_id_cache)?;
+            let jmcp_inbox_dir = expand_tilde(&jmcp_inbox_dir)?;
+            if notify_jmcp {
+                validate_jmcp_inbox(&jmcp_inbox_dir)?;
             }
             if let Some(source_ref) = source_ref {
                 config.source_archive.ref_name = source_ref;
@@ -592,11 +591,10 @@ async fn main() -> Result<()> {
             let dashboard_forwarder = live_dashboard.as_ref().map(|dashboard| {
                 spawn_run_event_forwarder(handle.events_rx.resubscribe(), dashboard.state.clone())
             });
-            if notify_telegram {
-                tokio::spawn(jailgun_notify::run_telegram_subscriber(
+            if notify_jmcp {
+                tokio::spawn(run_jmcp_subscriber(
                     handle.events_rx.resubscribe(),
-                    telegram_token_file,
-                    telegram_chat_id_cache,
+                    jmcp_inbox_dir.clone(),
                 ));
             }
             let result = stream_run(handle).await;
@@ -619,53 +617,77 @@ async fn main() -> Result<()> {
                 );
             }
         }
-        Command::TelegramSend {
-            token_file,
-            chat_id_cache,
-            chat_id,
+        Command::JmcpSend {
+            jmcp_inbox_dir,
             message,
+            title,
+            summary_emoji,
         } => {
-            let mut config = TelegramConfig::from_token_file(&token_file)
-                .with_context(|| format!("loading {}", token_file.display()))?;
-            if let Some(chat_id) = chat_id {
-                config.chat_id = Some(chat_id);
-            }
-            if config.chat_id.is_none() {
-                config.chat_id = read_chat_id_cache(&chat_id_cache)?;
-            }
-            let sent_chat_id = send_telegram_message(&config, &message).await?;
-            write_chat_id_cache(&chat_id_cache, &sent_chat_id)?;
+            let jmcp_inbox_dir = expand_tilde(&jmcp_inbox_dir)?;
+            let inbox = JmcpInbox::new(&jmcp_inbox_dir);
+            let payload = Payload::NotifyText(NotifyTextPayload {
+                title,
+                summary_emoji,
+                body_markdown: message,
+            });
+            let envelope = JmcpEnvelope::new(
+                payload,
+                TaskRef::for_run("jailgun-cli", None),
+                Routing::notify_user(),
+            );
+            let path = inbox.write_envelope(&envelope).await.with_context(|| {
+                format!("writing JMCP envelope to {}", jmcp_inbox_dir.display())
+            })?;
             println!(
                 "{}",
                 serde_json::json!({
-                    "status": "sent",
-                    "chat_id": sent_chat_id,
+                    "status": "queued",
+                    "envelope_id": envelope.envelope_id,
+                    "path": path,
                 })
             );
         }
         Command::NotifyCommit {
-            token_file,
-            chat_id_cache,
-            chat_id,
+            jmcp_inbox_dir,
             repo,
             revision,
         } => {
-            let mut config = TelegramConfig::from_token_file(&token_file)
-                .with_context(|| format!("loading {}", token_file.display()))?;
-            if let Some(chat_id) = chat_id {
-                config.chat_id = Some(chat_id);
-            }
-            if config.chat_id.is_none() {
-                config.chat_id = read_chat_id_cache(&chat_id_cache)?;
-            }
+            let jmcp_inbox_dir = expand_tilde(&jmcp_inbox_dir)?;
+            let inbox = JmcpInbox::new(&jmcp_inbox_dir);
             let summary = collect_commit_summary(&repo, &revision)
                 .with_context(|| format!("collecting commit summary for {revision}"))?;
-            let message = build_commit_message(&summary);
-            let sent_chat_id = send_telegram_message(&config, &message).await?;
-            write_chat_id_cache(&chat_id_cache, &sent_chat_id)?;
+            let notice = CommitNotice {
+                run_id: "post-commit-hook".to_string(),
+                tab_id: None,
+                post_head: summary.short_hash.clone(),
+                pre_head: None,
+                files_changed: summary.files.len(),
+                additions: 0,
+                deletions: 0,
+                top_paths: summary.files.clone(),
+                ci_state: None,
+                remote_command_exit: None,
+            };
+            let payload = commit_notice_to_payload(&notice);
+            let envelope = JmcpEnvelope::new(
+                payload,
+                TaskRef::for_run("post-commit-hook", None),
+                Routing::notify_user(),
+            );
+            let path = inbox.write_envelope(&envelope).await.with_context(|| {
+                format!("writing JMCP envelope to {}", jmcp_inbox_dir.display())
+            })?;
+            // Body markdown stays available for callers that want to render
+            // locally (e.g. for shell output debugging).
+            let body = build_commit_message(&summary);
             println!(
                 "{}",
-                serde_json::to_string_pretty(&notify_result(sent_chat_id, summary))?
+                serde_json::to_string_pretty(&notify_result(
+                    envelope.envelope_id.clone(),
+                    path,
+                    summary,
+                    body
+                ))?
             );
         }
         Command::Serve {
@@ -674,27 +696,23 @@ async fn main() -> Result<()> {
             dashboard_dist,
             live,
             ingest_token,
-            notify_telegram,
-            telegram_token_file,
-            telegram_chat_id_cache,
+            notify_jmcp,
+            jmcp_inbox_dir,
         } => {
             let config = JailgunConfig::from_toml_path(&config)
                 .with_context(|| format!("loading {}", config.display()))?;
             let receipt_dir = PathBuf::from(&config.paths.artifacts_dir).join("receipts");
+            let jmcp_inbox_dir = expand_tilde(&jmcp_inbox_dir)?;
             let state = if live {
                 let (state, rx) = AppState::live(config, receipt_dir, 1024);
-                if notify_telegram {
-                    validate_telegram_notify(&telegram_token_file, &telegram_chat_id_cache)?;
-                    tokio::spawn(jailgun_notify::run_telegram_subscriber(
-                        rx,
-                        telegram_token_file,
-                        telegram_chat_id_cache,
-                    ));
+                if notify_jmcp {
+                    validate_jmcp_inbox(&jmcp_inbox_dir)?;
+                    tokio::spawn(run_jmcp_subscriber(rx, jmcp_inbox_dir.clone()));
                 }
                 state.with_ingest_token(ingest_token)
             } else {
-                if notify_telegram {
-                    anyhow::bail!("--notify-telegram requires --live");
+                if notify_jmcp {
+                    anyhow::bail!("--notify-jmcp requires --live");
                 }
                 AppState::fixture(config)
             };
@@ -702,7 +720,7 @@ async fn main() -> Result<()> {
                 Some(dir) => router_with_static(state, dir),
                 None => api_router(state),
             };
-            println!("listening on http://{addr} (live={live} notify_telegram={notify_telegram})");
+            println!("listening on http://{addr} (live={live} notify_jmcp={notify_jmcp})");
             jailgun_server::serve(addr, router).await?;
         }
         Command::Fixture { kind } => {
@@ -723,36 +741,71 @@ async fn main() -> Result<()> {
     Ok(())
 }
 
-fn notify_result(chat_id: String, summary: CommitSummary) -> serde_json::Value {
+fn notify_result(
+    envelope_id: String,
+    envelope_path: PathBuf,
+    summary: CommitSummary,
+    body: String,
+) -> serde_json::Value {
     serde_json::json!({
-        "status": "sent",
-        "chat_id": chat_id,
+        "status": "queued",
+        "envelope_id": envelope_id,
+        "envelope_path": envelope_path,
         "commit": summary.short_hash,
         "subject": summary.subject,
         "files": summary.files,
+        "body": body,
     })
 }
 
-fn validate_telegram_notify(token_file: &Path, chat_id_cache: &Path) -> Result<()> {
-    let mut config = TelegramConfig::from_token_file(token_file)
-        .with_context(|| format!("loading {}", token_file.display()))?;
-    if config.chat_id.is_none() {
-        config.chat_id = read_chat_id_cache(chat_id_cache)?;
+fn validate_jmcp_inbox(inbox_dir: &Path) -> Result<()> {
+    if let Some(parent) = inbox_dir.parent() {
+        if !parent.exists() {
+            anyhow::bail!(
+                "--notify-jmcp inbox parent {} does not exist; create it before invoking jailgun",
+                parent.display()
+            );
+        }
     }
-    if config
-        .chat_id
-        .as_deref()
-        .map(str::trim)
-        .filter(|value| !value.is_empty())
-        .is_none()
+    std::fs::create_dir_all(inbox_dir)
+        .with_context(|| format!("creating JMCP inbox directory {}", inbox_dir.display()))?;
+    #[cfg(unix)]
     {
-        anyhow::bail!(
-            "--notify-telegram requires a chat id in {} or {}",
-            token_file.display(),
-            chat_id_cache.display()
-        );
+        use std::os::unix::fs::PermissionsExt;
+        let metadata = std::fs::metadata(inbox_dir)
+            .with_context(|| format!("inspecting JMCP inbox directory {}", inbox_dir.display()))?;
+        let mode = metadata.permissions().mode() & 0o777;
+        if mode & 0o077 != 0 {
+            anyhow::bail!(
+                "JMCP inbox {} is mode {:o}; refusing to use a world-readable directory \
+                 (chmod 700)",
+                inbox_dir.display(),
+                mode
+            );
+        }
     }
     Ok(())
+}
+
+fn expand_tilde(path: &Path) -> Result<PathBuf> {
+    let str_path = match path.to_str() {
+        Some(value) => value,
+        None => return Ok(path.to_path_buf()),
+    };
+    if let Some(rest) = str_path.strip_prefix("~/") {
+        let home = std::env::var_os("HOME").ok_or_else(|| {
+            anyhow::anyhow!("cannot expand ~ in {}: HOME is unset", path.display())
+        })?;
+        let mut expanded = PathBuf::from(home);
+        expanded.push(rest);
+        Ok(expanded)
+    } else if str_path == "~" {
+        std::env::var_os("HOME")
+            .map(PathBuf::from)
+            .ok_or_else(|| anyhow::anyhow!("cannot expand ~: HOME is unset"))
+    } else {
+        Ok(path.to_path_buf())
+    }
 }
 
 struct LiveDashboard {

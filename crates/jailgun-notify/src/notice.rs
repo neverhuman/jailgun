@@ -1,31 +1,9 @@
-use std::{
-    fs,
-    io::ErrorKind,
-    path::{Path, PathBuf},
-};
+//! Commit notice payload + the body-markdown formatter used by the JMCP
+//! envelope. The Telegram path is gone; this module is now pure data + text.
 
 use serde::{Deserialize, Serialize};
-use thiserror::Error;
 
-use crate::{send_telegram_message, TelegramConfig, TelegramError};
-
-#[derive(Debug, Error)]
-pub enum NotifyError {
-    #[error(transparent)]
-    Telegram(#[from] TelegramError),
-    #[error("could not read Telegram chat id cache {path}: {source}")]
-    ReadChatIdCache {
-        path: PathBuf,
-        #[source]
-        source: std::io::Error,
-    },
-    #[error("could not write Telegram chat id cache {path}: {source}")]
-    WriteChatIdCache {
-        path: PathBuf,
-        #[source]
-        source: std::io::Error,
-    },
-}
+use crate::envelope::{NotifyCommitPayload, Payload};
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct CommitNotice {
@@ -41,20 +19,7 @@ pub struct CommitNotice {
     pub remote_command_exit: Option<i32>,
 }
 
-pub async fn send_commit_notice(
-    token_path: &Path,
-    chat_id_cache: &Path,
-    notice: &CommitNotice,
-) -> Result<(), NotifyError> {
-    let mut config = TelegramConfig::from_token_file(token_path)?;
-    if config.chat_id.is_none() {
-        config.chat_id = read_chat_id_cache(chat_id_cache)?;
-    }
-
-    let chat_id = send_telegram_message(&config, &build_commit_notice_message(notice)).await?;
-    write_chat_id_cache(chat_id_cache, &chat_id)?;
-    Ok(())
-}
+const SUMMARY_EMOJI: &str = "✅";
 
 pub fn build_commit_notice_message(notice: &CommitNotice) -> String {
     let tab = notice
@@ -62,7 +27,7 @@ pub fn build_commit_notice_message(notice: &CommitNotice) -> String {
         .map(|tab_id| format!("tab {tab_id}"))
         .unwrap_or_else(|| "tab unknown".to_string());
     let mut lines = vec![
-        "✅ Jailgun commit succeeded".to_string(),
+        format!("{SUMMARY_EMOJI} Jailgun commit succeeded"),
         format!("run {} ({tab})", notice.run_id),
         format!("head {}", notice.post_head),
     ];
@@ -95,31 +60,23 @@ pub fn build_commit_notice_message(notice: &CommitNotice) -> String {
     lines.join("\n")
 }
 
-pub fn read_chat_id_cache(path: &Path) -> Result<Option<String>, NotifyError> {
-    match fs::read_to_string(path) {
-        Ok(text) => Ok(text
-            .lines()
-            .map(str::trim)
-            .find(|line| !line.is_empty() && !line.starts_with('#'))
-            .map(ToOwned::to_owned)),
-        Err(source) if source.kind() == ErrorKind::NotFound => Ok(None),
-        Err(source) => Err(NotifyError::ReadChatIdCache {
-            path: path.to_path_buf(),
-            source,
-        }),
-    }
-}
-
-pub fn write_chat_id_cache(path: &Path, chat_id: &str) -> Result<(), NotifyError> {
-    if let Some(parent) = path.parent() {
-        fs::create_dir_all(parent).map_err(|source| NotifyError::WriteChatIdCache {
-            path: path.to_path_buf(),
-            source,
-        })?;
-    }
-    fs::write(path, format!("{chat_id}\n")).map_err(|source| NotifyError::WriteChatIdCache {
-        path: path.to_path_buf(),
-        source,
+/// Lift a `CommitNotice` into the structured JMCP payload variant. The body
+/// is the same human-readable text the Telegram path used to send.
+pub fn commit_notice_to_payload(notice: &CommitNotice) -> Payload {
+    Payload::NotifyCommit(NotifyCommitPayload {
+        title: "Jailgun commit succeeded".to_string(),
+        summary_emoji: SUMMARY_EMOJI.to_string(),
+        body_markdown: build_commit_notice_message(notice),
+        run_id: notice.run_id.clone(),
+        tab_id: notice.tab_id,
+        post_head: notice.post_head.clone(),
+        pre_head: notice.pre_head.clone(),
+        files_changed: notice.files_changed,
+        additions: notice.additions,
+        deletions: notice.deletions,
+        top_paths: notice.top_paths.clone(),
+        ci_state: notice.ci_state.clone(),
+        remote_command_exit: notice.remote_command_exit,
     })
 }
 
@@ -149,15 +106,28 @@ mod tests {
     }
 
     #[test]
-    fn reads_and_writes_chat_id_cache() {
-        let dir = tempfile::tempdir().expect("tempdir");
-        let path = dir.path().join("telegram").join("chat_id.cache");
-
-        assert_eq!(read_chat_id_cache(&path).expect("missing cache"), None);
-        write_chat_id_cache(&path, "-10042").expect("write cache");
-        assert_eq!(
-            read_chat_id_cache(&path).expect("read cache").as_deref(),
-            Some("-10042")
-        );
+    fn payload_carries_top_paths_and_metrics() {
+        let notice = CommitNotice {
+            run_id: "run-1".into(),
+            tab_id: None,
+            post_head: "abcdef".into(),
+            pre_head: None,
+            files_changed: 1,
+            additions: 5,
+            deletions: 0,
+            top_paths: vec!["src/main.rs".into()],
+            ci_state: None,
+            remote_command_exit: None,
+        };
+        let payload = commit_notice_to_payload(&notice);
+        match payload {
+            Payload::NotifyCommit(p) => {
+                assert_eq!(p.run_id, "run-1");
+                assert_eq!(p.summary_emoji, "✅");
+                assert_eq!(p.top_paths, vec!["src/main.rs"]);
+                assert!(p.body_markdown.contains("Jailgun commit succeeded"));
+            }
+            _ => panic!("expected NotifyCommit"),
+        }
     }
 }
