@@ -8,5 +8,6 @@ ci_enter_repo_root "$script_dir"
 
 bash ops/ci/rust.sh
 bash ops/ci/node.sh
+bash ops/ci/e2e-fake-chatgpt.sh
 bash ops/ci/security.sh
 bash ops/ci/jankurai.sh
