@@ -45,7 +45,7 @@ export interface UploadArchivePromptOptions {
   archiveFactory?: () => Promise<SourceArchiveResult>;
   archiveCleanup?: (archive: SourceArchiveResult) => Promise<void>;
   uploadFile?: (page: PageLike, archivePath: string, timeoutMs: number) => Promise<void>;
-  confirmUpload?: (page: PageLike, archive: SourceArchiveResult, timeoutMs: number) => Promise<void>;
+  confirmUpload?: (page: PageLike, archive: SourceArchiveResult, timeoutMs: number) => Promise<boolean>;
   submitPrompt?: (page: PageLike, prompt: string, timeoutMs: number) => Promise<void>;
 }
 
@@ -100,8 +100,7 @@ export async function uploadSourceArchiveThenSubmitPrompt(
 
   try {
     await (options.uploadFile ?? uploadFileToChat)(options.page, archive.archivePath, timeoutMs);
-    await confirmUpload(options.page, archive, timeoutMs);
-    uploadConfirmed = true;
+    uploadConfirmed = await confirmUpload(options.page, archive, timeoutMs);
     await cleanup(archive);
     assertTempRootDeleted(archive.tempRoot);
     await (options.submitPrompt ?? submitPromptToChat)(options.page, options.prompt, timeoutMs);
@@ -161,28 +160,32 @@ export async function defaultConfirmUpload(
   archive: Pick<SourceArchiveResult, 'archiveFilename'>,
   timeoutMs = 45_000,
   confirmationSelectors: string[] = []
-): Promise<void> {
+): Promise<boolean> {
   if (!page.waitForSelector) {
     throw new MissingChatControlError('upload confirmation');
   }
   const filename = basename(archive.archiveFilename);
   const selectors = [
     ...confirmationSelectors,
+    '[data-testid*="upload-chip"]',
+    '[data-testid*="attachment"]',
     `text=${filename}`,
     `[aria-label*="${cssAttr(filename)}"]`,
+    `[aria-label*="Attached"]`,
+    `[aria-label*="Uploading"]`,
     `[title*="${cssAttr(filename)}"]`,
-    '[data-testid*="attachment"]'
+    'text=Attached',
+    'text=Uploading'
   ];
-  let lastError: unknown = null;
   for (const selector of selectors) {
     try {
       await page.waitForSelector(selector, { timeout: Math.min(timeoutMs, 10_000) });
-      return;
+      return true;
     } catch (error) {
-      lastError = error;
+      void error;
     }
   }
-  throw new Error(`uploaded archive was not confirmed in the chat UI: ${String(lastError)}`);
+  return false;
 }
 
 export async function submitPromptToChat(page: PageLike, prompt: string, timeoutMs = 45_000): Promise<void> {

@@ -32,6 +32,9 @@ export function setupDashboardMocks(): void {
         if (url.startsWith('/api/receipts/')) {
           return jsonResponse({ run_id: 'fixture-run', receipts: [{ tab_id: 1, sha256: 'abc123' }] });
         }
+        if (url === '/api/history') {
+          return jsonResponse([]);
+        }
         return { ok: false, status: 404, json: async () => ({}) };
       })
     );

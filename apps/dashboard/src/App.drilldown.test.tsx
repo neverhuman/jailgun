@@ -8,15 +8,17 @@ setupDashboardMocks();
 
 it('expands the drilldown when the row toggle is clicked', async () => {
   render(<App />);
-  await screen.findByLabelText('tab 1 row');
+  await screen.findByLabelText('tab 1 of 3 row');
   fireEvent.click(screen.getByLabelText('expand tab 1'));
   await screen.findByLabelText('tab 1 detail');
   expect(screen.getByText(/Local sha256/i)).toBeInTheDocument();
+  expect(within(screen.getByLabelText('tab 1 of 3 row')).getByLabelText('browser profile')).toHaveTextContent('writer #1');
+  expect(screen.getByText('writer (#1)')).toBeInTheDocument();
 });
 
 it('shows a Closed pill when a tab-closed event lands', async () => {
   render(<App />);
-  await screen.findByLabelText('tab 1 row');
+  await screen.findByLabelText('tab 1 of 3 row');
   MockWebSocket.instances[0].emit({
     run_id: 'fixture-run',
     tab_id: 1,
@@ -31,7 +33,7 @@ it('shows a Closed pill when a tab-closed event lands', async () => {
 
 it('renders the failure trace tooltip on hover when outcome failed', async () => {
   render(<App />);
-  await screen.findByLabelText('tab 1 row');
+  await screen.findByLabelText('tab 1 of 3 row');
   MockWebSocket.instances[0].emit({
     run_id: 'fixture-run',
     tab_id: 1,
@@ -55,7 +57,7 @@ it('renders the failure trace tooltip on hover when outcome failed', async () =>
 
 it('lists files changed inside the drilldown', async () => {
   render(<App />);
-  await screen.findByLabelText('tab 1 row');
+  await screen.findByLabelText('tab 1 of 3 row');
   MockWebSocket.instances[0].emit({
     run_id: 'fixture-run',
     tab_id: 1,
@@ -65,18 +67,28 @@ it('lists files changed inside the drilldown', async () => {
     message: 'deploy ok',
     fields: {
       outcome: 'succeeded',
-      changed_paths: 'crates/foo/src/lib.rs\ncrates/foo/Cargo.toml'
+      changed_paths: 'crates/foo/src/lib.rs\ncrates/foo/Cargo.toml',
+      files_changed: '2',
+      additions: '34',
+      deletions: '5',
+      ci_state: 'passed',
+      remote_command: 'bash ci-fast-push.sh',
+      log_tail: 'ci-fast-push: jekko-fast passed\ncargo test: 41 passed'
     }
   });
   fireEvent.click(screen.getByLabelText('expand tab 1'));
   await screen.findByLabelText('tab 1 detail');
+  expect(screen.getByLabelText('Files 2 changed')).toBeInTheDocument();
+  expect(screen.getByLabelText('+lines 34 added')).toBeInTheDocument();
+  expect(screen.getByLabelText('-lines 5 removed')).toBeInTheDocument();
+  expect(screen.getByLabelText('CI/tests remote host passed 41 passed')).toBeInTheDocument();
   expect(screen.getByText('crates/foo/src/lib.rs')).toBeInTheDocument();
   expect(screen.getByText('crates/foo/Cargo.toml')).toBeInTheDocument();
 });
 
 it('shows a FINISHED pill with short post_head when deploy succeeds', async () => {
   render(<App />);
-  await screen.findByLabelText('tab 1 row');
+  await screen.findByLabelText('tab 1 of 3 row');
   MockWebSocket.instances[0].emit({
     run_id: 'fixture-run',
     tab_id: 1,
@@ -101,7 +113,7 @@ it('shows a FINISHED pill with short post_head when deploy succeeds', async () =
 
 it('shows succeeded rather than succeeded-ci-skipped in the row label when local CI passed', async () => {
   render(<App />);
-  await screen.findByLabelText('tab 1 row');
+  await screen.findByLabelText('tab 1 of 3 row');
   MockWebSocket.instances[0].emit({
     run_id: 'fixture-run',
     tab_id: 1,
@@ -114,7 +126,7 @@ it('shows succeeded rather than succeeded-ci-skipped in the row label when local
       post_head: 'df9437530a1110e1a784a53fa7feaefca43383ab'
     }
   });
-  const tabRow = screen.getByLabelText('tab 1 row');
+  const tabRow = screen.getByLabelText('tab 1 of 3 row');
   await waitFor(() => {
     expect(within(tabRow).getByLabelText('tab outcome')).toHaveTextContent('succeeded');
   });
@@ -122,7 +134,7 @@ it('shows succeeded rather than succeeded-ci-skipped in the row label when local
 
 it('shows a PRESERVED pill when deploy outcome is failed-preserved', async () => {
   render(<App />);
-  await screen.findByLabelText('tab 2 row');
+  await screen.findByLabelText('tab 2 of 3 row');
   MockWebSocket.instances[0].emit({
     run_id: 'fixture-run',
     tab_id: 2,
@@ -162,7 +174,7 @@ it('renders a Pushed metric in the run header when post_head is set', async () =
 
 it('surfaces post commit in the drilldown when post_head is set', async () => {
   render(<App />);
-  await screen.findByLabelText('tab 1 row');
+  await screen.findByLabelText('tab 1 of 3 row');
   MockWebSocket.instances[0].emit({
     run_id: 'fixture-run',
     tab_id: 1,

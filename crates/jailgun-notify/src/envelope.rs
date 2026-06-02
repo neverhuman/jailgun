@@ -181,6 +181,8 @@ impl Routing {
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(tag = "kind")]
 pub enum Payload {
+    #[serde(rename = "jailgun.batch-request")]
+    BatchRequest(BatchRequestPayload),
     #[serde(rename = "jailgun.notify-commit")]
     NotifyCommit(NotifyCommitPayload),
     #[serde(rename = "jailgun.notify-event")]
@@ -227,6 +229,19 @@ pub struct NotifyTextPayload {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct BatchRequestPayload {
+    pub title: String,
+    pub summary_emoji: String,
+    pub body_markdown: String,
+    pub count: u16,
+    pub config_path: String,
+    pub prompt_file: String,
+    pub child_command: String,
+    pub execution_mode: String,
+    pub approval_required: bool,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct Integrity {
     pub algo: String,
     pub digest_hex: String,
@@ -264,6 +279,20 @@ mod tests {
             title: "hello".into(),
             summary_emoji: "👋".into(),
             body_markdown: "hello world".into(),
+        })
+    }
+
+    fn batch_payload() -> Payload {
+        Payload::BatchRequest(BatchRequestPayload {
+            title: "Batch launch requested".into(),
+            summary_emoji: "🧭".into(),
+            body_markdown: "Approve the batch".into(),
+            count: 4,
+            config_path: "config/jailgun.example.toml".into(),
+            prompt_file: "prompts/templates/harden-repo.txt".into(),
+            child_command: "jailgun run --config config/jailgun.example.toml --prompt-file prompts/templates/harden-repo.txt".into(),
+            execution_mode: "serial".into(),
+            approval_required: true,
         })
     }
 
@@ -315,5 +344,26 @@ mod tests {
         let json = serde_json::to_string(&env).expect("serialize");
         let back: JmcpEnvelope = serde_json::from_str(&json).expect("deserialize");
         assert_eq!(env, back);
+    }
+
+    #[test]
+    fn batch_request_payload_round_trips_through_json() {
+        let env = JmcpEnvelope::new(
+            batch_payload(),
+            TaskRef::for_run("batch-A", None),
+            Routing::notify_user(),
+        );
+        let json = serde_json::to_string(&env).expect("serialize");
+        let back: JmcpEnvelope = serde_json::from_str(&json).expect("deserialize");
+        assert_eq!(env, back);
+        match back.payload {
+            Payload::BatchRequest(payload) => {
+                assert_eq!(payload.count, 4);
+                assert!(payload.approval_required);
+                assert_eq!(payload.execution_mode, "serial");
+                assert!(payload.child_command.contains("jailgun run"));
+            }
+            _ => panic!("expected batch request payload"),
+        }
     }
 }

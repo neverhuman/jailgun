@@ -1,4 +1,4 @@
-import type { JailgunEvent, TabSnapshot } from '../types';
+import type { JailgunEvent, RunSnapshot, TabSnapshot } from '../types';
 
 export type StageStatus = 'pending' | 'active' | 'done' | 'failed';
 export type StageKey = 'polling' | 'tar' | 'upload' | 'ci' | 'outcome';
@@ -182,11 +182,16 @@ export interface OutcomeSummary {
   remoteTarget: string | null;
   logTail: string | null;
   filesChanged: string[];
+  filesChangedCount: number | null;
+  additions: number | null;
+  deletions: number | null;
   shortstat: string | null;
   preStatus: string[];
   postStatus: string[];
   postHead: string | null;
   ciState: string | null;
+  localTestsPassed: number | null;
+  remoteTestsPassed: number | null;
   localSha: string | null;
   remoteSha: string | null;
 }
@@ -205,6 +210,7 @@ export function summarizeOutcome(events: JailgunEvent[], tabId: number): Outcome
     .split(/\r?\n/)
     .map((item) => item.trim())
     .filter((item) => item.length > 0);
+  const shortstatStats = parseShortstat(fields.shortstat);
   return {
     outcome: fields.outcome ?? '',
     exitCode: fields.exit_code ?? null,
@@ -212,12 +218,182 @@ export function summarizeOutcome(events: JailgunEvent[], tabId: number): Outcome
     remoteTarget: fields.remote_target ?? null,
     logTail: fields.log_tail ?? null,
     filesChanged,
+    filesChangedCount: parseOptionalNumber(fields.files_changed) ?? shortstatStats.filesChangedCount,
+    additions: parseOptionalNumber(fields.additions) ?? shortstatStats.additions,
+    deletions: parseOptionalNumber(fields.deletions) ?? shortstatStats.deletions,
     shortstat: fields.shortstat ?? null,
     preStatus: parseLines(fields.pre_status),
     postStatus: parseLines(fields.post_status),
     postHead: fields.post_head ?? null,
     ciState: fields.ci_state ?? null,
+    localTestsPassed: parseOptionalNumber(fields.local_tests_passed) ?? parseLogTestCount(fields.log_tail),
+    remoteTestsPassed: parseOptionalNumber(fields.remote_tests_passed) ?? parseLogTestCount(fields.log_tail),
     localSha: fields.local_sha256 ?? null,
     remoteSha: fields.remote_sha256 ?? null
   };
+}
+
+export type RunQualityVerdict = 'excellent' | 'healthy' | 'watching' | 'review' | 'failed' | 'pending';
+
+export interface RunQualitySummary {
+  verdict: RunQualityVerdict;
+  detail: string;
+  evidenceKinds: string[];
+  evidenceCount: number;
+  passedTabs: number;
+  failedTabs: number;
+  totalTabs: number;
+}
+
+export function summarizeRunQuality(
+  run: RunSnapshot,
+  events: JailgunEvent[],
+  receipts: unknown[]
+): RunQualitySummary {
+  const totalTabs = run.tabs.length;
+  const passedTabs = run.tabs.filter(isTabPassed).length;
+  const failedTabs = run.tabs.filter(isTabFailed).length;
+  const evidenceKinds = collectEvidenceKinds(events, receipts);
+  const evidenceCount = events.filter(isEvidenceEvent).length + receipts.length;
+  const hasErrors = failedTabs > 0 || events.some((event) => event.severity === 'error');
+  const hasWarnings = events.some((event) => event.severity === 'warn');
+
+  if (totalTabs === 0) {
+    return {
+      verdict: 'pending',
+      detail: 'waiting for child runs',
+      evidenceKinds,
+      evidenceCount,
+      passedTabs,
+      failedTabs,
+      totalTabs
+    };
+  }
+
+  if (hasErrors) {
+    return {
+      verdict: 'failed',
+      detail: `${failedTabs} failed of ${totalTabs}`,
+      evidenceKinds,
+      evidenceCount,
+      passedTabs,
+      failedTabs,
+      totalTabs
+    };
+  }
+
+  if (passedTabs === 0 && failedTabs === 0 && evidenceKinds.length === 0 && receipts.length === 0) {
+    return {
+      verdict: 'pending',
+      detail: 'waiting for evidence',
+      evidenceKinds,
+      evidenceCount,
+      passedTabs,
+      failedTabs,
+      totalTabs
+    };
+  }
+
+  if (passedTabs === totalTabs && evidenceKinds.length > 0) {
+    return {
+      verdict: 'excellent',
+      detail: `${passedTabs}/${totalTabs} passed · evidence ${formatEvidenceKinds(evidenceKinds)}`,
+      evidenceKinds,
+      evidenceCount,
+      passedTabs,
+      failedTabs,
+      totalTabs
+    };
+  }
+
+  if (passedTabs > 0 && passedTabs < totalTabs) {
+    return {
+      verdict: 'watching',
+      detail: `${passedTabs}/${totalTabs} passing · evidence ${formatEvidenceKinds(evidenceKinds)}`,
+      evidenceKinds,
+      evidenceCount,
+      passedTabs,
+      failedTabs,
+      totalTabs
+    };
+  }
+
+  if (hasWarnings || evidenceKinds.length > 0 || receipts.length > 0) {
+    return {
+      verdict: 'review',
+      detail: `${totalTabs - failedTabs}/${totalTabs} active · evidence ${formatEvidenceKinds(evidenceKinds)}`,
+      evidenceKinds,
+      evidenceCount,
+      passedTabs,
+      failedTabs,
+      totalTabs
+    };
+  }
+
+  return {
+    verdict: 'healthy',
+    detail: `${passedTabs}/${totalTabs} passed`,
+    evidenceKinds,
+    evidenceCount,
+    passedTabs,
+    failedTabs,
+    totalTabs
+  };
+}
+
+function parseOptionalNumber(value: string | undefined): number | null {
+  if (value === undefined || value.trim() === '') return null;
+  const parsed = Number(value);
+  return Number.isFinite(parsed) && parsed >= 0 ? parsed : null;
+}
+
+function parseShortstat(value: string | undefined): Pick<OutcomeSummary, 'filesChangedCount' | 'additions' | 'deletions'> {
+  const text = value ?? '';
+  return {
+    filesChangedCount: numberBefore(text, /\bfiles? changed\b/),
+    additions: numberBefore(text, /\b(?:insertions?|additions?)\(\+\)/),
+    deletions: numberBefore(text, /\bdeletions?\(-\)/)
+  };
+}
+
+function numberBefore(text: string, pattern: RegExp): number | null {
+  const match = text.match(new RegExp(`(\\d+)\\s+${pattern.source}`, pattern.flags));
+  return match ? Number(match[1]) : null;
+}
+
+function parseLogTestCount(value: string | undefined): number | null {
+  const text = value ?? '';
+  const matches = [...text.matchAll(/(?:cargo test|npm test|vitest|tests?)\s*:\s*(\d+)\s+passed/gi)];
+  if (matches.length === 0) return null;
+  return matches.reduce((sum, match) => sum + Number(match[1]), 0);
+}
+
+function collectEvidenceKinds(events: JailgunEvent[], receipts: unknown[]): string[] {
+  const kinds = new Set<string>();
+  for (const event of events) {
+    if (isEvidenceEvent(event)) {
+      kinds.add(event.kind);
+    }
+  }
+  if (receipts.length > 0) {
+    kinds.add('receipt');
+  }
+  return Array.from(kinds);
+}
+
+function isEvidenceEvent(event: JailgunEvent): boolean {
+  return (
+    event.kind === 'download-receipt' ||
+    event.kind === 'deploy-finished' ||
+    event.kind === 'remote-safety' ||
+    event.kind === 'rate-limit-detected' ||
+    event.kind === 'error'
+  );
+}
+
+function formatEvidenceKinds(kinds: string[]): string {
+  if (kinds.length === 0) {
+    return 'none';
+  }
+  return kinds.slice(0, 3).join(', ');
 }

@@ -1,17 +1,17 @@
 {
-  "report_fingerprint": "sha256:ec3ea4089f3dc4b83af0b984f9da0d64eb074779c841e5c15244bc827f32dca7",
-  "input_fingerprint": "sha256:88dc6df190949bdf9a8481e95a36581bc83169cb45aaa64c0258f18a610287f1",
+  "report_fingerprint": "sha256:bba0ec4945f401f43dbfcd889f5e85f5f8acb8da5eea3e404b03036e5bb56e44",
+  "input_fingerprint": "sha256:8f38b822dd6fc5d84d8e74905707c63f37250d98895793217ef61e1a52f074be",
   "policy_fingerprint": "sha256:2e02fe1c1919de94a47a99164c962683a934c73ca5bb30bec62384f7b17fe742",
   "manifest_fingerprints": {
     "owner_map": "sha256:df0834474569b72ae63ca9845b7e8d25af3a84d1aec5e54872a617bf9570b7c5",
-    "test_map": "sha256:f497c15a319c3d2b2addc8c04a1751e8bee32a27403d54afcee3daea9436cde2",
+    "test_map": "sha256:c1fae6a836b0fc9ee89ab8a432c0a8bee9153f84246ebf48518a4cf7be23cf55",
     "generated_zones": "sha256:eb2cb0462a9f165fd321c43da2668a397fa9bcca5b7f7087c1edbf7823e6eebc",
     "boundaries": "sha256:e603dc2c37fd526ad62380eb9f3d8dda55bfd85d62125e9479e2ecc8004bf771",
     "proof_lanes": "sha256:15ec3d011b63046bbc896e0de66f4c8ec26bc4b72e286200e2ece5f714024c73",
     "standard_version": "sha256:e89e3b08c1e1ab55b195b4041787100956f3888aaba37595bce4403606dcb996"
   },
-  "dirty_worktree": false,
-  "generated_at": "1780361594",
+  "dirty_worktree": true,
+  "generated_at": "1780421410",
   "schema_url": "schemas/repo-score.schema.json",
   "standard": "jankurai",
   "standard_version": "0.9.0",
@@ -25,26 +25,30 @@
   "conformance_decision": "block",
   "conformance_blockers": [
     "HLT-003-OWNERLESS-PATH on agent/owner-map.json",
+    "HLT-003-OWNERLESS-PATH on agent/owner-map.json",
+    "HLT-003-OWNERLESS-PATH on agent/owner-map.json",
+    "HLT-003-OWNERLESS-PATH on agent/owner-map.json",
     "HLT-004-UNMAPPED-PROOF on agent/test-map.json",
     "HLT-001-DEAD-MARKER on apps/dashboard/src/App.tsx",
+    "HLT-007-HANDWRITTEN-CONTRACT on contracts/fixtures/jmcp/harden-task.json",
     "HLT-022-AUTHZ-ISOLATION-GAP on crates/jailgun-cli/src/main.rs"
   ],
   "repo": ".",
-  "run_id": "1780361594",
-  "started_at": "1780361594",
-  "elapsed_ms": 22399,
+  "run_id": "1780421410",
+  "started_at": "1780421410",
+  "elapsed_ms": 26549,
   "scope": {
     "mode": "full",
     "paths": []
   },
   "score": 70,
-  "raw_score": 85,
+  "raw_score": 83,
   "decision": {
     "status": "advisory",
     "minimum_score": 85,
     "passed": true,
     "hard_findings": 0,
-    "soft_findings": 7,
+    "soft_findings": 12,
     "ratchet": {
       "baseline_score": 70,
       "allowed_drop": 0,
@@ -59,11 +63,11 @@
     }
   },
   "git": {
-    "head": "6a1cc62",
+    "head": "af76edc",
     "base": null,
     "changed_files": 0,
     "mode": "full",
-    "dirty_worktree": false
+    "dirty_worktree": true
   },
   "policy": {
     "path": "./agent/audit-policy.toml",
@@ -293,14 +297,14 @@
     {
       "name": "Contract and boundary integrity",
       "weight": 13,
-      "score": 88,
-      "weighted_points": 11.44,
+      "score": 73,
+      "weighted_points": 9.49,
       "evidence": [
         "contract surface found",
         "generated contract artifacts found",
         "boundary manifest present",
         "Rust typed boundary helpers found",
-        "all contract sources have generated zone entries"
+        "contract sources without generated zones: 1"
       ],
       "notes": []
     },
@@ -336,7 +340,7 @@
         "security lane present",
         "canonical security lane wrapper present",
         "agent-readiness audit gate found in CI",
-        "rust bad-behavior advisory signals: 350",
+        "rust bad-behavior advisory signals: 396",
         "typescript bad-behavior advisory signals: 2",
         "ci bad-behavior advisory signals: 1",
         "gittools bad-behavior advisory signals: 2",
@@ -352,13 +356,13 @@
       "score": 27,
       "weighted_points": 3.24,
       "evidence": [
-        "largest authored code file: crates/jailgun-cli/src/main.rs (1190 LOC)",
+        "largest authored code file: crates/jailgun-cli/src/main.rs (1473 LOC)",
         "code file exceeds 500 LOC",
         "code file exceeds 1000 LOC",
         "most code files stay under 300 LOC",
-        "copy-code advisory classes found: 3 (advisory only, no score impact)",
+        "copy-code advisory classes found: 4 (advisory only, no score impact)",
         "fallback soup marker found",
-        "rust bad-behavior advisory signals: 350",
+        "rust bad-behavior advisory signals: 396",
         "typescript bad-behavior advisory signals: 2",
         "ci bad-behavior advisory signals: 1",
         "gittools bad-behavior advisory signals: 2",
@@ -377,7 +381,8 @@
         "db boundary routes roots, migrations, and constraints",
         "migration directory present",
         "constraint or RLS language found",
-        "db policy docs describe constraints and rollback safety"
+        "db policy docs describe constraints and rollback safety",
+        "data access appears compartmentalized"
       ],
       "notes": []
     },
@@ -1093,7 +1098,7 @@
   "copy_code": {
     "schema_version": "1.1.0",
     "generated_by": "jankurai copy-code",
-    "generated_at": "2026-06-02T00:52:52.557699+00:00",
+    "generated_at": "2026-06-02T17:29:44.519981+00:00",
     "repo": ".",
     "auditor_version": "1.4.3",
     "status": "review",
@@ -1131,22 +1136,57 @@
       ]
     },
     "summary": {
-      "files_scanned": 211,
-      "files_considered": 68,
-      "active_files": 68,
+      "files_scanned": 224,
+      "files_considered": 71,
+      "active_files": 71,
       "exact_file_classes": 0,
       "hard_classes": 0,
-      "warning_classes": 3,
+      "warning_classes": 4,
       "hard_instances": 0,
-      "warning_instances": 8,
-      "duplicate_lines": 3,
-      "duplicate_tokens": 13,
-      "duplicate_bytes": 119,
-      "total_redundant_lines": 5,
-      "total_redundant_tokens": 24,
-      "total_redundant_bytes": 219
+      "warning_instances": 10,
+      "duplicate_lines": 32,
+      "duplicate_tokens": 95,
+      "duplicate_bytes": 1242,
+      "total_redundant_lines": 34,
+      "total_redundant_tokens": 106,
+      "total_redundant_bytes": 1342
     },
     "classes": [
+      {
+        "id": "copy-code-body-rust-7364fe5d77b4392c",
+        "kind": "exact_unit_different_name",
+        "severity": "warning",
+        "confidence": "medium",
+        "language": "rust",
+        "duplicate_lines": 29,
+        "duplicate_tokens": 82,
+        "duplicate_bytes": 1123,
+        "instance_count": 2,
+        "total_redundant_lines": 29,
+        "total_redundant_tokens": 82,
+        "total_redundant_bytes": 1123,
+        "effective_severity": "warning",
+        "hard_fail": false,
+        "fingerprint": "fcf85baf4f176d5c",
+        "reason": "same body appears under different names across files",
+        "recommended_action": "choose one owner for the shared body or intentionally differentiate the behavior",
+        "instances": [
+          {
+            "path": "crates/jailgun-orchestrator/src/run/mod.rs",
+            "language": "rust",
+            "start_line": 1180,
+            "end_line": 1209,
+            "unit_name": "submit_delay_window_uses_percent_when_configured"
+          },
+          {
+            "path": "crates/jailgun-orchestrator/src/run/mod.rs",
+            "language": "rust",
+            "start_line": 1223,
+            "end_line": 1252,
+            "unit_name": "submit_delay_window_uses_additive_jitter_when_percent_is_unset"
+          }
+        ]
+      },
       {
         "id": "copy-code-body-rust-d7d9fecbf8fb6678",
         "kind": "exact_unit_different_name",
@@ -1169,22 +1209,22 @@
           {
             "path": "crates/jailgun-server/src/lib.rs",
             "language": "rust",
-            "start_line": 594,
-            "end_line": 595,
+            "start_line": 643,
+            "end_line": 644,
             "unit_name": "ingest_requires_matching_token"
           },
           {
             "path": "crates/jailgun-server/src/lib.rs",
             "language": "rust",
-            "start_line": 636,
-            "end_line": 637,
+            "start_line": 685,
+            "end_line": 686,
             "unit_name": "ingest_without_token_returns_503"
           },
           {
             "path": "crates/jailgun-server/src/lib.rs",
             "language": "rust",
-            "start_line": 656,
-            "end_line": 657,
+            "start_line": 705,
+            "end_line": 706,
             "unit_name": "run_started_loop_metadata_is_seeded_and_preserved"
           }
         ]
@@ -1260,8 +1300,8 @@
           {
             "path": "crates/jailgun-orchestrator/src/run/mod.rs",
             "language": "rust",
-            "start_line": 882,
-            "end_line": 883,
+            "start_line": 929,
+            "end_line": 930,
             "unit_name": "deploy_outcome_label"
           }
         ]
@@ -1501,7 +1541,7 @@
       "problem": "`Code shape and semantic surface` scored 27 below the standard floor of 85",
       "agent_fix": "split large or ambiguous authored code into smaller semantic modules with focused tests",
       "evidence": [
-        "largest authored code file: crates/jailgun-cli/src/main.rs (1190 LOC)",
+        "largest authored code file: crates/jailgun-cli/src/main.rs (1473 LOC)",
         "code file exceeds 500 LOC",
         "code file exceeds 1000 LOC",
         "most code files stay under 300 LOC"
@@ -1511,7 +1551,7 @@
       "confidence": 0.76,
       "evidence_kind": "repository-scan",
       "rerun_command": "just fast",
-      "fingerprint": "sha256:5dbdb57c9a15d1f66ceceb8c95cdeeb62c60f90c392d4028c3ffcb2bc4e16704",
+      "fingerprint": "sha256:a064df6ddca79b17e6a0446aa3dba3cc349d08fff65fee6df08c35ff708fead6",
       "rule_id": "HLT-001-DEAD-MARKER",
       "tlr": "Entropy",
       "lane": "fast",
@@ -1541,6 +1581,30 @@
       "lane": "fast",
       "docs_url": "docs/testing.md",
       "owner": "ci-release"
+    },
+    {
+      "severity": "medium",
+      "category": "boundary",
+      "path": "agent/boundaries.toml",
+      "problem": "`Contract and boundary integrity` scored 73 below the standard floor of 85",
+      "agent_fix": "add generated contracts and boundary checks for public APIs, data access, and cross-runtime seams",
+      "evidence": [
+        "contract surface found",
+        "generated contract artifacts found",
+        "boundary manifest present",
+        "Rust typed boundary helpers found"
+      ],
+      "check_id": "HLT-007-HANDWRITTEN-CONTRACT:boundary",
+      "hardness": "soft",
+      "confidence": 0.76,
+      "evidence_kind": "contract-manifest",
+      "rerun_command": "just fast",
+      "fingerprint": "sha256:6b0c42073e9966a0a9974db6b1d4614736c65798b81b87c159f7e6f4974cebb9",
+      "rule_id": "HLT-007-HANDWRITTEN-CONTRACT",
+      "tlr": "Contracts/data",
+      "lane": "contract",
+      "docs_url": "docs/audit-rubric.md#known-vibe-coding-insults",
+      "owner": "repo-governance"
     },
     {
       "severity": "medium",
@@ -1589,6 +1653,69 @@
     },
     {
       "severity": "high",
+      "category": "context",
+      "path": "agent/owner-map.json",
+      "problem": "path `data/run-history/.gitkeep` has no owner-map route",
+      "agent_fix": "add the narrowest stable prefix for this path to `agent/owner-map.json`",
+      "evidence": [
+        "data/run-history/.gitkeep"
+      ],
+      "check_id": "HLT-003-OWNERLESS-PATH:context",
+      "hardness": "hard",
+      "confidence": 0.88,
+      "evidence_kind": "policy-manifest",
+      "rerun_command": "just fast",
+      "fingerprint": "sha256:e9bf5b252a68eaf7fb16aa144c626e3ee6a6c8e3cf1317f2e0119922e96d704a",
+      "rule_id": "HLT-003-OWNERLESS-PATH",
+      "tlr": "Context/setup",
+      "lane": "fast",
+      "docs_url": "agent/JANKURAI_STANDARD.md#ownership-boundaries",
+      "owner": "repo-governance"
+    },
+    {
+      "severity": "high",
+      "category": "context",
+      "path": "agent/owner-map.json",
+      "problem": "path `prompts/templates/README.md` has no owner-map route",
+      "agent_fix": "add the narrowest stable prefix for this path to `agent/owner-map.json`",
+      "evidence": [
+        "prompts/templates/README.md"
+      ],
+      "check_id": "HLT-003-OWNERLESS-PATH:context",
+      "hardness": "hard",
+      "confidence": 0.88,
+      "evidence_kind": "policy-manifest",
+      "rerun_command": "just fast",
+      "fingerprint": "sha256:34e89b5cbb1755a1b75fec482481fc0530a40dbc26b9a070ba74884227720417",
+      "rule_id": "HLT-003-OWNERLESS-PATH",
+      "tlr": "Context/setup",
+      "lane": "fast",
+      "docs_url": "agent/JANKURAI_STANDARD.md#ownership-boundaries",
+      "owner": "repo-governance"
+    },
+    {
+      "severity": "high",
+      "category": "context",
+      "path": "agent/owner-map.json",
+      "problem": "path `prompts/templates/harden-repo.txt` has no owner-map route",
+      "agent_fix": "add the narrowest stable prefix for this path to `agent/owner-map.json`",
+      "evidence": [
+        "prompts/templates/harden-repo.txt"
+      ],
+      "check_id": "HLT-003-OWNERLESS-PATH:context",
+      "hardness": "hard",
+      "confidence": 0.88,
+      "evidence_kind": "policy-manifest",
+      "rerun_command": "just fast",
+      "fingerprint": "sha256:dfcb986741d0e61f066591aec7e5f1fb4642011a8b64fe562b555e242317e811",
+      "rule_id": "HLT-003-OWNERLESS-PATH",
+      "tlr": "Context/setup",
+      "lane": "fast",
+      "docs_url": "agent/JANKURAI_STANDARD.md#ownership-boundaries",
+      "owner": "repo-governance"
+    },
+    {
+      "severity": "high",
       "category": "proof",
       "path": "agent/test-map.json",
       "problem": "path `.env.live-7tab.example` has no test-map proof route",
@@ -1615,20 +1742,42 @@
       "problem": "fallback soup detected in product code",
       "agent_fix": "collapse fallback chains into explicit typed states with bounded retry policy, telemetry, and documented repair guidance",
       "evidence": [
-        "apps/dashboard/src/App.tsx:64 if (others.length === 0) return null;"
+        "apps/dashboard/src/App.tsx:74 if (others.length === 0) return null;"
       ],
       "check_id": "HLT-001-DEAD-MARKER:vibe",
       "hardness": "hard",
       "confidence": 0.88,
       "evidence_kind": "repository-scan",
       "rerun_command": "just fast",
-      "fingerprint": "sha256:055a7daac3c239d96f7f6bf50816223a0e02e3aca2ce1aa297c70ff2cabbacc8",
+      "fingerprint": "sha256:eb35da9594a4e3df3db2ac790198be71b0b014618c32a510e9329ad548f07c5c",
       "rule_id": "HLT-001-DEAD-MARKER",
       "tlr": "Entropy",
       "lane": "fast",
       "docs_url": "docs/audit-rubric.md#future-hostile-language-rule",
       "owner": "dashboard-ui",
-      "line": 64
+      "line": 74
+    },
+    {
+      "severity": "high",
+      "category": "boundary",
+      "path": "contracts/fixtures/jmcp/harden-task.json",
+      "problem": "contract source `contracts/fixtures/jmcp/harden-task.json` has no generated zone entry",
+      "agent_fix": "add a `[[zone]]` in `agent/generated-zones.toml` with `source`, `command`, and `path` for this contract, or generate typed clients from it",
+      "evidence": [
+        "contract source `contracts/fixtures/jmcp/harden-task.json` has no generated zone entry — handwritten drift is likely"
+      ],
+      "check_id": "HLT-007-HANDWRITTEN-CONTRACT:boundary",
+      "hardness": "hard",
+      "confidence": 0.88,
+      "evidence_kind": "contract-manifest",
+      "rerun_command": "just fast",
+      "fingerprint": "sha256:41bc3b7725393d0f4078acd654aafc8fa5792537c76b6261a934e0a68ee0376c",
+      "rule_id": "HLT-007-HANDWRITTEN-CONTRACT",
+      "tlr": "Contracts/data",
+      "lane": "contract",
+      "docs_url": "docs/audit-rubric.md#known-vibe-coding-insults",
+      "owner": "contracts",
+      "line": 1
     },
     {
       "severity": "high",
@@ -1650,7 +1799,7 @@
       "lane": "db",
       "docs_url": "docs/audit-rubric.md#top-level-risk-mapping",
       "owner": "rust-cli",
-      "line": 1175,
+      "line": 1458,
       "matched_term": "rls",
       "reason": "authz/data isolation requires negative proof evidence"
     }
@@ -1665,6 +1814,26 @@
       "owner": "rust-cli",
       "task": "add owner/non-owner authorization tests or RLS evidence for the touched data boundary",
       "why": "authorization or data-isolation surface lacks direct negative proof"
+    },
+    {
+      "path": "contracts/fixtures/jmcp/harden-task.json",
+      "priority": "high",
+      "rule_id": "HLT-007-HANDWRITTEN-CONTRACT",
+      "tlr": "Contracts/data",
+      "lane": "contract",
+      "owner": "contracts",
+      "task": "add a `[[zone]]` in `agent/generated-zones.toml` with `source`, `command`, and `path` for this contract, or generate typed clients from it",
+      "why": "contract source `contracts/fixtures/jmcp/harden-task.json` has no generated zone entry"
+    },
+    {
+      "path": "agent/boundaries.toml",
+      "priority": "medium",
+      "rule_id": "HLT-007-HANDWRITTEN-CONTRACT",
+      "tlr": "Contracts/data",
+      "lane": "contract",
+      "owner": "repo-governance",
+      "task": "add generated contracts and boundary checks for public APIs, data access, and cross-runtime seams",
+      "why": "`Contract and boundary integrity` scored 73 below the standard floor of 85"
     },
     {
       "path": "agent/test-map.json",

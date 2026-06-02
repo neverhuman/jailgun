@@ -45,6 +45,30 @@ Start from `config/jailgun.example.toml` and write local values to an ignored
 `config/jailgun.local.toml` or environment variables. Use `.env.example` as the
 environment reference.
 
+### Dual Browser Profiles
+
+For concurrent Google accounts, run separate managed Chrome user-data
+directories instead of sharing one logged-in profile:
+
+```bash
+cargo run -p jailgun-cli -- run \
+  --prompt-file prompts/templates/harden-repo.txt \
+  --tabs 2 \
+  --profile-pool ~/.jailgun/profiles/google-a \
+  --profile-pool ~/.jailgun/profiles/google-b
+```
+
+The first launch opens one Chrome instance per profile on sequential local CDP
+ports (`9224`, `9225`, ...). Log into the intended Google account in each
+window once; future runs reuse the same ignored profile directories. Jailgun
+writes tracking state to `~/.google-profile-automation-state/managed-browsers.json`
+and per-profile receipts under `profiles/<name>/managed-browser.json`.
+
+You can also set `JAILGUN_CHROME_PROFILE_POOL` or
+`JAILGUN_CHROME_PROFILE_DIRS` to a path-list. Tab launches rotate through the
+pool, and the dashboard shows the assigned browser profile, profile directory,
+slot, and CDP URL for each tab.
+
 Remote cleanup policy defaults to `preserve-reset`. Clean divergent remote
 checkouts are preserved under a timestamped ref and receipt before reset.
 Dirty checkouts, missing `origin/main`, failed ref creation, and failed receipt
@@ -83,7 +107,24 @@ To enable it on your machine:
    posts to Telegram, and moves the file to `~/code/jmcp/delivered/`.
    No bot credentials live in jailgun.
 
-5. To ping on every successful local commit, install the post-commit
+5. To request a batch of jailgun runs through JMCP, queue a structured
+   batch request:
+
+   ```bash
+   cargo run -p jailgun-cli -- runs \
+     --count 4 \
+     --config config/jailgun.example.toml \
+     --prompt-file prompts/templates/harden-repo.txt \
+     --profile-pool ~/.jailgun/profiles/google-a \
+     --profile-pool ~/.jailgun/profiles/google-b
+   ```
+
+   That writes a `jailgun.batch-request` envelope with
+   `approval_required: true`, the child `jailgun run` command template,
+   the config/prompt paths, and any profile-pool flags JMCP needs to
+   create the approval gate and fan out the child work orders.
+
+6. To ping on every successful local commit, install the post-commit
    hook:
 
    ```bash

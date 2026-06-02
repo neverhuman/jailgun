@@ -16,11 +16,77 @@ set -a
 source "$env_file"
 set +a
 
+log() {
+  printf '[live-7tab] %s\n' "$*"
+}
+
+fail() {
+  local cause="${1:?cause required}"
+  local checked="${2:-n/a}"
+  local next_action="${3:-inspect $runner_log and $monitor_log}"
+  {
+    printf 'FAILED: %s\n' "$cause"
+    printf 'run id: %s\n' "$RUN_ID"
+    printf 'dashboard URL: %s\n' "$dashboard_url"
+    printf 'checked: %s\n' "$checked"
+    printf 'next action: %s\n' "$next_action"
+    printf 'logs: %s %s\n' "$runner_log" "$monitor_log"
+  } | tee "$receipt_file" >&2
+  exit 1
+}
+
+transition_delay_display() {
+  local base_seconds="${JAILGUN_SUBMIT_DELAY_SECONDS:-}"
+  if [[ -z "$base_seconds" ]] || ! [[ "$base_seconds" =~ ^[0-9]+$ ]]; then
+    printf 'config'
+    return 0
+  fi
+
+  if [[ -n "$JAILGUN_SUBMIT_JITTER_PERCENT" ]]; then
+    node -e '
+      const base = Number(process.argv[1]);
+      const percent = Number(process.argv[2]);
+      const delta = Math.floor((base * percent) / 100);
+      process.stdout.write(`${base - delta}s..${base + delta}s`);
+    ' "$base_seconds" "$JAILGUN_SUBMIT_JITTER_PERCENT"
+    return 0
+  fi
+
+  if [[ -n "$JAILGUN_SUBMIT_JITTER_SECONDS" ]]; then
+    node -e '
+      const base = Number(process.argv[1]);
+      const jitter = Number(process.argv[2]);
+      process.stdout.write(`${base}s..${base + jitter}s`);
+    ' "$base_seconds" "$JAILGUN_SUBMIT_JITTER_SECONDS"
+    return 0
+  fi
+
+  printf '%ss' "$base_seconds"
+}
+
+write_success_receipt() {
+  {
+    printf 'SUCCESS: live 7-tab production run verified\n'
+    printf 'run id: %s\n' "$RUN_ID"
+    printf 'dashboard URL: %s\n' "$dashboard_url"
+    printf 'logs: %s %s\n' "$events_log" "$runner_log"
+    printf 'screenshots: %s %s\n' "$run_dir/dashboard-ready.png" "$run_dir/dashboard-final.png"
+    printf 'counts: %s\n' "$proof_summary"
+    printf 'JMCP enabled: true (inbox %s)\n' "${JAILGUN_JMCP_INBOX_DIR_RESOLVED:-$JAILGUN_JMCP_INBOX_DIR}"
+    printf 'proof: %s\n' "$proof_file"
+  } | tee "$receipt_file"
+}
+
 RUN_ID="${JAILGUN_RUN_ID:-live-7tab-$(date -u +%Y%m%dT%H%M%SZ)}"
 JAILGUN_TABS="${JAILGUN_TABS:-7}"
 JAILGUN_LOOPS="${JAILGUN_LOOPS:-0}"
+JAILGUN_SUBMIT_DELAY_SECONDS="${JAILGUN_SUBMIT_DELAY_SECONDS:-}"
+JAILGUN_SUBMIT_JITTER_SECONDS="${JAILGUN_SUBMIT_JITTER_SECONDS:-}"
+JAILGUN_SUBMIT_JITTER_PERCENT="${JAILGUN_SUBMIT_JITTER_PERCENT:-}"
+JAILGUN_FRESH_SOURCE_CLONE="${JAILGUN_FRESH_SOURCE_CLONE:-0}"
 JAILGUN_DASHBOARD_ADDR="${JAILGUN_DASHBOARD_ADDR:-127.0.0.1:8787}"
 JAILGUN_DASHBOARD_HOLD_SECONDS="${JAILGUN_DASHBOARD_HOLD_SECONDS:-30}"
+JAILGUN_DASHBOARD_KEEP_ALIVE="${JAILGUN_DASHBOARD_KEEP_ALIVE:-0}"
 JAILGUN_DASHBOARD_START_TIMEOUT_SECONDS="${JAILGUN_DASHBOARD_START_TIMEOUT_SECONDS:-300}"
 JAILGUN_CARGO_JOBS="${JAILGUN_CARGO_JOBS:-10}"
 JAILGUN_CI="${JAILGUN_CI:-0}"
@@ -45,8 +111,65 @@ runner_pid=""
 
 export CARGO_NET_OFFLINE=1
 
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --tabs)
+      JAILGUN_TABS="${2:-}"
+      shift 2
+      ;;
+    --batches)
+      batches="${2:-}"
+      if ! [[ "$batches" =~ ^[0-9]+$ ]] || [[ "$batches" -le 0 ]]; then
+        fail "--batches must be a positive integer" "$batches" "pass --batches 10 for a 70-attempt 7-tab run"
+      fi
+      JAILGUN_LOOPS="$((batches - 1))"
+      shift 2
+      ;;
+    --submit-delay-seconds)
+      JAILGUN_SUBMIT_DELAY_SECONDS="${2:-}"
+      shift 2
+      ;;
+    --submit-jitter-seconds)
+      JAILGUN_SUBMIT_JITTER_SECONDS="${2:-}"
+      shift 2
+      ;;
+    --submit-jitter-percent)
+      JAILGUN_SUBMIT_JITTER_PERCENT="${2:-}"
+      shift 2
+      ;;
+    --fresh-source-clone)
+      JAILGUN_FRESH_SOURCE_CLONE=1
+      shift
+      ;;
+    --dashboard-keep-alive)
+      JAILGUN_DASHBOARD_KEEP_ALIVE=1
+      shift
+      ;;
+    *)
+      fail "unknown argument $1" "$*" "use --tabs, --batches, --submit-delay-seconds, --submit-jitter-seconds, --submit-jitter-percent, --dashboard-keep-alive, and --fresh-source-clone"
+      ;;
+  esac
+done
+
 if ! [[ "$JAILGUN_TABS" =~ ^[0-9]+$ && "$JAILGUN_LOOPS" =~ ^[0-9]+$ ]]; then
   fail "tabs and loops must be non-negative integers" "JAILGUN_TABS=$JAILGUN_TABS JAILGUN_LOOPS=$JAILGUN_LOOPS" "set numeric values in $env_file"
+fi
+if [[ -n "$JAILGUN_SUBMIT_DELAY_SECONDS" ]] && ! [[ "$JAILGUN_SUBMIT_DELAY_SECONDS" =~ ^[0-9]+$ ]]; then
+  fail "submit delay must be a non-negative integer" "$JAILGUN_SUBMIT_DELAY_SECONDS" "pass --submit-delay-seconds 120"
+fi
+if [[ -n "$JAILGUN_SUBMIT_JITTER_SECONDS" ]] && ! [[ "$JAILGUN_SUBMIT_JITTER_SECONDS" =~ ^[0-9]+$ ]]; then
+  fail "submit jitter must be a non-negative integer" "$JAILGUN_SUBMIT_JITTER_SECONDS" "pass --submit-jitter-seconds 0"
+fi
+if [[ -n "$JAILGUN_SUBMIT_JITTER_PERCENT" ]]; then
+  if ! [[ "$JAILGUN_SUBMIT_JITTER_PERCENT" =~ ^[0-9]+$ ]]; then
+    fail "submit jitter percent must be a non-negative integer" "$JAILGUN_SUBMIT_JITTER_PERCENT" "pass --submit-jitter-percent 20"
+  fi
+  if [[ "$JAILGUN_SUBMIT_JITTER_PERCENT" -gt 100 ]]; then
+    fail "submit jitter percent must be at most 100" "$JAILGUN_SUBMIT_JITTER_PERCENT" "pass --submit-jitter-percent 20"
+  fi
+fi
+if ! [[ "$JAILGUN_DASHBOARD_KEEP_ALIVE" =~ ^[01]$ ]]; then
+  fail "dashboard keep-alive must be 0 or 1" "$JAILGUN_DASHBOARD_KEEP_ALIVE" "pass --dashboard-keep-alive"
 fi
 
 JAILGUN_PLANNED_TABS="$(
@@ -65,26 +188,12 @@ export JAILGUN_PLANNED_TABS
 mkdir -p "$run_dir" "$runtime_dir"
 export CARGO_TARGET_DIR="$run_dir/cargo-target"
 
-log() {
-  printf '[live-7tab] %s\n' "$*"
-}
-
-log "run config tabs=$JAILGUN_TABS loops=$JAILGUN_LOOPS planned_tabs=$JAILGUN_PLANNED_TABS"
-
-fail() {
-  local cause="${1:?cause required}"
-  local checked="${2:-n/a}"
-  local next_action="${3:-inspect $runner_log and $monitor_log}"
-  {
-    printf 'FAILED: %s\n' "$cause"
-    printf 'run id: %s\n' "$RUN_ID"
-    printf 'dashboard URL: %s\n' "$dashboard_url"
-    printf 'checked: %s\n' "$checked"
-    printf 'next action: %s\n' "$next_action"
-    printf 'logs: %s %s\n' "$runner_log" "$monitor_log"
-  } | tee "$receipt_file" >&2
-  exit 1
-}
+JAILGUN_BATCHES="$((JAILGUN_LOOPS + 1))"
+dashboard_keep_alive_display="false"
+if [[ "$JAILGUN_DASHBOARD_KEEP_ALIVE" == "1" ]]; then
+  dashboard_keep_alive_display="true"
+fi
+log "run config tabs=$JAILGUN_TABS batches=$JAILGUN_BATCHES loops=$JAILGUN_LOOPS planned_tabs=$JAILGUN_PLANNED_TABS transition_delay=$(transition_delay_display) dashboard_keep_alive=$dashboard_keep_alive_display fresh_source_clone=$JAILGUN_FRESH_SOURCE_CLONE"
 
 cleanup() {
   local status=$?
@@ -264,6 +373,21 @@ jailgun_cmd=(
   --jmcp-inbox-dir "${JAILGUN_JMCP_INBOX_DIR_RESOLVED:-$JAILGUN_JMCP_INBOX_DIR}"
 )
 
+if [[ -n "$JAILGUN_SUBMIT_DELAY_SECONDS" ]]; then
+  jailgun_cmd+=(--submit-delay-seconds "$JAILGUN_SUBMIT_DELAY_SECONDS")
+fi
+if [[ -n "$JAILGUN_SUBMIT_JITTER_PERCENT" ]]; then
+  jailgun_cmd+=(--submit-jitter-percent "$JAILGUN_SUBMIT_JITTER_PERCENT")
+elif [[ -n "$JAILGUN_SUBMIT_JITTER_SECONDS" ]]; then
+  jailgun_cmd+=(--submit-jitter-seconds "$JAILGUN_SUBMIT_JITTER_SECONDS")
+fi
+if [[ "$JAILGUN_FRESH_SOURCE_CLONE" == "1" ]]; then
+  jailgun_cmd+=(--fresh-source-clone)
+fi
+if [[ "$JAILGUN_DASHBOARD_KEEP_ALIVE" == "1" ]]; then
+  jailgun_cmd+=(--dashboard-keep-alive)
+fi
+
 if [[ "$JAILGUN_CI" == "1" ]]; then
   jailgun_cmd+=(
     --ci
@@ -293,38 +417,70 @@ log "starting dashboard monitor"
   2> >(tee -a "$monitor_log" >&2)) &
 monitor_pid=$!
 
-set +e
-wait "$runner_pid"
-runner_status=$?
-runner_pid=""
-wait "$monitor_pid"
-monitor_status=$?
-monitor_pid=""
-set -e
+if [[ "$JAILGUN_DASHBOARD_KEEP_ALIVE" == "1" ]]; then
+  set +e
+  wait "$monitor_pid"
+  monitor_status=$?
+  monitor_pid=""
+  set -e
 
-if [[ $runner_status -ne 0 ]]; then
-  fail "jailgun production run failed with status $runner_status" "$runner_log" "inspect $runner_log and $events_log"
+  if [[ $monitor_status -ne 0 ]]; then
+    fail "dashboard monitor failed with status $monitor_status" "$run_dir/monitor-proof.json" "inspect $monitor_log and dashboard screenshots in $run_dir"
+  fi
+
+  proof_file="$run_dir/monitor-proof.json"
+  if [[ ! -s "$proof_file" ]]; then
+    fail "monitor proof was not written" "$proof_file" "inspect $monitor_log"
+  fi
+
+  if [[ "$JAILGUN_FRESH_SOURCE_CLONE" == "1" ]]; then
+    node -e 'const fs=require("fs"); const p=JSON.parse(fs.readFileSync(process.argv[1],"utf8")); const expected=Number(process.argv[2]); if (p.fresh_source_clones !== expected) process.exit(1);' "$proof_file" "$JAILGUN_PLANNED_TABS" ||
+      fail "fresh source clone path was not proven for every tab" "$proof_file" "inspect source-upload events and $runner_log"
+    if ! grep -q 'fresh_source_clone=true' "$runner_log" || ! grep -q 'clone_dir=' "$runner_log"; then
+      fail "fresh source clone fields are missing from runner log" "$runner_log" "inspect bridge source-upload stderr lines"
+    fi
+  fi
+
+  proof_summary="$(node -e 'const fs=require("fs"); const p=JSON.parse(fs.readFileSync(process.argv[1],"utf8")); console.log(`tabs=${p.observed_tabs}/${p.expected_tabs} loops=${p.loop_count ?? 0} planned_tabs=${p.planned_tabs ?? p.expected_tabs} loops_remaining=${p.loops_remaining ?? 0} download_started=${p.download_started} download_start_within_10s=${p.download_start_within_10s} downloads=${p.download_receipts} stopped=${p.generation_stopped} early_stops=${p.early_stops_succeeded ?? 0}/${p.early_stops_attempted ?? 0} closed=${p.tabs_closed} fresh_downloads=${p.fresh_downloads} fresh_source_clones=${p.fresh_source_clones ?? 0} deploys=${p.deploy_successes} files_changed=${p.files_changed ?? 0} additions=${p.additions ?? 0} deletions=${p.deletions ?? 0} local_tests_passed=${p.local_tests_passed ?? 0} remote_tests_passed=${p.remote_tests_passed ?? 0} remote_host=${p.remote_host_matches} remote_command=${p.remote_command_matches} remote_local_ci_passed=${p.remote_local_ci_passed ?? 0} github_ci_passed=${p.ci_passed} github_ci_skipped=${p.ci_skipped} rate_limit_detections=${p.rate_limit_detections ?? 0} rate_limit_dismissed=${p.rate_limit_dismissed ?? 0} rate_limit_undismissed=${p.rate_limit_undismissed ?? 0} errors=${p.error_events}`); if (p.status !== "success") process.exit(1);' "$proof_file")" ||
+    fail "monitor proof did not report success" "$proof_file" "inspect $proof_file"
+
+  write_success_receipt
+  log "dashboard keep-alive active; press Ctrl-C to stop"
+  wait "$runner_pid"
+  fail "dashboard keep-alive runner exited before Ctrl-C" "$runner_log" "keep the dashboard attached until Ctrl-C"
+else
+  set +e
+  wait "$runner_pid"
+  runner_status=$?
+  runner_pid=""
+  wait "$monitor_pid"
+  monitor_status=$?
+  monitor_pid=""
+  set -e
+
+  if [[ $runner_status -ne 0 ]]; then
+    fail "jailgun production run failed with status $runner_status" "$runner_log" "inspect $runner_log and $events_log"
+  fi
+
+  if [[ $monitor_status -ne 0 ]]; then
+    fail "dashboard monitor failed with status $monitor_status" "$run_dir/monitor-proof.json" "inspect $monitor_log and dashboard screenshots in $run_dir"
+  fi
+
+  proof_file="$run_dir/monitor-proof.json"
+  if [[ ! -s "$proof_file" ]]; then
+    fail "monitor proof was not written" "$proof_file" "inspect $monitor_log"
+  fi
+
+  if [[ "$JAILGUN_FRESH_SOURCE_CLONE" == "1" ]]; then
+    node -e 'const fs=require("fs"); const p=JSON.parse(fs.readFileSync(process.argv[1],"utf8")); const expected=Number(process.argv[2]); if (p.fresh_source_clones !== expected) process.exit(1);' "$proof_file" "$JAILGUN_PLANNED_TABS" ||
+      fail "fresh source clone path was not proven for every tab" "$proof_file" "inspect source-upload events and $runner_log"
+    if ! grep -q 'fresh_source_clone=true' "$runner_log" || ! grep -q 'clone_dir=' "$runner_log"; then
+      fail "fresh source clone fields are missing from runner log" "$runner_log" "inspect bridge source-upload stderr lines"
+    fi
+  fi
+
+  proof_summary="$(node -e 'const fs=require("fs"); const p=JSON.parse(fs.readFileSync(process.argv[1],"utf8")); console.log(`tabs=${p.observed_tabs}/${p.expected_tabs} loops=${p.loop_count ?? 0} planned_tabs=${p.planned_tabs ?? p.expected_tabs} loops_remaining=${p.loops_remaining ?? 0} download_started=${p.download_started} download_start_within_10s=${p.download_start_within_10s} downloads=${p.download_receipts} stopped=${p.generation_stopped} early_stops=${p.early_stops_succeeded ?? 0}/${p.early_stops_attempted ?? 0} closed=${p.tabs_closed} fresh_downloads=${p.fresh_downloads} fresh_source_clones=${p.fresh_source_clones ?? 0} deploys=${p.deploy_successes} files_changed=${p.files_changed ?? 0} additions=${p.additions ?? 0} deletions=${p.deletions ?? 0} local_tests_passed=${p.local_tests_passed ?? 0} remote_tests_passed=${p.remote_tests_passed ?? 0} remote_host=${p.remote_host_matches} remote_command=${p.remote_command_matches} remote_local_ci_passed=${p.remote_local_ci_passed ?? 0} github_ci_passed=${p.ci_passed} github_ci_skipped=${p.ci_skipped} rate_limit_detections=${p.rate_limit_detections ?? 0} rate_limit_dismissed=${p.rate_limit_dismissed ?? 0} rate_limit_undismissed=${p.rate_limit_undismissed ?? 0} errors=${p.error_events}`); if (p.status !== "success") process.exit(1);' "$proof_file")" ||
+    fail "monitor proof did not report success" "$proof_file" "inspect $proof_file"
+
+  write_success_receipt
 fi
-
-if [[ $monitor_status -ne 0 ]]; then
-  fail "dashboard monitor failed with status $monitor_status" "$run_dir/monitor-proof.json" "inspect $monitor_log and dashboard screenshots in $run_dir"
-fi
-
-proof_file="$run_dir/monitor-proof.json"
-if [[ ! -s "$proof_file" ]]; then
-  fail "monitor proof was not written" "$proof_file" "inspect $monitor_log"
-fi
-
-proof_summary="$(node -e 'const fs=require("fs"); const p=JSON.parse(fs.readFileSync(process.argv[1],"utf8")); console.log(`tabs=${p.observed_tabs}/${p.expected_tabs} loops=${p.loop_count ?? 0} planned_tabs=${p.planned_tabs ?? p.expected_tabs} loops_remaining=${p.loops_remaining ?? 0} download_started=${p.download_started} download_start_within_10s=${p.download_start_within_10s} downloads=${p.download_receipts} stopped=${p.generation_stopped} early_stops=${p.early_stops_succeeded ?? 0}/${p.early_stops_attempted ?? 0} closed=${p.tabs_closed} fresh=${p.fresh_downloads} deploys=${p.deploy_successes} remote_host=${p.remote_host_matches} remote_command=${p.remote_command_matches} remote_local_ci_passed=${p.remote_local_ci_passed ?? 0} github_ci_passed=${p.ci_passed} github_ci_skipped=${p.ci_skipped} rate_limit_detections=${p.rate_limit_detections ?? 0} rate_limit_dismissed=${p.rate_limit_dismissed ?? 0} rate_limit_undismissed=${p.rate_limit_undismissed ?? 0} errors=${p.error_events}`); if (p.status !== "success") process.exit(1);' "$proof_file")" ||
-  fail "monitor proof did not report success" "$proof_file" "inspect $proof_file"
-
-{
-  printf 'SUCCESS: live 7-tab production run verified\n'
-  printf 'run id: %s\n' "$RUN_ID"
-  printf 'dashboard URL: %s\n' "$dashboard_url"
-  printf 'logs: %s %s\n' "$events_log" "$runner_log"
-  printf 'screenshots: %s %s\n' "$run_dir/dashboard-ready.png" "$run_dir/dashboard-final.png"
-  printf 'counts: %s\n' "$proof_summary"
-  printf 'JMCP enabled: true (inbox %s)\n' "${JAILGUN_JMCP_INBOX_DIR_RESOLVED:-$JAILGUN_JMCP_INBOX_DIR}"
-  printf 'proof: %s\n' "$proof_file"
-} | tee "$receipt_file"

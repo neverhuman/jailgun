@@ -5,6 +5,7 @@ pub mod prompt_policy;
 pub mod receipt;
 pub mod repo_policy;
 pub mod run;
+pub mod run_history;
 pub mod source_archive;
 pub mod tarball;
 
@@ -16,5 +17,8 @@ pub use event::{EventKind, JailgunEvent, Severity};
 pub use prompt_policy::{PromptDecision, PromptPolicy, ToolPrompt, ToolPromptAction};
 pub use receipt::{sha256_file, write_json_receipt, ReceiptRecord};
 pub use run::{DeployQueueState, RunSnapshot, TabSnapshot};
+pub use run_history::{
+    read_run_history, summarize_run, write_run_history, RunCodeStats, RunHistoryEntry,
+};
 pub use source_archive::SourceArchiveConfig;
 pub use tarball::{rank_tar_candidates, validate_tar_gz, TarCandidate, TarValidation};

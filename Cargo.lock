@@ -693,6 +693,7 @@ dependencies = [
  "jailgun-core",
  "serde",
  "serde_json",
+ "tempfile",
  "tokio",
  "tower",
  "tower-http",

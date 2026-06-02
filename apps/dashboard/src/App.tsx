@@ -1,5 +1,6 @@
 import { Activity } from 'lucide-react';
 
+import { HistoryPanel } from './components/HistoryPanel';
 import { RunHeader } from './components/RunHeader';
 import { TabRow } from './components/TabRow';
 import type { JailgunEvent, RunSnapshot } from './types';
@@ -29,7 +30,13 @@ export function App() {
         </section>
       ) : (
         <>
-          <RunHeader run={activeRun} connection={connection} dataSource={dataSource} events={events} />
+          <RunHeader
+            run={activeRun}
+            connection={connection}
+            dataSource={dataSource}
+            events={events}
+            receipts={receipts}
+          />
 
           <section className="tabList" aria-label="tabs">
             {activeRun.tabs.length === 0 ? (
@@ -39,6 +46,7 @@ export function App() {
                 <TabRow
                   key={tab.tab_id}
                   tab={tab}
+                  tabCount={activeRun.tabs.length}
                   events={events}
                   receipts={receipts}
                   lastEventAt={lastEventAt[tab.tab_id]}
@@ -46,6 +54,8 @@ export function App() {
               ))
             )}
           </section>
+
+          <HistoryPanel hasActiveRun={!!activeRun} />
 
           {runs.length > 1 ? (
             <section className="otherRuns" aria-label="other runs">

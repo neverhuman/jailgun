@@ -4,6 +4,7 @@ import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 
 import {
+  defaultConfirmUpload,
   PromptSubmitReadinessError,
   submitPromptToChat,
   uploadSourceArchiveThenSubmitPrompt,
@@ -93,6 +94,31 @@ describe('uploadSourceArchiveThenSubmitPrompt', () => {
     } finally {
       await rm(tempRoot, { recursive: true, force: true });
     }
+  });
+});
+
+describe('defaultConfirmUpload', () => {
+  it('accepts the upload-chip confirmation used by the ChatGPT fixture', async () => {
+    const seen: string[] = [];
+    const page: PageLike = {
+      locator: () => ({
+        count: async () => 1,
+        first() {
+          return this;
+        }
+      }),
+      waitForSelector: async (selector: string) => {
+        seen.push(selector);
+        if (selector === '[data-testid*="upload-chip"]') {
+          return {};
+        }
+        throw new Error(`missing selector: ${selector}`);
+      }
+    };
+
+    await defaultConfirmUpload(page, { archiveFilename: 'source.tar.gz' });
+
+    expect(seen).toContain('[data-testid*="upload-chip"]');
   });
 });
 

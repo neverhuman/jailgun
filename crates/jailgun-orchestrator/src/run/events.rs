@@ -18,8 +18,24 @@ pub fn map_bridge_event(
     };
     let event = match event {
         BridgeEvent::BridgeReady(_) => return None,
-        BridgeEvent::TabOpened(payload) => base(EventKind::TabOpened, "tab opened")
-            .with_field("page_url", payload.page_url.clone()),
+        BridgeEvent::TabOpened(payload) => {
+            let mut event = base(EventKind::TabOpened, "tab opened")
+                .with_field("page_url", payload.page_url.clone());
+            if !payload.browser_profile.is_empty() {
+                event = event.with_field("browser_profile", payload.browser_profile.clone());
+            }
+            if !payload.browser_profile_dir.is_empty() {
+                event =
+                    event.with_field("browser_profile_dir", payload.browser_profile_dir.clone());
+            }
+            if let Some(slot) = payload.browser_slot {
+                event = event.with_field("browser_slot", slot.to_string());
+            }
+            if !payload.cdp_url.is_empty() {
+                event = event.with_field("cdp_url", payload.cdp_url.clone());
+            }
+            event
+        }
         BridgeEvent::ArchiveUploaded(payload) => base(EventKind::TabOpened, "archive uploaded")
             .with_field("sha256", payload.sha256.clone())
             .with_field("size_bytes", payload.size_bytes.to_string())
@@ -131,7 +147,8 @@ mod tests {
     use std::collections::BTreeMap;
 
     use crate::bridge::{
-        ArchiveUploadedPayload, BridgeLogPayload, DownloadCompletePayload, RateLimitDetectedPayload,
+        ArchiveUploadedPayload, BridgeLogPayload, DownloadCompletePayload,
+        RateLimitDetectedPayload, TabOpenedPayload,
     };
 
     #[test]
@@ -149,6 +166,27 @@ mod tests {
         assert_eq!(
             mapped.fields.get("archive_filename").map(String::as_str),
             Some("source.tar.gz")
+        );
+    }
+
+    #[test]
+    fn maps_tab_opened_profile_metadata() {
+        let event = BridgeEvent::TabOpened(TabOpenedPayload {
+            page_url: "https://chatgpt.com/".into(),
+            page_id: "tab-01".into(),
+            browser_profile: "writer".into(),
+            browser_profile_dir: "/tmp/google-a".into(),
+            browser_slot: Some(1),
+            cdp_url: "http://127.0.0.1:9224".into(),
+        });
+        let mapped = map_bridge_event("run-1", Some(1), &event).expect("mapped");
+        assert_eq!(
+            mapped.fields.get("browser_profile").map(String::as_str),
+            Some("writer")
+        );
+        assert_eq!(
+            mapped.fields.get("browser_slot").map(String::as_str),
+            Some("1")
         );
     }
 

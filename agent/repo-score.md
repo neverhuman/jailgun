@@ -7,11 +7,11 @@
 - Target stack ID: `rust-ts-vite-react-postgres-bounded-python`
 - Target stack: `Rust core + TypeScript/React/Vite + PostgreSQL + generated contracts + exception-only Python AI/data service`
 - Repo: `.`
-- Run ID: `1780361594`
-- Started at: `1780361594`
-- Elapsed: `22399` ms
+- Run ID: `1780421410`
+- Started at: `1780421410`
+- Elapsed: `26549` ms
 - Scope: `full`
-- Raw score: `85`
+- Raw score: `83`
 - Final score: `70`
 - Decision: `advisory`
 - Minimum score: `85`
@@ -70,9 +70,9 @@
 
 ## Copy-Code Redundancy
 
-- Status: `review` hard=`0` warning=`3` files=`68`
+- Status: `review` hard=`0` warning=`4` files=`71`
 - Policy: min-lines=`10` min-tokens=`100` max-findings=`50` include-tests=`false` strict=`false`
-- Duplicate volume: lines=`3` tokens=`13` bytes=`119`
+- Duplicate volume: lines=`32` tokens=`95` bytes=`1242`
 
 - Notes:
   - hard classes are limited to exact active-source file matches and substantial exact same-name units
@@ -81,19 +81,20 @@
 
 | Kind | Severity | Language | Lines | Tokens | Instances | Reason |
 | --- | --- | --- | ---: | ---: | --- | --- |
-| `ExactUnitDifferentName` | `Warning` | `rust` | 1 | 11 | `crates/jailgun-server/src/lib.rs:594-595, crates/jailgun-server/src/lib.rs:636-637, crates/jailgun-server/src/lib.rs:656-657` | `same body appears under different names across files` |
+| `ExactUnitDifferentName` | `Warning` | `rust` | 29 | 82 | `crates/jailgun-orchestrator/src/run/mod.rs:1180-1209, crates/jailgun-orchestrator/src/run/mod.rs:1223-1252` | `same body appears under different names across files` |
+| `ExactUnitDifferentName` | `Warning` | `rust` | 1 | 11 | `crates/jailgun-server/src/lib.rs:643-644, crates/jailgun-server/src/lib.rs:685-686, crates/jailgun-server/src/lib.rs:705-706` | `same body appears under different names across files` |
 | `ExactUnitDifferentName` | `Warning` | `rust` | 1 | 0 | `crates/jailgun-core/src/agent_error.rs:35-36, crates/jailgun-deploy/src/deploy/model.rs:151-152, crates/jailgun-server/src/bus.rs:27-28` | `same body appears under different names across files` |
-| `ExactUnitDifferentName` | `Warning` | `rust` | 1 | 2 | `crates/jailgun-deploy/src/deploy/events.rs:216-217, crates/jailgun-orchestrator/src/run/mod.rs:882-883` | `same body appears under different names across files` |
+| `ExactUnitDifferentName` | `Warning` | `rust` | 1 | 2 | `crates/jailgun-deploy/src/deploy/events.rs:216-217, crates/jailgun-orchestrator/src/run/mod.rs:929-930` | `same body appears under different names across files` |
 
 ## Dimensions
 
 | Dimension | Weight | Score | Weighted | Evidence |
 | --- | ---: | ---: | ---: | --- |
 | Ownership and navigation surface | 13 | 83 | 10.79 | root `AGENTS.md` present; owner map present |
-| Contract and boundary integrity | 13 | 88 | 11.44 | contract surface found; generated contract artifacts found |
+| Contract and boundary integrity | 13 | 73 | 9.49 | contract surface found; generated contract artifacts found |
 | Proof lanes and test routing | 12 | 100 | 12.00 | one-command setup/validation lane found; deterministic fast lane found |
 | Security and supply-chain posture | 12 | 100 | 12.00 | lockfile present; secret or dependency scan tooling found |
-| Code shape and semantic surface | 12 | 27 | 3.24 | largest authored code file: crates/jailgun-cli/src/main.rs (1190 LOC); code file exceeds 500 LOC |
+| Code shape and semantic surface | 12 | 27 | 3.24 | largest authored code file: crates/jailgun-cli/src/main.rs (1473 LOC); code file exceeds 500 LOC |
 | Data truth and workflow safety | 8 | 100 | 8.00 | database surface present; structured db boundary manifest present |
 | Observability and repair evidence | 8 | 88 | 7.04 | observability libraries or patterns found; ops/observability directory present |
 | Context economy and agent instructions | 7 | 93 | 6.51 | root `AGENTS.md` present; root `AGENTS.md` stays short |
@@ -183,8 +184,8 @@ No audited runtime boundary reclassifications declared.
    Reason: `Code shape and semantic surface` scored 27 below the standard floor of 85
    Fix: split large or ambiguous authored code into smaller semantic modules with focused tests
    Rerun: `just fast`
-   Fingerprint: `sha256:5dbdb57c9a15d1f66ceceb8c95cdeeb62c60f90c392d4028c3ffcb2bc4e16704`
-   Evidence: largest authored code file: crates/jailgun-cli/src/main.rs (1190 LOC), code file exceeds 500 LOC, code file exceeds 1000 LOC, most code files stay under 300 LOC
+   Fingerprint: `sha256:a064df6ddca79b17e6a0446aa3dba3cc349d08fff65fee6df08c35ff708fead6`
+   Evidence: largest authored code file: crates/jailgun-cli/src/main.rs (1473 LOC), code file exceeds 500 LOC, code file exceeds 1000 LOC, most code files stay under 300 LOC
 2. `medium` `proof` `Justfile`
    Rule: `HLT-018-PERF-CONCURRENCY-DRIFT`
    Check: `HLT-018-PERF-CONCURRENCY-DRIFT:proof` `soft` confidence `0.76`
@@ -195,7 +196,17 @@ No audited runtime boundary reclassifications declared.
    Rerun: `just fast`
    Fingerprint: `sha256:a256a7390d4b91a5b0a95d6f092e524c8f4080f27fe2b62e28cf0801343d0fef`
    Evidence: build acceleration markers found, targeted test/build commands found, locked dependency graph present, CI cache hint found
-3. `medium` `context` `agent/owner-map.json`
+3. `medium` `boundary` `agent/boundaries.toml`
+   Rule: `HLT-007-HANDWRITTEN-CONTRACT`
+   Check: `HLT-007-HANDWRITTEN-CONTRACT:boundary` `soft` confidence `0.76`
+   Route: TLR `Contracts/data`, lane `contract`, owner `repo-governance`
+   Docs: `docs/audit-rubric.md#known-vibe-coding-insults`
+   Reason: `Contract and boundary integrity` scored 73 below the standard floor of 85
+   Fix: add generated contracts and boundary checks for public APIs, data access, and cross-runtime seams
+   Rerun: `just fast`
+   Fingerprint: `sha256:6b0c42073e9966a0a9974db6b1d4614736c65798b81b87c159f7e6f4974cebb9`
+   Evidence: contract surface found, generated contract artifacts found, boundary manifest present, Rust typed boundary helpers found
+4. `medium` `context` `agent/owner-map.json`
    Rule: `HLT-003-OWNERLESS-PATH`
    Check: `HLT-003-OWNERLESS-PATH:context` `soft` confidence `0.76`
    Route: TLR `Context/setup`, lane `fast`, owner `repo-governance`
@@ -205,7 +216,7 @@ No audited runtime boundary reclassifications declared.
    Rerun: `just fast`
    Fingerprint: `sha256:f22331131a2d75b4ff814289d01473fb3ab281f4b3c8ac366b63eb97cfe85438`
    Evidence: root `AGENTS.md` present, owner map present, test/proof routing map present, local `AGENTS.md` file(s)
-4. `high` `context` `agent/owner-map.json`
+5. `high` `context` `agent/owner-map.json`
    Rule: `HLT-003-OWNERLESS-PATH`
    Check: `HLT-003-OWNERLESS-PATH:context` `hard` confidence `0.88`
    Route: TLR `Context/setup`, lane `fast`, owner `repo-governance`
@@ -215,7 +226,37 @@ No audited runtime boundary reclassifications declared.
    Rerun: `just fast`
    Fingerprint: `sha256:07d5e436bb09bfec5a2ab483be7f4bba4c73281b200019abbf585c767bd750d7`
    Evidence: .env.live-7tab.example
-5. `high` `proof` `agent/test-map.json`
+6. `high` `context` `agent/owner-map.json`
+   Rule: `HLT-003-OWNERLESS-PATH`
+   Check: `HLT-003-OWNERLESS-PATH:context` `hard` confidence `0.88`
+   Route: TLR `Context/setup`, lane `fast`, owner `repo-governance`
+   Docs: `agent/JANKURAI_STANDARD.md#ownership-boundaries`
+   Reason: path `data/run-history/.gitkeep` has no owner-map route
+   Fix: add the narrowest stable prefix for this path to `agent/owner-map.json`
+   Rerun: `just fast`
+   Fingerprint: `sha256:e9bf5b252a68eaf7fb16aa144c626e3ee6a6c8e3cf1317f2e0119922e96d704a`
+   Evidence: data/run-history/.gitkeep
+7. `high` `context` `agent/owner-map.json`
+   Rule: `HLT-003-OWNERLESS-PATH`
+   Check: `HLT-003-OWNERLESS-PATH:context` `hard` confidence `0.88`
+   Route: TLR `Context/setup`, lane `fast`, owner `repo-governance`
+   Docs: `agent/JANKURAI_STANDARD.md#ownership-boundaries`
+   Reason: path `prompts/templates/README.md` has no owner-map route
+   Fix: add the narrowest stable prefix for this path to `agent/owner-map.json`
+   Rerun: `just fast`
+   Fingerprint: `sha256:34e89b5cbb1755a1b75fec482481fc0530a40dbc26b9a070ba74884227720417`
+   Evidence: prompts/templates/README.md
+8. `high` `context` `agent/owner-map.json`
+   Rule: `HLT-003-OWNERLESS-PATH`
+   Check: `HLT-003-OWNERLESS-PATH:context` `hard` confidence `0.88`
+   Route: TLR `Context/setup`, lane `fast`, owner `repo-governance`
+   Docs: `agent/JANKURAI_STANDARD.md#ownership-boundaries`
+   Reason: path `prompts/templates/harden-repo.txt` has no owner-map route
+   Fix: add the narrowest stable prefix for this path to `agent/owner-map.json`
+   Rerun: `just fast`
+   Fingerprint: `sha256:dfcb986741d0e61f066591aec7e5f1fb4642011a8b64fe562b555e242317e811`
+   Evidence: prompts/templates/harden-repo.txt
+9. `high` `proof` `agent/test-map.json`
    Rule: `HLT-004-UNMAPPED-PROOF`
    Check: `HLT-004-UNMAPPED-PROOF:proof` `hard` confidence `0.88`
    Route: TLR `Verification`, lane `fast`, owner `repo-governance`
@@ -225,7 +266,7 @@ No audited runtime boundary reclassifications declared.
    Rerun: `just fast`
    Fingerprint: `sha256:aa75117206f500a5d1bbbe7216f33393819c8df163bfd8bf810d26bdb70fdb74`
    Evidence: .env.live-7tab.example
-6. `high` `vibe` `apps/dashboard/src/App.tsx:64`
+10. `high` `vibe` `apps/dashboard/src/App.tsx:74`
    Rule: `HLT-001-DEAD-MARKER`
    Check: `HLT-001-DEAD-MARKER:vibe` `hard` confidence `0.88`
    Route: TLR `Entropy`, lane `fast`, owner `dashboard-ui`
@@ -233,9 +274,19 @@ No audited runtime boundary reclassifications declared.
    Reason: fallback soup detected in product code
    Fix: collapse fallback chains into explicit typed states with bounded retry policy, telemetry, and documented repair guidance
    Rerun: `just fast`
-   Fingerprint: `sha256:055a7daac3c239d96f7f6bf50816223a0e02e3aca2ce1aa297c70ff2cabbacc8`
-   Evidence: apps/dashboard/src/App.tsx:64 if (others.length === 0) return null;
-7. `high` `security` `crates/jailgun-cli/src/main.rs:1175`
+   Fingerprint: `sha256:eb35da9594a4e3df3db2ac790198be71b0b014618c32a510e9329ad548f07c5c`
+   Evidence: apps/dashboard/src/App.tsx:74 if (others.length === 0) return null;
+11. `high` `boundary` `contracts/fixtures/jmcp/harden-task.json:1`
+   Rule: `HLT-007-HANDWRITTEN-CONTRACT`
+   Check: `HLT-007-HANDWRITTEN-CONTRACT:boundary` `hard` confidence `0.88`
+   Route: TLR `Contracts/data`, lane `contract`, owner `contracts`
+   Docs: `docs/audit-rubric.md#known-vibe-coding-insults`
+   Reason: contract source `contracts/fixtures/jmcp/harden-task.json` has no generated zone entry
+   Fix: add a `[[zone]]` in `agent/generated-zones.toml` with `source`, `command`, and `path` for this contract, or generate typed clients from it
+   Rerun: `just fast`
+   Fingerprint: `sha256:41bc3b7725393d0f4078acd654aafc8fa5792537c76b6261a934e0a68ee0376c`
+   Evidence: contract source `contracts/fixtures/jmcp/harden-task.json` has no generated zone entry — handwritten drift is likely
+12. `high` `security` `crates/jailgun-cli/src/main.rs:1458`
    Rule: `HLT-022-AUTHZ-ISOLATION-GAP`
    Check: `HLT-022-AUTHZ-ISOLATION-GAP:security` `hard` confidence `0.88`
    Route: TLR `Business truth`, lane `db`, owner `rust-cli`
@@ -257,15 +308,19 @@ No audited runtime boundary reclassifications declared.
 
 1. `high` `HLT-022-AUTHZ-ISOLATION-GAP` `crates/jailgun-cli/src/main.rs` - add owner/non-owner authorization tests or RLS evidence for the touched data boundary
    Route: `Business truth`/`db`
-2. `high` `HLT-004-UNMAPPED-PROOF` `agent/test-map.json` - add the narrowest stable prefix and runnable proof command to `agent/test-map.json`
+2. `high` `HLT-007-HANDWRITTEN-CONTRACT` `contracts/fixtures/jmcp/harden-task.json` - add a `[[zone]]` in `agent/generated-zones.toml` with `source`, `command`, and `path` for this contract, or generate typed clients from it
+   Route: `Contracts/data`/`contract`
+3. `medium` `HLT-007-HANDWRITTEN-CONTRACT` `agent/boundaries.toml` - add generated contracts and boundary checks for public APIs, data access, and cross-runtime seams
+   Route: `Contracts/data`/`contract`
+4. `high` `HLT-004-UNMAPPED-PROOF` `agent/test-map.json` - add the narrowest stable prefix and runnable proof command to `agent/test-map.json`
    Route: `Verification`/`fast`
-3. `medium` `HLT-018-PERF-CONCURRENCY-DRIFT` `Justfile` - add fast deterministic build/test targets, caches, and narrow proof lanes for agent iteration
+5. `medium` `HLT-018-PERF-CONCURRENCY-DRIFT` `Justfile` - add fast deterministic build/test targets, caches, and narrow proof lanes for agent iteration
    Route: `Verification`/`fast`
-4. `high` `HLT-003-OWNERLESS-PATH` `agent/owner-map.json` - add the narrowest stable prefix for this path to `agent/owner-map.json`
+6. `high` `HLT-003-OWNERLESS-PATH` `agent/owner-map.json` - add the narrowest stable prefix for this path to `agent/owner-map.json`
    Route: `Context/setup`/`fast`
-5. `medium` `HLT-003-OWNERLESS-PATH` `agent/owner-map.json` - tighten owner/test maps and root routing until agents can localize ownership without inference
+7. `medium` `HLT-003-OWNERLESS-PATH` `agent/owner-map.json` - tighten owner/test maps and root routing until agents can localize ownership without inference
    Route: `Context/setup`/`fast`
-6. `high` `HLT-001-DEAD-MARKER` `apps/dashboard/src/App.tsx` - collapse fallback chains into explicit typed states with bounded retry policy, telemetry, and documented repair guidance
+8. `high` `HLT-001-DEAD-MARKER` `apps/dashboard/src/App.tsx` - collapse fallback chains into explicit typed states with bounded retry policy, telemetry, and documented repair guidance
    Route: `Entropy`/`fast`
-7. `medium` `HLT-001-DEAD-MARKER` `.` - split large or ambiguous authored code into smaller semantic modules with focused tests
+9. `medium` `HLT-001-DEAD-MARKER` `.` - split large or ambiguous authored code into smaller semantic modules with focused tests
    Route: `Entropy`/`fast`

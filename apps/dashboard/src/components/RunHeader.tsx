@@ -2,21 +2,23 @@ import { Activity, AlertTriangle, CheckCircle2, Download, GitBranch, Hand, Lock,
 import { useEffect, useMemo, useState } from 'react';
 
 import type { JailgunEvent, RunSnapshot } from '../types';
-import { isTabClosed, isTabFailed, isTabPassed, summarizeOutcome } from './stages';
+import { isTabClosed, isTabFailed, isTabPassed, summarizeOutcome, summarizeRunQuality } from './stages';
 
 interface RunHeaderProps {
   run: RunSnapshot;
   connection: string;
   dataSource: string;
   events?: JailgunEvent[];
+  receipts?: unknown[];
 }
 
-export function RunHeader({ run, connection, dataSource, events = [] }: RunHeaderProps) {
+export function RunHeader({ run, connection, dataSource, events = [], receipts = [] }: RunHeaderProps) {
   const tabs = run.tabs;
   const loopsRemaining = useMemo(
     () => calculateLoopsRemaining(run.loop_count, run.batch_tabs, tabs.length),
     [run.batch_tabs, run.loop_count, tabs.length]
   );
+  const quality = useMemo(() => summarizeRunQuality(run, events, receipts), [events, receipts, run]);
   const downloaded = tabs.filter((tab) => tab.archive_sha256).length;
   const passed = tabs.filter(isTabPassed).length;
   const failed = tabs.filter(isTabFailed).length;
@@ -58,6 +60,13 @@ export function RunHeader({ run, connection, dataSource, events = [] }: RunHeade
         <RunMetric icon={<GitBranch size={18} />} label="Deploy queue" value={run.deploy_queue} />
         <RunMetric icon={<AlertTriangle size={18} />} label="In flight" value={inFlight} tone={inFlight > 0 ? 'warn' : 'neutral'} />
         <RunMetric
+          icon={qualityIcon(quality.verdict)}
+          label="Quality"
+          value={quality.verdict}
+          detail={quality.detail}
+          tone={qualityTone(quality.verdict)}
+        />
+        <RunMetric
           icon={<Hand size={18} />}
           label="Early stops"
           value={`${run.early_stops_succeeded}/${run.early_stops_attempted}`}
@@ -90,11 +99,13 @@ function RunMetric({
   icon,
   label,
   value,
+  detail,
   tone = 'neutral'
 }: {
   icon: React.ReactNode;
   label: string;
   value: string | number;
+  detail?: string;
   tone?: 'neutral' | 'ok' | 'warn' | 'danger';
 }) {
   return (
@@ -102,6 +113,7 @@ function RunMetric({
       {icon}
       <span className="runMetricLabel">{label}</span>
       <strong className="runMetricValue">{value}</strong>
+      {detail ? <span className="runMetricDetail">{detail}</span> : null}
     </div>
   );
 }
@@ -134,4 +146,20 @@ function formatElapsed(ms: number): string {
     return `${hours}h ${remainingMinutes}m ${seconds}s`;
   }
   return `${minutes}m ${seconds.toString().padStart(2, '0')}s`;
+}
+
+function qualityTone(
+  verdict: 'excellent' | 'healthy' | 'watching' | 'review' | 'failed' | 'pending'
+): 'neutral' | 'ok' | 'warn' | 'danger' {
+  if (verdict === 'excellent' || verdict === 'healthy') return 'ok';
+  if (verdict === 'watching' || verdict === 'review') return 'warn';
+  if (verdict === 'failed') return 'danger';
+  return 'neutral';
+}
+
+function qualityIcon(verdict: 'excellent' | 'healthy' | 'watching' | 'review' | 'failed' | 'pending') {
+  if (verdict === 'failed') return <XCircle size={18} />;
+  if (verdict === 'watching' || verdict === 'review') return <AlertTriangle size={18} />;
+  if (verdict === 'excellent' || verdict === 'healthy') return <CheckCircle2 size={18} />;
+  return <Activity size={18} />;
 }

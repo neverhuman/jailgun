@@ -73,6 +73,7 @@ lease per session and replaces the sentinel.
 ### Payload variants
 
 ```text
+kind = jailgun.batch-request    payload = BatchRequestPayload
 kind = jailgun.notify-commit    payload = NotifyCommitPayload
 kind = jailgun.notify-event     payload = NotifyEventPayload  (the main one)
 kind = jailgun.notify-text      payload = NotifyTextPayload   (ad-hoc CLI text)
@@ -85,6 +86,23 @@ Every variant carries:
   or message prefix.
 - `body_markdown` — the ready-to-send message body (the same text the
   old direct-Telegram path produced).
+
+`BatchRequestPayload` additionally carries:
+
+- `count` - number of child jailgun runs JMCP should fan out after the
+  approval gate clears.
+- `config_path` - config file path used to build each child
+  `jailgun run` invocation.
+- `prompt_file` - prompt file used by each child run.
+- `child_command` - the child command template JMCP can execute after
+  approval. When the operator passes repeated `--profile-pool DIR`
+  flags to `jailgun runs`, those flags are preserved in this command so
+  every child run uses the same managed Google profile pool.
+- `execution_mode` - the default dispatch mode. Jailgun sets this to
+  `serial` so the bridge can fan out child runs one at a time unless a
+  future operator policy says otherwise.
+- `approval_required` - explicit approval gate flag. JMCP should not
+  dispatch children until the operator approves the batch.
 
 `NotifyEventPayload` additionally carries `metrics`, a string map the
 bridge can render as inline buttons / chips (e.g. `early_stops=3/7`).
@@ -100,6 +118,7 @@ with between write and read.
 | Producer | Trigger | Subcommand / Code path |
 |---|---|---|
 | Post-commit hook | git commit lands locally | `ops/git-hooks/post-commit` → `jailgun notify-commit` |
+| Batch launch request | operator requests N child runs | `jailgun runs --count N --config ... --prompt-file ...` |
 | Live run subscriber | `EventKind` in `{PromptSubmitted, DownloadReceipt, DeployFinished}` | `jailgun run --notify-jmcp` / `jailgun serve --live --notify-jmcp` |
 | Ad-hoc CLI | manual one-shot | `jailgun jmcp-send --message "..."` |
 
@@ -114,6 +133,71 @@ the subscriber drops gracefully and never blocks the run.
 - No `--notify-telegram` / `--telegram-token-file` /
   `--telegram-chat-id-cache` flags.
 - No `telegram/` directory in this repo.
+
+## Hardening Tasks
+
+JMCP can request automated codebase hardening runs by delivering a
+`jailgun.harden-task` envelope. The flow:
+
+1. **JMCP writes a task envelope** into the jailgun inbox
+   (`$JAILGUN_JMCP_INBOX_DIR/jpcm_*.json`). The envelope's `payload`
+   contains the repo name, path, CI command, focus area, and the name
+   of the prompt template to fill.
+2. **Jailgun reads the envelope**, loads the named template from
+   `prompts/templates/`, and substitutes the payload fields into the
+   template's `{{PLACEHOLDER}}` markers.
+3. **Jailgun delivers the filled prompt to jekko** (or runs it
+   directly in batch mode). Jekko acts as the execution agent.
+4. **The agent executes the hardening**: pulls latest, verifies a
+   green CI baseline, makes atomic commits, runs CI after each change,
+   and pushes only if everything passes.
+
+### Envelope payload schema
+
+The `payload` for a `jailgun.harden-task` envelope:
+
+| Field | Type | Description |
+|---|---|---|
+| `kind` | string | Always `"jailgun.harden-task"` |
+| `repo_name` | string | Repository name (e.g. `"jailgun"`) |
+| `repo_path` | string | Local path (e.g. `"~/code/jailgun"`) |
+| `ci_command` | string | CI validation command to run |
+| `focus_area` | string | Hardening focus (e.g. `"error handling"`) |
+| `template` | string | Template name in `prompts/templates/` (without `.txt`) |
+
+See `contracts/fixtures/jmcp/harden-task.json` for a complete example
+envelope.
+
+### How jekko fits
+
+Jekko is the intermediary between jailgun and the agent runtime:
+
+- Jailgun is the **task manager** — it receives envelopes, fills
+  templates, and tracks runs.
+- Jekko is the **execution agent** — it receives the filled prompt
+  and performs the actual git operations, code changes, and CI runs.
+- JMCP is the **orchestrator** — it decides when to send harden-task
+  envelopes (manually, on a schedule, or in response to events).
+
+For details on the prompt template format and how to create new
+templates, see `prompts/templates/README.md`.
+
+## Batch Requests
+
+Batch requests reuse the same outbox and integrity rules as other
+JMCP envelopes, but the payload is interpreted as an approval-gated
+fan-out request instead of a notification.
+
+1. The operator runs `jailgun runs --count N ...`.
+2. Jailgun writes a `jailgun.batch-request` envelope with the child
+   command template, config path, prompt path, and
+   `approval_required: true`.
+3. JMCP creates an approval challenge and holds the batch until the
+   operator approves it.
+4. After approval, JMCP fans out `N` child work orders by executing the
+   stored child command template with distinct child identifiers.
+5. Each child run writes its own run evidence and receipts. The cockpit
+   uses the event stream plus receipt count to derive batch quality.
 
 ## Bridge expectations (out of scope here)
 
