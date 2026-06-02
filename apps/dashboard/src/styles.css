@@ -58,6 +58,20 @@ h3 {
   margin-top: 4px;
 }
 
+.runHeaderLinks {
+  margin-top: 6px;
+}
+
+.runHeaderLinks a {
+  color: #254f38;
+  text-decoration: none;
+  font-weight: 600;
+}
+
+.runHeaderLinks a:hover {
+  text-decoration: underline;
+}
+
 .policyCounters,
 .metricGrid,
 .layout,

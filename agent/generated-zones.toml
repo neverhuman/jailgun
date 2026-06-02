@@ -47,19 +47,3 @@ generator = "jankurai"
 command = "bash ops/ci/jankurai.sh"
 read_only = true
 write_policy = "generator-only"
-
-[[zone]]
-path = "agent/jankurai-badge.svg"
-source = "agent/repo-score.json"
-generator = "jankurai badge"
-command = "bash ops/ci/jankurai.sh"
-read_only = true
-write_policy = "generator-only"
-
-[[zone]]
-path = "agent/jankurai-badge.json"
-source = "agent/repo-score.json"
-generator = "jankurai badge"
-command = "bash ops/ci/jankurai.sh"
-read_only = true
-write_policy = "generator-only"

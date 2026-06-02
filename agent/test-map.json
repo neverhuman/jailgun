@@ -41,6 +41,11 @@
       "purpose": "verify Jankurai ownership, generated-zone, badge, and proof metadata",
       "lane": "audit"
     },
+    ".jankurai/": {
+      "command": "bash ops/ci/jankurai.sh",
+      "purpose": "verify Jankurai score history remains routed through audit governance",
+      "lane": "audit"
+    },
     "assets/": {
       "command": "bash ops/ci/jankurai.sh",
       "purpose": "verify repository assets remain routed through audit metadata",

@@ -1899,7 +1899,69 @@ async function runSelfTest() {
     ts: timestamp(),
     payload: {},
   });
+  await verifyReachableCdpEndpointIsReused();
   process.stdout.write('chrome-bridge self-test passed\n');
+}
+
+async function verifyReachableCdpEndpointIsReused() {
+  let versionRequests = 0;
+  const server = http.createServer((request, response) => {
+    if (request.url === '/json/version') {
+      versionRequests += 1;
+      response.writeHead(200, { 'content-type': 'application/json' });
+      response.end(JSON.stringify({
+        Browser: 'Chrome/999.0.0.0',
+        'Protocol-Version': '1.3',
+      }));
+      return;
+    }
+    response.writeHead(404, { 'content-type': 'text/plain' });
+    response.end('not found');
+  });
+
+  await new Promise((resolvePromise, rejectPromise) => {
+    server.once('error', rejectPromise);
+    server.listen(0, '127.0.0.1', resolvePromise);
+  });
+
+  const tempRoot = await mkdtemp(join(tmpdir(), 'chrome-bridge-self-test-'));
+  try {
+    const address = server.address();
+    if (!address || typeof address === 'string') {
+      throw new Error('mock CDP server did not expose a port');
+    }
+    const cdpUrl = `http://127.0.0.1:${address.port}`;
+    const result = await ensureManagedChromeRunning({
+      cdpUrl,
+      cdpUrlExplicit: true,
+      profileDir: join(tempRoot, 'profile'),
+      stateDir: join(tempRoot, 'state'),
+      chromeExecutable: '/definitely/not-used',
+      browserTimeoutMs: 2000,
+      downloadsDir: join(tempRoot, 'downloads'),
+      artifactsDir: join(tempRoot, 'artifacts'),
+      sourceMode: DEFAULT_SOURCE_ARCHIVE_MODE,
+      tarTargetName: '',
+      submitDelaySeconds: 0,
+      submitJitterSeconds: 0,
+      tarWaitMinutes: 1,
+    });
+
+    if (result.started !== false) {
+      throw new Error('reachable CDP endpoint should be reused instead of starting Chrome');
+    }
+    if (result.cdpUrl !== cdpUrl) {
+      throw new Error(`unexpected CDP URL from reused endpoint: ${result.cdpUrl}`);
+    }
+    if (versionRequests === 0) {
+      throw new Error('reachable CDP endpoint was not queried');
+    }
+  } finally {
+    await rm(tempRoot, { recursive: true, force: true });
+    await new Promise((resolvePromise) => {
+      server.close(() => resolvePromise());
+    });
+  }
 }
 
 const SEND_BUTTON_SELECTORS = [

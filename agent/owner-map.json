@@ -9,6 +9,7 @@
     ".gitignore": "ci-release",
     "rust-toolchain.toml": "ci-release",
     "agent/": "repo-governance",
+    ".jankurai/": "repo-governance",
     "assets/": "repo-governance",
     "docs/": "repo-governance",
     "contracts/": "contracts",

@@ -42,9 +42,10 @@ case "$lane" in
     run_lane release
     ;;
   fast)
-    run_lane rust
-    run_lane node
-    run_lane scan
+    ci_log "running fast lane"
+    cargo test -p jailgun-core -p jailgun-notify -p jailgun-orchestrator -p jailgun-cli -p jailgun-server --jobs 5
+    cargo test -p jailgun-deploy --lib --jobs 5
+    npm --workspace @jailgun/dashboard test
     ;;
   *)
     run_lane "$lane"

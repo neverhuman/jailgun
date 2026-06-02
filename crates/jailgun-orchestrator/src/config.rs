@@ -26,6 +26,7 @@ pub struct RunOptions {
     pub ci_max_attempts: u32,
     pub ci_poll_seconds: u16,
     pub status_max_minutes: u16,
+    pub max_runtime_seconds: Option<u64>,
     pub event_buffer: usize,
     pub deploy_concurrency: u16,
 }

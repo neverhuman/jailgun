@@ -20,6 +20,7 @@ jailgun-notify = { path = "../jailgun-notify" }
 jailgun-orchestrator = { path = "../jailgun-orchestrator" }
 jailgun-server = { path = "../jailgun-server" }
 serde_json.workspace = true
+time.workspace = true
 tokio.workspace = true
 tracing-subscriber.workspace = true
 uuid.workspace = true
