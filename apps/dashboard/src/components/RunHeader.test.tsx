@@ -29,7 +29,11 @@ function buildRun(
       download_latency_ms: 1200,
       deploy_status: 'validated',
       prompt_policy_decision: null,
-      early_stop_outcome: null
+      early_stop_outcome: null,
+      browser_profile: null,
+      browser_profile_dir: null,
+      browser_slot: null,
+      cdp_url: null
     })),
     ...overrides
   };
@@ -99,4 +103,31 @@ it('renders the early stops metric with ok tone when fully succeeded', () => {
   const okPills = screen.getByLabelText('run progress metrics').querySelectorAll('.runMetric.ok');
   const labels = Array.from(okPills).map((node) => node.textContent ?? '');
   expect(labels.some((text) => text.includes('Early stops'))).toBe(true);
+});
+
+it('renders a quality verdict with evidence detail', () => {
+  render(
+    <RunHeader
+      run={buildRun(7)}
+      connection="open"
+      dataSource="api"
+      events={[
+        {
+          run_id: 'loop-run',
+          tab_id: 1,
+          timestamp: '2026-01-01T00:00:01Z',
+          kind: 'download-receipt',
+          severity: 'info',
+          message: 'receipt confirmed',
+          fields: { sha256: 'abc123' }
+        }
+      ]}
+      receipts={[{ tab_id: 1, sha256: 'abc123' }]}
+    />
+  );
+
+  const metrics = screen.getByLabelText('run progress metrics');
+  expect(metrics).toHaveTextContent('Quality');
+  expect(metrics).toHaveTextContent('excellent');
+  expect(metrics).toHaveTextContent('evidence');
 });

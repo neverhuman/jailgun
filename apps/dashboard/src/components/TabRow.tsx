@@ -8,13 +8,14 @@ import { isTabClosed, isTabFailed, isTabPassed, summarizeOutcome, type OutcomeSu
 
 interface TabRowProps {
   tab: TabSnapshot;
+  tabCount: number;
   events: JailgunEvent[];
   receipts: unknown[];
   lastEventAt: number | undefined;
   initialExpanded?: boolean;
 }
 
-export function TabRow({ tab, events, receipts, lastEventAt, initialExpanded = false }: TabRowProps) {
+export function TabRow({ tab, tabCount, events, receipts, lastEventAt, initialExpanded = false }: TabRowProps) {
   const [expanded, setExpanded] = useState(initialExpanded);
   const closed = isTabClosed(tab);
   const failed = isTabFailed(tab);
@@ -28,11 +29,16 @@ export function TabRow({ tab, events, receipts, lastEventAt, initialExpanded = f
         : summary.outcome || 'passed'
       : tab.deploy_status || tab.status || 'pending';
   const latency = tab.download_latency_ms ? `${tab.download_latency_ms} ms` : null;
+  const profileLabel = tab.browser_profile
+    ? `${tab.browser_profile}${tab.browser_slot ? ` #${tab.browser_slot}` : ''}`
+    : tab.browser_slot
+      ? `profile #${tab.browser_slot}`
+      : null;
 
   return (
     <article
       className={`tabRow ${failed ? 'failed' : passed ? 'passed' : ''}`}
-      aria-label={`tab ${tab.tab_id} row`}
+      aria-label={`tab ${tab.tab_id} of ${tabCount} row`}
     >
       <div className="tabRowMain">
         <button
@@ -46,12 +52,15 @@ export function TabRow({ tab, events, receipts, lastEventAt, initialExpanded = f
           {expanded ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
         </button>
         <div className="tabRowIdent">
-          <span className="tabRowNumber">Tab {tab.tab_id}</span>
+          <span className="tabRowNumber">
+            Tab {tab.tab_id} of {tabCount}
+          </span>
           {closed ? (
             <span className="closedPill" aria-label="tab closed">
               <Lock size={11} /> Closed
             </span>
           ) : null}
+          {profileLabel ? <span className="tabRowProfile" aria-label="browser profile">{profileLabel}</span> : null}
           {latency ? <span className="tabRowLatency">{latency}</span> : null}
         </div>
         <TabProgressBar tab={tab} events={events} lastEventAt={lastEventAt} />

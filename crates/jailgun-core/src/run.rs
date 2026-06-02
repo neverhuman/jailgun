@@ -21,6 +21,14 @@ pub struct TabSnapshot {
     pub prompt_policy_decision: Option<String>,
     #[serde(default)]
     pub early_stop_outcome: Option<String>,
+    #[serde(default)]
+    pub browser_profile: Option<String>,
+    #[serde(default)]
+    pub browser_profile_dir: Option<String>,
+    #[serde(default)]
+    pub browser_slot: Option<u16>,
+    #[serde(default)]
+    pub cdp_url: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
@@ -67,6 +75,10 @@ impl RunSnapshot {
                     deploy_status: "validated".into(),
                     prompt_policy_decision: Some("deny".into()),
                     early_stop_outcome: None,
+                    browser_profile: Some("writer".into()),
+                    browser_profile_dir: None,
+                    browser_slot: Some(1),
+                    cdp_url: None,
                 },
                 TabSnapshot {
                     tab_id: 2,
@@ -77,6 +89,10 @@ impl RunSnapshot {
                     deploy_status: "remote-job-launched".into(),
                     prompt_policy_decision: Some("allow-info".into()),
                     early_stop_outcome: None,
+                    browser_profile: Some("reviewer".into()),
+                    browser_profile_dir: None,
+                    browser_slot: Some(2),
+                    cdp_url: None,
                 },
             ],
         }

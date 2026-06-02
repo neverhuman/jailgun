@@ -204,7 +204,11 @@ function defaultTabSnapshot(tabId: number): RunSnapshot['tabs'][number] {
     download_latency_ms: null,
     deploy_status: 'pending',
     prompt_policy_decision: null,
-    early_stop_outcome: null
+    early_stop_outcome: null,
+    browser_profile: null,
+    browser_profile_dir: null,
+    browser_slot: null,
+    cdp_url: null
   };
 }
 
@@ -250,7 +254,11 @@ function applyEventToTab(tab: RunSnapshot['tabs'][number], event: JailgunEvent):
     download_latency_ms: parseOptionalNumber(event.fields.download_latency_ms) ?? tab.download_latency_ms,
     deploy_status: deployStatusForEvent(event, tab.deploy_status),
     prompt_policy_decision: event.fields.decision ?? tab.prompt_policy_decision,
-    early_stop_outcome: nextEarlyStopOutcome(tab.early_stop_outcome, event)
+    early_stop_outcome: nextEarlyStopOutcome(tab.early_stop_outcome, event),
+    browser_profile: event.fields.browser_profile ?? tab.browser_profile,
+    browser_profile_dir: event.fields.browser_profile_dir ?? tab.browser_profile_dir,
+    browser_slot: parseOptionalNumber(event.fields.browser_slot) ?? tab.browser_slot,
+    cdp_url: event.fields.cdp_url ?? tab.cdp_url
   };
 }
 

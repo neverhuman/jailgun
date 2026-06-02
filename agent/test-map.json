@@ -86,6 +86,16 @@
       "purpose": "verify committed prompt examples contain no private task bodies or local paths",
       "lane": "security"
     },
+    "prompts/templates/": {
+      "command": "bash ops/ci/scan.sh",
+      "purpose": "verify prompt templates contain no private task bodies, secrets, or local paths",
+      "lane": "security"
+    },
+    "data/": {
+      "command": "bash ops/ci/scan.sh && bash ops/ci/jankurai.sh",
+      "purpose": "verify data directory scaffolding and gitignore patterns remain correct",
+      "lane": "security"
+    },
     "crates/": {
       "command": "bash ops/ci/rust.sh && bash ops/ci/security.sh",
       "purpose": "verify Rust workspace formatting, linting, tests, and security scans",

@@ -1,4 +1,4 @@
-import type { JailgunEvent, ReceiptResponse, RunSnapshot } from './types';
+import type { JailgunEvent, ReceiptResponse, RunHistoryEntry, RunSnapshot } from './types';
 
 export const fixtureRuns: RunSnapshot[] = [
   {
@@ -23,7 +23,11 @@ export const fixtureRuns: RunSnapshot[] = [
         download_latency_ms: 1200,
         deploy_status: 'validated',
         prompt_policy_decision: 'deny',
-        early_stop_outcome: null
+        early_stop_outcome: null,
+        browser_profile: 'writer',
+        browser_profile_dir: null,
+        browser_slot: 1,
+        cdp_url: null
       },
       {
         tab_id: 2,
@@ -33,7 +37,11 @@ export const fixtureRuns: RunSnapshot[] = [
         download_latency_ms: 1700,
         deploy_status: 'remote-job-launched',
         prompt_policy_decision: 'allow-info',
-        early_stop_outcome: null
+        early_stop_outcome: null,
+        browser_profile: 'reviewer',
+        browser_profile_dir: null,
+        browser_slot: 2,
+        cdp_url: null
       },
       {
         tab_id: 3,
@@ -43,7 +51,11 @@ export const fixtureRuns: RunSnapshot[] = [
         download_latency_ms: null,
         deploy_status: 'waiting-for-tar',
         prompt_policy_decision: null,
-        early_stop_outcome: null
+        early_stop_outcome: null,
+        browser_profile: 'writer',
+        browser_profile_dir: null,
+        browser_slot: 1,
+        cdp_url: null
       }
     ]
   }
@@ -96,3 +108,82 @@ export const fixtureReceipts: ReceiptResponse = {
     }
   ]
 };
+
+export const fixtureHistory: RunHistoryEntry[] = [
+  {
+    run_id: 'hist-001',
+    started_at: '2026-05-28T10:00:00Z',
+    finished_at: '2026-05-28T10:45:00Z',
+    status: 'finished',
+    batch_tabs: 5,
+    loop_count: 0,
+    planned_tabs: 5,
+    total_tabs: 5,
+    tabs_passed: 4,
+    tabs_failed: 1,
+    tabs_pushed: 3,
+    deploy_queue_final: 'done',
+    denied_github_prompts: 1,
+    allowed_info_prompts: 2,
+    early_stops_succeeded: 1,
+    early_stops_attempted: 1,
+    code_stats: { total_files_changed: 12, total_additions: 340, total_deletions: 90, total_test_count: 8 }
+  },
+  {
+    run_id: 'hist-002',
+    started_at: '2026-05-29T14:00:00Z',
+    finished_at: '2026-05-29T14:30:00Z',
+    status: 'finished',
+    batch_tabs: 3,
+    loop_count: 1,
+    planned_tabs: 6,
+    total_tabs: 6,
+    tabs_passed: 6,
+    tabs_failed: 0,
+    tabs_pushed: 5,
+    deploy_queue_final: 'done',
+    denied_github_prompts: 0,
+    allowed_info_prompts: 3,
+    early_stops_succeeded: 2,
+    early_stops_attempted: 2,
+    code_stats: { total_files_changed: 8, total_additions: 210, total_deletions: 45, total_test_count: 14 }
+  },
+  {
+    run_id: 'hist-003',
+    started_at: '2026-05-30T09:00:00Z',
+    finished_at: '2026-05-30T09:50:00Z',
+    status: 'finished',
+    batch_tabs: 4,
+    loop_count: 0,
+    planned_tabs: 4,
+    total_tabs: 4,
+    tabs_passed: 2,
+    tabs_failed: 2,
+    tabs_pushed: 1,
+    deploy_queue_final: 'done',
+    denied_github_prompts: 3,
+    allowed_info_prompts: 0,
+    early_stops_succeeded: 0,
+    early_stops_attempted: 1,
+    code_stats: { total_files_changed: 5, total_additions: 120, total_deletions: 60, total_test_count: 4 }
+  },
+  {
+    run_id: 'hist-004',
+    started_at: '2026-05-30T16:00:00Z',
+    finished_at: '2026-05-30T16:20:00Z',
+    status: 'finished',
+    batch_tabs: 2,
+    loop_count: 0,
+    planned_tabs: 2,
+    total_tabs: 2,
+    tabs_passed: 2,
+    tabs_failed: 0,
+    tabs_pushed: 2,
+    deploy_queue_final: 'done',
+    denied_github_prompts: 0,
+    allowed_info_prompts: 1,
+    early_stops_succeeded: 1,
+    early_stops_attempted: 1,
+    code_stats: null
+  }
+];

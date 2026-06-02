@@ -12,13 +12,42 @@ pub struct BridgeReadyPayload {
     pub playwright_version: String,
     pub browser: String,
     pub browser_version: String,
+    #[serde(default)]
+    pub cdp_url: Option<String>,
+    #[serde(default)]
+    pub managed_chrome_started: Option<bool>,
+    #[serde(default)]
+    pub profile_count: Option<u16>,
+    #[serde(default)]
+    pub profiles: Vec<BridgeProfilePayload>,
     pub capabilities: Vec<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct BridgeProfilePayload {
+    pub slot: u16,
+    #[serde(default)]
+    pub profile_name: String,
+    #[serde(default)]
+    pub profile_dir: String,
+    #[serde(default)]
+    pub state_dir: String,
+    #[serde(default)]
+    pub cdp_url: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct TabOpenedPayload {
     pub page_url: String,
     pub page_id: String,
+    #[serde(default)]
+    pub browser_profile: String,
+    #[serde(default)]
+    pub browser_profile_dir: String,
+    #[serde(default)]
+    pub browser_slot: Option<u16>,
+    #[serde(default)]
+    pub cdp_url: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]

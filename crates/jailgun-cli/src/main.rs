@@ -18,8 +18,9 @@ use jailgun_deploy::{
     CleanupRequest, DeployError, DeployOutcome, DeployReceipt, DeployRequest, JsonReceiptWriter,
 };
 use jailgun_notify::{
-    build_commit_message, collect_commit_summary, read_chat_id_cache, send_telegram_message,
-    write_chat_id_cache, CommitSummary, TelegramConfig,
+    build_commit_message, collect_commit_summary, commit_notice_to_payload, run_jmcp_subscriber,
+    BatchRequestPayload, CommitNotice, CommitSummary, JmcpEnvelope, JmcpInbox, NotifyTextPayload,
+    Payload, Routing, TaskRef,
 };
 use jailgun_server::{api_router, router_with_static, AppState};
 use tokio::sync::broadcast;
@@ -109,6 +110,14 @@ enum Command {
         #[arg(long)]
         source_ref: Option<String>,
         #[arg(long)]
+        submit_delay_seconds: Option<u16>,
+        #[arg(long)]
+        submit_jitter_seconds: Option<u16>,
+        #[arg(long)]
+        submit_jitter_percent: Option<u16>,
+        #[arg(long)]
+        fresh_source_clone: bool,
+        #[arg(long)]
         deploy: bool,
         #[arg(long)]
         no_deploy: bool,
@@ -126,6 +135,8 @@ enum Command {
         tar_target_name: Option<String>,
         #[arg(long)]
         profile_dir: Option<PathBuf>,
+        #[arg(long = "profile-pool", value_name = "DIR")]
+        profile_pool: Vec<PathBuf>,
         #[arg(long)]
         downloads_dir: Option<PathBuf>,
         #[arg(long)]
@@ -150,12 +161,13 @@ enum Command {
         ci_max_attempts: u32,
         #[arg(long, default_value_t = 30)]
         ci_poll_seconds: u16,
+        /// Enable the JMCP notification subscriber. Writes envelopes to
+        /// `--jmcp-inbox-dir`. The bridge there picks them up and ships them
+        /// to the user; jailgun never touches the Telegram bot directly.
         #[arg(long)]
-        notify_telegram: bool,
-        #[arg(long, default_value = "telegram/token.env")]
-        telegram_token_file: PathBuf,
-        #[arg(long, default_value = "telegram/chat_id.cache")]
-        telegram_chat_id_cache: PathBuf,
+        notify_jmcp: bool,
+        #[arg(long, default_value = "~/code/jmcp/inbox")]
+        jmcp_inbox_dir: PathBuf,
         /// Start the live dashboard/API server for this run and stream run
         /// events to its WebSocket replay buffer.
         #[arg(long)]
@@ -168,24 +180,41 @@ enum Command {
         /// external monitors can capture final proof.
         #[arg(long, default_value_t = 0)]
         dashboard_hold_seconds: u64,
-    },
-    TelegramSend {
-        #[arg(long, default_value = "telegram/token.env")]
-        token_file: PathBuf,
-        #[arg(long, default_value = "telegram/chat_id.cache")]
-        chat_id_cache: PathBuf,
+        /// Keep the live dashboard/API server attached until Ctrl-C after a
+        /// successful run so operators can inspect the final state.
         #[arg(long)]
-        chat_id: Option<String>,
+        dashboard_keep_alive: bool,
+    },
+    /// Write a one-off JMCP envelope (plain text body) to the outbox.
+    JmcpSend {
+        #[arg(long, default_value = "~/code/jmcp/inbox")]
+        jmcp_inbox_dir: PathBuf,
         #[arg(long)]
         message: String,
+        #[arg(long, default_value = "Jailgun notice")]
+        title: String,
+        #[arg(long, default_value = "📨")]
+        summary_emoji: String,
     },
-    NotifyCommit {
-        #[arg(long, default_value = "telegram/token.env")]
-        token_file: PathBuf,
-        #[arg(long, default_value = "telegram/chat_id.cache")]
-        chat_id_cache: PathBuf,
+    Runs {
+        #[arg(long, default_value = "config/jailgun.example.toml")]
+        config: PathBuf,
         #[arg(long)]
-        chat_id: Option<String>,
+        prompt_file: PathBuf,
+        #[arg(long)]
+        count: u16,
+        #[arg(long = "profile-pool", value_name = "DIR")]
+        profile_pool: Vec<PathBuf>,
+        #[arg(long)]
+        run_id: Option<String>,
+        #[arg(long, default_value = "~/code/jmcp/inbox")]
+        jmcp_inbox_dir: PathBuf,
+    },
+    /// Write a commit-notice JMCP envelope to the outbox. Invoked by the
+    /// post-commit hook so a successful commit is reported via JMCP.
+    NotifyCommit {
+        #[arg(long, default_value = "~/code/jmcp/inbox")]
+        jmcp_inbox_dir: PathBuf,
         #[arg(long, default_value = ".")]
         repo: PathBuf,
         #[arg(long, default_value = "HEAD")]
@@ -206,15 +235,13 @@ enum Command {
         /// Required for POST /api/events. When unset, the endpoint returns 503.
         #[arg(long, env = "JAILGUN_INGEST_TOKEN")]
         ingest_token: Option<String>,
-        /// Spawn a Telegram subscriber on the live broadcast that pings the
-        /// configured bot for three milestones: job started on a tab, tar
+        /// Spawn a JMCP subscriber on the live broadcast that writes
+        /// envelopes for three milestones: job started on a tab, tar
         /// acquired, and deploy success with CI passed (or any failure).
         #[arg(long)]
-        notify_telegram: bool,
-        #[arg(long, default_value = "telegram/token.env")]
-        telegram_token_file: PathBuf,
-        #[arg(long, default_value = "telegram/chat_id.cache")]
-        telegram_chat_id_cache: PathBuf,
+        notify_jmcp: bool,
+        #[arg(long, default_value = "~/code/jmcp/inbox")]
+        jmcp_inbox_dir: PathBuf,
     },
     Fixture {
         #[arg(value_enum)]
@@ -442,6 +469,10 @@ async fn main() -> Result<()> {
             loops,
             source_repo_url,
             source_ref,
+            submit_delay_seconds,
+            submit_jitter_seconds,
+            submit_jitter_percent,
+            fresh_source_clone,
             deploy,
             no_deploy,
             dry_run,
@@ -451,6 +482,7 @@ async fn main() -> Result<()> {
             expected_top_level,
             tar_target_name,
             profile_dir,
+            profile_pool,
             downloads_dir,
             artifacts_dir,
             bridge_cmd,
@@ -463,21 +495,31 @@ async fn main() -> Result<()> {
             ci_branch,
             ci_max_attempts,
             ci_poll_seconds,
-            notify_telegram,
-            telegram_token_file,
-            telegram_chat_id_cache,
+            notify_jmcp,
+            jmcp_inbox_dir,
             serve,
             addr,
             dashboard_dist,
             dashboard_hold_seconds,
+            dashboard_keep_alive,
         } => {
             let mut config = JailgunConfig::from_toml_path(&config)
                 .with_context(|| format!("loading {}", config.display()))?;
-            if notify_telegram {
-                validate_telegram_notify(&telegram_token_file, &telegram_chat_id_cache)?;
+            let jmcp_inbox_dir = expand_tilde(&jmcp_inbox_dir)?;
+            if notify_jmcp {
+                validate_jmcp_inbox(&jmcp_inbox_dir)?;
             }
             if let Some(source_ref) = source_ref {
                 config.source_archive.ref_name = source_ref;
+            }
+            if let Some(seconds) = submit_delay_seconds {
+                config.browser.submit_delay_seconds = seconds;
+            }
+            if let Some(seconds) = submit_jitter_seconds {
+                config.browser.submit_jitter_seconds = seconds;
+            }
+            if let Some(percent) = submit_jitter_percent {
+                config.browser.submit_jitter_percent = Some(percent);
             }
             config.deploy.enabled = !no_deploy && (deploy || config.deploy.enabled);
             config.deploy.dry_run = resolve_deploy_dry_run(config.deploy.dry_run, deploy, dry_run);
@@ -492,10 +534,14 @@ async fn main() -> Result<()> {
                 artifacts_dir.join("downloads"),
             )?;
             let receipt_dir = artifacts_dir.join("receipts");
+            let profile_pool = profile_pool_arg_or_env(profile_pool)?;
             let profile_dir = path_arg_or_env_or_default(
                 profile_dir,
                 &config.browser.profile_dir_env,
-                default_managed_chrome_profile_dir(),
+                profile_pool
+                    .first()
+                    .cloned()
+                    .unwrap_or_else(default_managed_chrome_profile_dir),
             )?;
             let repo_url = source_repo_url
                 .or_else(|| env::var(&config.source_archive.repo_url_env).ok())
@@ -545,6 +591,11 @@ async fn main() -> Result<()> {
             bridge_env
                 .entry(config.browser.state_dir_env.clone())
                 .or_insert_with(|| default_managed_chrome_state_dir().display().to_string());
+            if !profile_pool.is_empty() {
+                bridge_env
+                    .entry("JAILGUN_CHROME_PROFILE_POOL".into())
+                    .or_insert(profile_pool_env_value(&profile_pool)?);
+            }
             let bridge_cmd = bridge_command(bridge_cmd)?;
             let run_id = run_id.unwrap_or_else(default_run_id);
             let live_dashboard = if serve {
@@ -570,11 +621,13 @@ async fn main() -> Result<()> {
                 no_deploy,
                 dry_run,
                 profile_dir,
+                profile_pool,
                 downloads_dir,
                 artifacts_dir,
                 bridge_cmd,
                 bridge_env,
                 repo_url,
+                fresh_source_clone,
                 deploy_remote_host,
                 deploy_remote_dir,
                 deploy_remote_command,
@@ -592,80 +645,185 @@ async fn main() -> Result<()> {
             let dashboard_forwarder = live_dashboard.as_ref().map(|dashboard| {
                 spawn_run_event_forwarder(handle.events_rx.resubscribe(), dashboard.state.clone())
             });
-            if notify_telegram {
-                tokio::spawn(jailgun_notify::run_telegram_subscriber(
+            if notify_jmcp {
+                tokio::spawn(run_jmcp_subscriber(
                     handle.events_rx.resubscribe(),
-                    telegram_token_file,
-                    telegram_chat_id_cache,
+                    jmcp_inbox_dir.clone(),
                 ));
             }
             let result = stream_run(handle).await;
             if let Some(task) = dashboard_forwarder {
                 task.abort();
             }
-            if serve && dashboard_hold_seconds > 0 {
-                eprintln!("dashboard hold for {dashboard_hold_seconds}s before shutdown");
-                tokio::time::sleep(Duration::from_secs(dashboard_hold_seconds)).await;
-            }
-            if let Some(dashboard) = live_dashboard {
-                dashboard.server_task.abort();
-            }
-            let summary = result?;
+            let summary = match result {
+                Ok(summary) => summary,
+                Err(error) => {
+                    if let Some(dashboard) = live_dashboard.as_ref() {
+                        dashboard.server_task.abort();
+                    }
+                    return Err(error);
+                }
+            };
             if !summary.failures.is_empty() {
+                if let Some(dashboard) = live_dashboard.as_ref() {
+                    dashboard.server_task.abort();
+                }
                 anyhow::bail!(
                     "run completed with {} failure(s): {:?}",
                     summary.failures.len(),
                     summary.failures
                 );
             }
+            if serve && dashboard_keep_alive {
+                eprintln!("dashboard keep-alive enabled; press Ctrl-C to stop");
+                let _ = tokio::signal::ctrl_c().await;
+            } else if serve && dashboard_hold_seconds > 0 {
+                eprintln!("dashboard hold for {dashboard_hold_seconds}s before shutdown");
+                tokio::time::sleep(Duration::from_secs(dashboard_hold_seconds)).await;
+            }
+            if let Some(dashboard) = live_dashboard {
+                dashboard.server_task.abort();
+            }
         }
-        Command::TelegramSend {
-            token_file,
-            chat_id_cache,
-            chat_id,
+        Command::JmcpSend {
+            jmcp_inbox_dir,
             message,
+            title,
+            summary_emoji,
         } => {
-            let mut config = TelegramConfig::from_token_file(&token_file)
-                .with_context(|| format!("loading {}", token_file.display()))?;
-            if let Some(chat_id) = chat_id {
-                config.chat_id = Some(chat_id);
-            }
-            if config.chat_id.is_none() {
-                config.chat_id = read_chat_id_cache(&chat_id_cache)?;
-            }
-            let sent_chat_id = send_telegram_message(&config, &message).await?;
-            write_chat_id_cache(&chat_id_cache, &sent_chat_id)?;
+            let jmcp_inbox_dir = expand_tilde(&jmcp_inbox_dir)?;
+            let inbox = JmcpInbox::new(&jmcp_inbox_dir);
+            let payload = Payload::NotifyText(NotifyTextPayload {
+                title,
+                summary_emoji,
+                body_markdown: message,
+            });
+            let envelope = JmcpEnvelope::new(
+                payload,
+                TaskRef::for_run("jailgun-cli", None),
+                Routing::notify_user(),
+            );
+            let path = inbox.write_envelope(&envelope).await.with_context(|| {
+                format!("writing JMCP envelope to {}", jmcp_inbox_dir.display())
+            })?;
             println!(
                 "{}",
                 serde_json::json!({
-                    "status": "sent",
-                    "chat_id": sent_chat_id,
+                    "status": "queued",
+                    "envelope_id": envelope.envelope_id,
+                    "path": path,
+                })
+            );
+        }
+        Command::Runs {
+            config,
+            prompt_file,
+            count,
+            profile_pool,
+            run_id,
+            jmcp_inbox_dir,
+        } => {
+            if count == 0 {
+                anyhow::bail!("--count must be greater than zero");
+            }
+            let jmcp_inbox_dir = expand_tilde(&jmcp_inbox_dir)?;
+            let inbox = JmcpInbox::new(&jmcp_inbox_dir);
+            let batch_id = run_id.unwrap_or_else(default_batch_id);
+            let mut child_command = format!(
+                "jailgun run --config {} --prompt-file {}",
+                shell_quote(&config.display().to_string()),
+                shell_quote(&prompt_file.display().to_string())
+            );
+            for profile_dir in &profile_pool {
+                child_command.push_str(" --profile-pool ");
+                child_command.push_str(&shell_quote(&profile_dir.display().to_string()));
+            }
+            let body_markdown = format!(
+                "Request approval for {count} jailgun runs.\n\n- config: `{}`\n- prompt file: `{}`\n- profile pool: `{}`\n- child command: `{child_command}`\n- approval required: yes",
+                config.display(),
+                prompt_file.display(),
+                profile_pool_display(&profile_pool)
+            );
+            let payload = Payload::BatchRequest(BatchRequestPayload {
+                title: "Jailgun batch launch requested".to_string(),
+                summary_emoji: "🧭".to_string(),
+                body_markdown,
+                count,
+                config_path: config.display().to_string(),
+                prompt_file: prompt_file.display().to_string(),
+                child_command: child_command.clone(),
+                execution_mode: "serial".to_string(),
+                approval_required: true,
+            });
+            let envelope = JmcpEnvelope::new(
+                payload,
+                TaskRef::for_run(&batch_id, None),
+                Routing::notify_user(),
+            );
+            let path = inbox.write_envelope(&envelope).await.with_context(|| {
+                format!(
+                    "writing JMCP batch envelope to {}",
+                    jmcp_inbox_dir.display()
+                )
+            })?;
+            println!(
+                "{}",
+                serde_json::json!({
+                    "status": "queued",
+                    "batch_id": batch_id,
+                    "count": count,
+                    "approval_required": true,
+                    "execution_mode": "serial",
+                    "envelope_id": envelope.envelope_id,
+                    "envelope_path": path,
+                    "child_command": child_command,
+                    "config_path": config.display().to_string(),
+                    "prompt_file": prompt_file.display().to_string(),
+                    "profile_pool": profile_pool.iter().map(|path| path.display().to_string()).collect::<Vec<_>>(),
                 })
             );
         }
         Command::NotifyCommit {
-            token_file,
-            chat_id_cache,
-            chat_id,
+            jmcp_inbox_dir,
             repo,
             revision,
         } => {
-            let mut config = TelegramConfig::from_token_file(&token_file)
-                .with_context(|| format!("loading {}", token_file.display()))?;
-            if let Some(chat_id) = chat_id {
-                config.chat_id = Some(chat_id);
-            }
-            if config.chat_id.is_none() {
-                config.chat_id = read_chat_id_cache(&chat_id_cache)?;
-            }
+            let jmcp_inbox_dir = expand_tilde(&jmcp_inbox_dir)?;
+            let inbox = JmcpInbox::new(&jmcp_inbox_dir);
             let summary = collect_commit_summary(&repo, &revision)
                 .with_context(|| format!("collecting commit summary for {revision}"))?;
-            let message = build_commit_message(&summary);
-            let sent_chat_id = send_telegram_message(&config, &message).await?;
-            write_chat_id_cache(&chat_id_cache, &sent_chat_id)?;
+            let notice = CommitNotice {
+                run_id: "post-commit-hook".to_string(),
+                tab_id: None,
+                post_head: summary.short_hash.clone(),
+                pre_head: None,
+                files_changed: summary.files.len(),
+                additions: 0,
+                deletions: 0,
+                top_paths: summary.files.clone(),
+                ci_state: None,
+                remote_command_exit: None,
+            };
+            let payload = commit_notice_to_payload(&notice);
+            let envelope = JmcpEnvelope::new(
+                payload,
+                TaskRef::for_run("post-commit-hook", None),
+                Routing::notify_user(),
+            );
+            let path = inbox.write_envelope(&envelope).await.with_context(|| {
+                format!("writing JMCP envelope to {}", jmcp_inbox_dir.display())
+            })?;
+            // Body markdown stays available for callers that want to render
+            // locally (e.g. for shell output debugging).
+            let body = build_commit_message(&summary);
             println!(
                 "{}",
-                serde_json::to_string_pretty(&notify_result(sent_chat_id, summary))?
+                serde_json::to_string_pretty(&notify_result(
+                    envelope.envelope_id.clone(),
+                    path,
+                    summary,
+                    body
+                ))?
             );
         }
         Command::Serve {
@@ -674,27 +832,23 @@ async fn main() -> Result<()> {
             dashboard_dist,
             live,
             ingest_token,
-            notify_telegram,
-            telegram_token_file,
-            telegram_chat_id_cache,
+            notify_jmcp,
+            jmcp_inbox_dir,
         } => {
             let config = JailgunConfig::from_toml_path(&config)
                 .with_context(|| format!("loading {}", config.display()))?;
             let receipt_dir = PathBuf::from(&config.paths.artifacts_dir).join("receipts");
+            let jmcp_inbox_dir = expand_tilde(&jmcp_inbox_dir)?;
             let state = if live {
                 let (state, rx) = AppState::live(config, receipt_dir, 1024);
-                if notify_telegram {
-                    validate_telegram_notify(&telegram_token_file, &telegram_chat_id_cache)?;
-                    tokio::spawn(jailgun_notify::run_telegram_subscriber(
-                        rx,
-                        telegram_token_file,
-                        telegram_chat_id_cache,
-                    ));
+                if notify_jmcp {
+                    validate_jmcp_inbox(&jmcp_inbox_dir)?;
+                    tokio::spawn(run_jmcp_subscriber(rx, jmcp_inbox_dir.clone()));
                 }
                 state.with_ingest_token(ingest_token)
             } else {
-                if notify_telegram {
-                    anyhow::bail!("--notify-telegram requires --live");
+                if notify_jmcp {
+                    anyhow::bail!("--notify-jmcp requires --live");
                 }
                 AppState::fixture(config)
             };
@@ -702,7 +856,7 @@ async fn main() -> Result<()> {
                 Some(dir) => router_with_static(state, dir),
                 None => api_router(state),
             };
-            println!("listening on http://{addr} (live={live} notify_telegram={notify_telegram})");
+            println!("listening on http://{addr} (live={live} notify_jmcp={notify_jmcp})");
             jailgun_server::serve(addr, router).await?;
         }
         Command::Fixture { kind } => {
@@ -723,36 +877,71 @@ async fn main() -> Result<()> {
     Ok(())
 }
 
-fn notify_result(chat_id: String, summary: CommitSummary) -> serde_json::Value {
+fn notify_result(
+    envelope_id: String,
+    envelope_path: PathBuf,
+    summary: CommitSummary,
+    body: String,
+) -> serde_json::Value {
     serde_json::json!({
-        "status": "sent",
-        "chat_id": chat_id,
+        "status": "queued",
+        "envelope_id": envelope_id,
+        "envelope_path": envelope_path,
         "commit": summary.short_hash,
         "subject": summary.subject,
         "files": summary.files,
+        "body": body,
     })
 }
 
-fn validate_telegram_notify(token_file: &Path, chat_id_cache: &Path) -> Result<()> {
-    let mut config = TelegramConfig::from_token_file(token_file)
-        .with_context(|| format!("loading {}", token_file.display()))?;
-    if config.chat_id.is_none() {
-        config.chat_id = read_chat_id_cache(chat_id_cache)?;
+fn validate_jmcp_inbox(inbox_dir: &Path) -> Result<()> {
+    if let Some(parent) = inbox_dir.parent() {
+        if !parent.exists() {
+            anyhow::bail!(
+                "--notify-jmcp inbox parent {} does not exist; create it before invoking jailgun",
+                parent.display()
+            );
+        }
     }
-    if config
-        .chat_id
-        .as_deref()
-        .map(str::trim)
-        .filter(|value| !value.is_empty())
-        .is_none()
+    std::fs::create_dir_all(inbox_dir)
+        .with_context(|| format!("creating JMCP inbox directory {}", inbox_dir.display()))?;
+    #[cfg(unix)]
     {
-        anyhow::bail!(
-            "--notify-telegram requires a chat id in {} or {}",
-            token_file.display(),
-            chat_id_cache.display()
-        );
+        use std::os::unix::fs::PermissionsExt;
+        let metadata = std::fs::metadata(inbox_dir)
+            .with_context(|| format!("inspecting JMCP inbox directory {}", inbox_dir.display()))?;
+        let mode = metadata.permissions().mode() & 0o777;
+        if mode & 0o077 != 0 {
+            anyhow::bail!(
+                "JMCP inbox {} is mode {:o}; refusing to use a world-readable directory \
+                 (chmod 700)",
+                inbox_dir.display(),
+                mode
+            );
+        }
     }
     Ok(())
+}
+
+fn expand_tilde(path: &Path) -> Result<PathBuf> {
+    let str_path = match path.to_str() {
+        Some(value) => value,
+        None => return Ok(path.to_path_buf()),
+    };
+    if let Some(rest) = str_path.strip_prefix("~/") {
+        let home = std::env::var_os("HOME").ok_or_else(|| {
+            anyhow::anyhow!("cannot expand ~ in {}: HOME is unset", path.display())
+        })?;
+        let mut expanded = PathBuf::from(home);
+        expanded.push(rest);
+        Ok(expanded)
+    } else if str_path == "~" {
+        std::env::var_os("HOME")
+            .map(PathBuf::from)
+            .ok_or_else(|| anyhow::anyhow!("cannot expand ~: HOME is unset"))
+    } else {
+        Ok(path.to_path_buf())
+    }
 }
 
 struct LiveDashboard {
@@ -982,6 +1171,27 @@ fn path_arg_or_env_or_default(
     }
 }
 
+fn profile_pool_arg_or_env(values: Vec<PathBuf>) -> Result<Vec<PathBuf>> {
+    if !values.is_empty() {
+        return Ok(values);
+    }
+    for env_name in ["JAILGUN_CHROME_PROFILE_POOL", "JAILGUN_CHROME_PROFILE_DIRS"] {
+        match env::var_os(env_name) {
+            Some(value) if value.is_empty() => anyhow::bail!("path list ${env_name} is empty"),
+            Some(value) => return Ok(env::split_paths(&value).collect()),
+            None => {}
+        }
+    }
+    Ok(Vec::new())
+}
+
+fn profile_pool_env_value(paths: &[PathBuf]) -> Result<String> {
+    let joined = env::join_paths(paths).with_context(|| "joining browser profile pool paths")?;
+    joined
+        .into_string()
+        .map_err(|_| anyhow::anyhow!("browser profile pool contains non-UTF-8 paths"))
+}
+
 fn default_managed_chrome_profile_dir() -> PathBuf {
     home_dir_or_current().join(".google-profile-automation-profile")
 }
@@ -998,6 +1208,35 @@ fn home_dir_or_current() -> PathBuf {
 
 fn default_run_id() -> String {
     format!("run-{}", uuid::Uuid::new_v4())
+}
+
+fn default_batch_id() -> String {
+    format!("batch-{}", uuid::Uuid::new_v4())
+}
+
+fn shell_quote(arg: &str) -> String {
+    if arg.is_empty() {
+        return "''".to_string();
+    }
+    if arg
+        .chars()
+        .all(|ch| ch.is_ascii_alphanumeric() || matches!(ch, '-' | '_' | '.' | '/' | '~' | ':'))
+    {
+        return arg.to_string();
+    }
+    format!("'{}'", arg.replace('\'', "'\"'\"'"))
+}
+
+fn profile_pool_display(paths: &[PathBuf]) -> String {
+    if paths.is_empty() {
+        "default single profile".to_string()
+    } else {
+        paths
+            .iter()
+            .map(|path| path.display().to_string())
+            .collect::<Vec<_>>()
+            .join(", ")
+    }
 }
 
 async fn stream_run(
@@ -1116,6 +1355,103 @@ mod tests {
         assert!(deploy_outcome_succeeded(DeployOutcome::SucceededCiSkipped));
         assert!(!deploy_outcome_succeeded(DeployOutcome::FailedPreserved));
         assert!(!deploy_outcome_succeeded(DeployOutcome::SucceededCiFailed));
+    }
+
+    #[test]
+    fn run_cli_parses_submit_delay_jitter_percent_keep_alive_and_fresh_clone() {
+        let cli = Cli::try_parse_from([
+            "jailgun",
+            "run",
+            "--prompt-file",
+            "prompt.md",
+            "--submit-delay-seconds",
+            "120",
+            "--submit-jitter-seconds",
+            "0",
+            "--submit-jitter-percent",
+            "20",
+            "--dashboard-keep-alive",
+            "--fresh-source-clone",
+        ])
+        .expect("run args parse");
+        match cli.command {
+            Command::Run {
+                submit_delay_seconds,
+                submit_jitter_seconds,
+                submit_jitter_percent,
+                dashboard_keep_alive,
+                fresh_source_clone,
+                ..
+            } => {
+                assert_eq!(submit_delay_seconds, Some(120));
+                assert_eq!(submit_jitter_seconds, Some(0));
+                assert_eq!(submit_jitter_percent, Some(20));
+                assert!(dashboard_keep_alive);
+                assert!(fresh_source_clone);
+            }
+            other => panic!("expected run command, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn run_cli_parses_repeated_profile_pool() {
+        let cli = Cli::try_parse_from([
+            "jailgun",
+            "run",
+            "--prompt-file",
+            "prompt.md",
+            "--profile-pool",
+            "/tmp/google-a",
+            "--profile-pool",
+            "/tmp/google-b",
+        ])
+        .expect("run args parse");
+        match cli.command {
+            Command::Run { profile_pool, .. } => {
+                assert_eq!(
+                    profile_pool,
+                    vec![
+                        PathBuf::from("/tmp/google-a"),
+                        PathBuf::from("/tmp/google-b")
+                    ]
+                );
+            }
+            other => panic!("expected run command, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn runs_cli_parses_repeated_profile_pool() {
+        let cli = Cli::try_parse_from([
+            "jailgun",
+            "runs",
+            "--count",
+            "2",
+            "--prompt-file",
+            "prompt.md",
+            "--profile-pool",
+            "/tmp/google-a",
+            "--profile-pool",
+            "/tmp/google-b",
+        ])
+        .expect("runs args parse");
+        match cli.command {
+            Command::Runs {
+                count,
+                profile_pool,
+                ..
+            } => {
+                assert_eq!(count, 2);
+                assert_eq!(
+                    profile_pool,
+                    vec![
+                        PathBuf::from("/tmp/google-a"),
+                        PathBuf::from("/tmp/google-b")
+                    ]
+                );
+            }
+            other => panic!("expected runs command, got {other:?}"),
+        }
     }
 
     #[test]

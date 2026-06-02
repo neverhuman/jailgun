@@ -19,7 +19,8 @@ use axum::{
 };
 use futures::{SinkExt, StreamExt};
 use jailgun_core::{
-    DeployQueueState, EventKind, JailgunConfig, JailgunEvent, RunSnapshot, Severity, TabSnapshot,
+    read_run_history, summarize_run, write_run_history, DeployQueueState, EventKind, JailgunConfig,
+    JailgunEvent, RunHistoryEntry, RunSnapshot, Severity, TabSnapshot,
 };
 use serde_json::json;
 use tokio::{
@@ -34,6 +35,8 @@ pub struct AppState {
     pub runs: Arc<RwLock<Vec<RunSnapshot>>>,
     pub events: Arc<RwLock<Vec<JailgunEvent>>>,
     pub receipt_dir: PathBuf,
+    /// Directory where run history entries are persisted as JSON files.
+    pub history_dir: PathBuf,
     /// When `Some`, the WS endpoint subscribes to it and streams live events.
     /// When `None`, the WS endpoint replays `events` once and closes
     /// (fixture mode used by `jailgun fixture`).
@@ -68,6 +71,7 @@ impl AppState {
             ])),
             runs: Arc::new(RwLock::new(vec![run])),
             receipt_dir: PathBuf::from("receipts"),
+            history_dir: PathBuf::from("data/run-history"),
             event_bus: None,
             ingest_token: None,
         }
@@ -87,10 +91,16 @@ impl AppState {
             runs: Arc::new(RwLock::new(Vec::new())),
             events: Arc::new(RwLock::new(Vec::new())),
             receipt_dir,
+            history_dir: PathBuf::from("data/run-history"),
             event_bus: Some(tx),
             ingest_token: None,
         };
         (state, rx)
+    }
+
+    pub fn with_history_dir(mut self, dir: PathBuf) -> Self {
+        self.history_dir = dir;
+        self
     }
 
     pub fn with_ingest_token(mut self, token: Option<String>) -> Self {
@@ -113,6 +123,7 @@ pub fn api_router(state: AppState) -> Router {
         .route("/api/runs/{run_id}", get(get_run))
         .route("/api/config/effective", get(get_effective_config))
         .route("/api/receipts/{run_id}", get(get_receipts))
+        .route("/api/history", get(get_history))
         .route("/api/events", post(post_event))
         .route("/ws/events", get(ws_events))
         .with_state(Arc::new(state))
@@ -185,6 +196,13 @@ async fn get_receipts(
         }
     }
     Json(json!({ "run_id": run_id, "receipts": receipts })).into_response()
+}
+
+async fn get_history(State(state): State<Arc<AppState>>) -> Json<Vec<RunHistoryEntry>> {
+    match read_run_history(&state.history_dir) {
+        Ok(entries) => Json(entries),
+        Err(_) => Json(Vec::new()),
+    }
 }
 
 async fn ws_events(State(state): State<Arc<AppState>>, ws: WebSocketUpgrade) -> Response {
@@ -336,6 +354,17 @@ fn apply_event_to_run(mut run: RunSnapshot, event: &JailgunEvent) -> RunSnapshot
     {
         run.finished_at = Some(event.timestamp.clone());
     }
+    // Check if run just became terminal and persist history entry.
+    let is_terminal = matches!(run.status.as_str(), "finished" | "done" | "cancelled")
+        || (run.finished_at.is_some() && run.deploy_queue == DeployQueueState::Done);
+    if is_terminal {
+        let entry = summarize_run(&run);
+        // Fire-and-forget: history write failures should not block the run.
+        let history_dir = std::env::current_dir()
+            .unwrap_or_default()
+            .join("data/run-history");
+        let _ = write_run_history(history_dir, &entry);
+    }
     run.deploy_queue = queue_state_for_event(event, run.deploy_queue);
     match prompt_policy_decision(event) {
         Some("deny" | "denied") => {
@@ -436,6 +465,10 @@ fn default_tab_snapshot(tab_id: u16) -> TabSnapshot {
         deploy_status: "pending".to_string(),
         prompt_policy_decision: None,
         early_stop_outcome: None,
+        browser_profile: None,
+        browser_profile_dir: None,
+        browser_slot: None,
+        cdp_url: None,
     }
 }
 
@@ -459,6 +492,22 @@ fn apply_event_to_tab(mut tab: TabSnapshot, event: &JailgunEvent) -> TabSnapshot
     tab.deploy_status = deploy_status_for_event(event, tab.deploy_status);
     if let Some(decision) = event.fields.get("decision") {
         tab.prompt_policy_decision = Some(decision.clone());
+    }
+    if let Some(profile) = event.fields.get("browser_profile") {
+        tab.browser_profile = Some(profile.clone());
+    }
+    if let Some(profile_dir) = event.fields.get("browser_profile_dir") {
+        tab.browser_profile_dir = Some(profile_dir.clone());
+    }
+    if let Some(slot) = event
+        .fields
+        .get("browser_slot")
+        .and_then(|value| value.parse::<u16>().ok())
+    {
+        tab.browser_slot = Some(slot);
+    }
+    if let Some(cdp_url) = event.fields.get("cdp_url") {
+        tab.cdp_url = Some(cdp_url.clone());
     }
     if matches!(event.kind, EventKind::GenerationStopped) {
         if let Some(outcome) = early_stop_outcome_for_event(event) {
@@ -688,5 +737,48 @@ mod tests {
         tx.send(event.clone()).expect("send ok");
         let received = rx.recv().await.expect("recv ok");
         assert_eq!(received, event);
+    }
+
+    #[tokio::test]
+    async fn history_endpoint_returns_entries() {
+        let temp = tempfile::tempdir().expect("tempdir");
+        let entry = jailgun_core::RunHistoryEntry {
+            run_id: "run-hist-1".into(),
+            started_at: "2026-01-01T00:00:00Z".into(),
+            finished_at: Some("2026-01-01T01:00:00Z".into()),
+            status: "finished".into(),
+            batch_tabs: 3,
+            loop_count: 0,
+            planned_tabs: 3,
+            total_tabs: 3,
+            tabs_passed: 2,
+            tabs_failed: 1,
+            tabs_pushed: 2,
+            deploy_queue_final: "\"done\"".into(),
+            denied_github_prompts: 0,
+            allowed_info_prompts: 0,
+            early_stops_succeeded: 0,
+            early_stops_attempted: 0,
+            code_stats: None,
+        };
+        jailgun_core::write_run_history(temp.path(), &entry).expect("write");
+        let state =
+            AppState::fixture(JailgunConfig::default()).with_history_dir(temp.path().to_path_buf());
+        let app = api_router(state);
+        let resp = app
+            .oneshot(
+                Request::builder()
+                    .uri("/api/history")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(resp.status(), StatusCode::OK);
+        let body = axum::body::to_bytes(resp.into_body(), 65536).await.unwrap();
+        let entries: Vec<jailgun_core::RunHistoryEntry> =
+            serde_json::from_slice(&body).expect("parse history");
+        assert_eq!(entries.len(), 1);
+        assert_eq!(entries[0].run_id, "run-hist-1");
     }
 }

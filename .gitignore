@@ -26,3 +26,4 @@ coverage/
 config/*.local.toml
 prompts/local/
 telegram/
+data/run-history/*.json

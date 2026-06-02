@@ -47,6 +47,12 @@ const proof = {
   early_stops_attempted: 0,
   tabs_closed: 0,
   deploy_successes: 0,
+  fresh_source_clones: 0,
+  files_changed: 0,
+  additions: 0,
+  deletions: 0,
+  local_tests_passed: 0,
+  remote_tests_passed: 0,
   remote_host_matches: 0,
   remote_command_matches: 0,
   remote_local_ci_passed: 0,
@@ -235,6 +241,17 @@ async function sampleRunState() {
     .map((event) => Number(event.tab_id)));
   const successfulDeployEvents = events
     .filter((event) => event.run_id === runId && event.kind === 'deploy-finished' && event.severity !== 'error');
+  const sourceCloneTabs = sortedUnique(events
+    .filter((event) =>
+      event.run_id === runId &&
+      event.tab_id !== null &&
+      event.tab_id !== undefined &&
+      event.kind === 'browser-log' &&
+      event.fields?.phase === 'source-upload' &&
+      truthyField(event.fields?.fresh_source_clone) &&
+      event.fields?.clone_dir)
+    .map((event) => Number(event.tab_id)));
+  const changeStats = aggregateDeployStats(successfulDeployEvents);
   const remoteHostTabs = sortedUnique(successfulDeployEvents
     .filter((event) => !expectedRemoteHost || event.fields?.remote_host === expectedRemoteHost)
     .map((event) => Number(event.tab_id)));
@@ -296,6 +313,13 @@ async function sampleRunState() {
     local_download_paths_unique: new Set(localDownloadPaths).size === localDownloadPaths.length,
     deploy_successes: deployTabs.length,
     deploy_tab_ids: deployTabs,
+    fresh_source_clones: sourceCloneTabs.length,
+    fresh_source_clone_tab_ids: sourceCloneTabs,
+    files_changed: changeStats.filesChanged,
+    additions: changeStats.additions,
+    deletions: changeStats.deletions,
+    local_tests_passed: changeStats.localTestsPassed,
+    remote_tests_passed: changeStats.remoteTestsPassed,
     remote_host_matches: remoteHostTabs.length,
     remote_host_tab_ids: remoteHostTabs,
     remote_command_matches: remoteCommandTabs.length,
@@ -423,6 +447,12 @@ function printSuccess(value) {
     `tabs closed: ${value.tabs_closed}`,
     `fresh downloads: ${value.fresh_downloads}`,
     `deploy successes: ${value.deploy_successes}`,
+    `fresh source clones: ${value.fresh_source_clones}`,
+    `files changed: ${value.files_changed}`,
+    `additions: ${value.additions}`,
+    `deletions: ${value.deletions}`,
+    `local tests passed: ${value.local_tests_passed}`,
+    `remote tests passed: ${value.remote_tests_passed}`,
     `remote host matches: ${value.remote_host_matches}`,
     `remote command matches: ${value.remote_command_matches}`,
     `remote local CI passed: ${value.remote_local_ci_passed}`,
@@ -477,6 +507,56 @@ function remoteLocalCiPassed(event) {
     /cargo test:\s+\d+ passed/.test(logTail) &&
     logTail.includes('DONE: pre=') &&
     logTail.includes(' post=');
+}
+
+function aggregateDeployStats(events) {
+  return events.reduce((acc, event) => {
+    const fields = event.fields ?? {};
+    const shortstat = parseShortstat(fields.shortstat);
+    acc.filesChanged += numberFromField(fields.files_changed) ?? shortstat.filesChanged ?? 0;
+    acc.additions += numberFromField(fields.additions) ?? shortstat.additions ?? 0;
+    acc.deletions += numberFromField(fields.deletions) ?? shortstat.deletions ?? 0;
+    acc.localTestsPassed += numberFromField(fields.local_tests_passed) ?? parseLogTestCount(fields.log_tail) ?? 0;
+    acc.remoteTestsPassed += numberFromField(fields.remote_tests_passed) ?? parseLogTestCount(fields.log_tail) ?? 0;
+    return acc;
+  }, {
+    filesChanged: 0,
+    additions: 0,
+    deletions: 0,
+    localTestsPassed: 0,
+    remoteTestsPassed: 0,
+  });
+}
+
+function parseShortstat(value) {
+  const text = String(value ?? '');
+  return {
+    filesChanged: numberBefore(text, /\bfiles? changed\b/),
+    additions: numberBefore(text, /\b(?:insertions?|additions?)\(\+\)/),
+    deletions: numberBefore(text, /\bdeletions?\(-\)/),
+  };
+}
+
+function numberBefore(text, pattern) {
+  const match = text.match(new RegExp(`(\\d+)\\s+${pattern.source}`, pattern.flags));
+  return match ? Number(match[1]) : null;
+}
+
+function numberFromField(value) {
+  if (value === undefined || value === null || value === '') {
+    return null;
+  }
+  const parsed = Number(value);
+  return Number.isFinite(parsed) && parsed >= 0 ? parsed : null;
+}
+
+function parseLogTestCount(value) {
+  const text = String(value ?? '');
+  const matches = [...text.matchAll(/(?:cargo test|npm test|vitest|tests?)\s*:\s*(\d+)\s+passed/gi)];
+  if (matches.length === 0) {
+    return null;
+  }
+  return matches.reduce((sum, match) => sum + Number(match[1]), 0);
 }
 
 function firstEventTime(events, kind) {

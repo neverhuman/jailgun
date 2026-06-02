@@ -40,8 +40,24 @@ evidence under `artifacts/ux-qa/` and `target/jankurai/ux-qa.json`. The report
 records desktop and mobile viewports, page.screenshot-compatible screenshot
 paths, aria-snapshot artifacts, visual review status, accessibility testing
 summary compatible with axe-core, layout stability / CLS measurements, API mock
-state coverage, design tokens, and geometry checks equivalent to
-getBoundingClientRect.
+state coverage, design tokens, geometry checks equivalent to
+getBoundingClientRect, and the batch-quality verdict surface in the run
+header.
+
+Batch request coverage lives in the Rust and dashboard lanes: the JMCP
+batch envelope is validated by the Rust tests, and the cockpit quality
+summary is exercised by the dashboard tests plus the rendered UX lane.
+
+Browser profile-pool coverage lives in the Chrome bridge self-test,
+orchestrator Rust tests, and dashboard tests. These lanes validate profile
+rotation, per-profile state planning, event metadata mapping, and dashboard
+rendering without opening real Chrome or requiring Google credentials.
+
+`apps/fake-chatgpt` is the CI-owned ChatGPT copycat surface. New end-to-end
+coverage for upload, prompt submission, tar discovery, and multi-profile
+browser orchestration should target that fake service first. Real ChatGPT,
+real Google profiles, and paid API calls remain operator-only smoke surfaces,
+not default CI requirements.
 
 ## Budgets and Stop Conditions
 

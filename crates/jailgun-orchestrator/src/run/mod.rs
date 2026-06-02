@@ -4,7 +4,12 @@ pub mod tab;
 
 pub use tab::{TabState, TabTransitionError};
 
-use std::{collections::BTreeSet, path::PathBuf, sync::Arc, time::Duration};
+use std::{
+    collections::BTreeSet,
+    path::{Path, PathBuf},
+    sync::Arc,
+    time::Duration,
+};
 
 use async_trait::async_trait;
 use jailgun_core::{EventKind, JailgunEvent, Severity};
@@ -209,12 +214,14 @@ async fn drive_run(
                         &mut summary,
                         &mut tracker,
                         ).await;
+                        let submit_delay = submit_delay(&opts);
                         if let Some(tab_id) = effects.prompt_submitted {
-                            if let Some(delay) = launcher.prompt_accepted(tab_id, submit_delay(&opts)) {
+                            if let Some(delay) = launcher.prompt_accepted(tab_id, submit_delay) {
                                 schedule_launch_timer(
                                     &events,
                                     &opts.run_id,
                                     &launch_tx,
+                                    &opts,
                                     delay.tab_id,
                                     delay.duration,
                                     delay.reason,
@@ -222,11 +229,12 @@ async fn drive_run(
                             }
                         }
                         if let Some(tab_id) = effects.terminal_tab {
-                            if let Some(delay) = launcher.tab_terminal(tab_id, submit_delay(&opts)) {
+                            if let Some(delay) = launcher.tab_terminal(tab_id, submit_delay) {
                                 schedule_launch_timer(
                                     &events,
                                     &opts.run_id,
                                     &launch_tx,
+                                    &opts,
                                     delay.tab_id,
                                     delay.duration,
                                     delay.reason,
@@ -330,6 +338,7 @@ async fn send_tab_commands_for_tab(
     commands: &mpsc::Sender<crate::bridge::Envelope<serde_json::Value>>,
     tab_id: u16,
 ) -> Result<(), OrchestratorError> {
+    let profile_dir = profile_dir_for_tab(opts, tab_id);
     send_command(
         commands,
         &opts.run_id,
@@ -337,7 +346,7 @@ async fn send_tab_commands_for_tab(
         BridgeCommand::OpenTab(OpenTabPayload {
             chat_url: opts.config.browser.chat_url.clone(),
             model: opts.config.browser.model.clone(),
-            profile_dir: opts.profile_dir.display().to_string(),
+            profile_dir: profile_dir.display().to_string(),
         }),
     )
     .await?;
@@ -352,6 +361,7 @@ async fn send_tab_commands_for_tab(
                 prefix: opts.config.source_archive.prefix.clone(),
                 archive_filename: opts.config.source_archive.archive_filename.clone(),
                 tmp_parent: None,
+                fresh_source_clone: opts.fresh_source_clone,
                 delete_after_upload: opts.config.source_archive.delete_after_upload,
                 confirm_selectors: Vec::new(),
                 timeout_ms: 45_000,
@@ -455,6 +465,10 @@ impl LaunchScheduler {
             [
                 ("tab_id", tab_id.to_string()),
                 ("total_tabs", self.total_tabs.to_string()),
+                (
+                    "browser_profile_dir",
+                    profile_dir_for_tab(opts, tab_id).display().to_string(),
+                ),
             ],
         );
         send_tab_commands_for_tab(opts, commands, tab_id).await
@@ -499,14 +513,51 @@ impl LaunchScheduler {
     }
 }
 
+fn profile_dir_for_tab(opts: &RunOptions, tab_id: u16) -> &Path {
+    if opts.profile_pool.is_empty() {
+        return &opts.profile_dir;
+    }
+    let index = usize::from(tab_id.saturating_sub(1)) % opts.profile_pool.len();
+    &opts.profile_pool[index]
+}
+
 fn schedule_launch_timer(
     events: &broadcast::Sender<JailgunEvent>,
     run_id: &str,
     launch_tx: &mpsc::Sender<LaunchTrigger>,
+    opts: &RunOptions,
     tab_id: u16,
     duration: Duration,
     reason: &'static str,
 ) {
+    let (min_delay_ms, max_delay_ms) = submit_delay_window_ms(opts);
+    let mut fields = vec![
+        ("next_tab", tab_id.to_string()),
+        ("delay_ms", duration.as_millis().to_string()),
+        ("transition_delay_ms", duration.as_millis().to_string()),
+        ("transition_delay_min_ms", min_delay_ms.to_string()),
+        ("transition_delay_max_ms", max_delay_ms.to_string()),
+        (
+            "submit_delay_seconds",
+            opts.config.browser.submit_delay_seconds.to_string(),
+        ),
+        (
+            "submit_jitter_seconds",
+            opts.config.browser.submit_jitter_seconds.to_string(),
+        ),
+        (
+            "submit_jitter_mode",
+            if opts.config.browser.submit_jitter_percent.is_some() {
+                "percent".to_string()
+            } else {
+                "seconds".to_string()
+            },
+        ),
+        ("reason", reason.to_string()),
+    ];
+    if let Some(percent) = opts.config.browser.submit_jitter_percent {
+        fields.push(("submit_jitter_percent", percent.to_string()));
+    }
     publish_browser_log(
         events,
         run_id,
@@ -514,11 +565,7 @@ fn schedule_launch_timer(
         "launch-delay",
         "waiting",
         "waiting before launching next tab",
-        [
-            ("next_tab", tab_id.to_string()),
-            ("delay_ms", duration.as_millis().to_string()),
-            ("reason", reason.to_string()),
-        ],
+        fields,
     );
     let launch_tx = launch_tx.clone();
     tokio::spawn(async move {
@@ -925,22 +972,40 @@ fn run_is_complete(tracker: &RunTracker) -> bool {
 
 fn run_deadline(opts: &RunOptions, total_tabs: u16) -> Duration {
     let tar_wait_seconds = opts.config.browser.tar_wait_minutes.max(1) as u64 * 60;
-    let stagger_seconds = (opts.config.browser.submit_delay_seconds as u64
-        + opts.config.browser.submit_jitter_seconds as u64)
-        * total_tabs.saturating_sub(1) as u64;
-    Duration::from_secs(tar_wait_seconds + stagger_seconds + 60)
+    let (_, max_delay_ms) = submit_delay_window_ms(opts);
+    let stagger_ms = max_delay_ms * total_tabs.saturating_sub(1) as u64;
+    Duration::from_secs(tar_wait_seconds)
+        .saturating_add(Duration::from_millis(stagger_ms))
+        .saturating_add(Duration::from_secs(60))
 }
 
 fn submit_delay(opts: &RunOptions) -> Duration {
-    let base_ms = opts.config.browser.submit_delay_seconds as u64 * 1_000;
-    let jitter_ms = opts.config.browser.submit_jitter_seconds as u64 * 1_000;
+    let (min_delay_ms, max_delay_ms) = submit_delay_window_ms(opts);
+    let jitter_ms = max_delay_ms.saturating_sub(min_delay_ms);
     let jitter = if jitter_ms == 0 {
         0
     } else {
         let nanos = OffsetDateTime::now_utc().unix_timestamp_nanos() as u128;
         (nanos % (jitter_ms as u128 + 1)) as u64
     };
-    Duration::from_millis(base_ms + jitter)
+    Duration::from_millis(min_delay_ms + jitter)
+}
+
+fn submit_delay_window_ms(opts: &RunOptions) -> (u64, u64) {
+    let base_ms = opts.config.browser.submit_delay_seconds as u64 * 1_000;
+    match opts.config.browser.submit_jitter_percent {
+        Some(percent) => {
+            let jitter_ms = base_ms.saturating_mul(percent as u64) / 100;
+            (
+                base_ms.saturating_sub(jitter_ms),
+                base_ms.saturating_add(jitter_ms),
+            )
+        }
+        None => {
+            let jitter_ms = opts.config.browser.submit_jitter_seconds as u64 * 1_000;
+            (base_ms, base_ms.saturating_add(jitter_ms))
+        }
+    }
 }
 
 fn prompt_for_tab(prompt: &str, tab_id: u16, total_tabs: u16) -> String {
@@ -1066,11 +1131,13 @@ mod tests {
             no_deploy: false,
             dry_run: false,
             profile_dir: PathBuf::from("/tmp/profile"),
+            profile_pool: Vec::new(),
             downloads_dir: PathBuf::from("/tmp/downloads"),
             artifacts_dir: PathBuf::from("/tmp/artifacts"),
             bridge_cmd: vec!["bridge".into()],
             bridge_env: Default::default(),
             repo_url: "https://example.com/repo.git".into(),
+            fresh_source_clone: true,
             deploy_remote_host: None,
             deploy_remote_dir: None,
             deploy_remote_command: None,
@@ -1107,6 +1174,129 @@ mod tests {
             event.fields.get("planned_tabs").map(String::as_str),
             Some("28")
         );
+    }
+
+    #[test]
+    fn submit_delay_window_uses_percent_when_configured() {
+        let mut opts = RunOptions {
+            run_id: "run-1".into(),
+            config: JailgunConfig::default(),
+            prompt_text: "hello".into(),
+            tabs_override: Some(7),
+            loop_count: 3,
+            no_deploy: false,
+            dry_run: false,
+            profile_dir: PathBuf::from("/tmp/profile"),
+            profile_pool: Vec::new(),
+            downloads_dir: PathBuf::from("/tmp/downloads"),
+            artifacts_dir: PathBuf::from("/tmp/artifacts"),
+            bridge_cmd: vec!["bridge".into()],
+            bridge_env: Default::default(),
+            repo_url: "https://example.com/repo.git".into(),
+            fresh_source_clone: true,
+            deploy_remote_host: None,
+            deploy_remote_dir: None,
+            deploy_remote_command: None,
+            deploy_expected_top_level: None,
+            ci_tracker_enabled: false,
+            ci_repo: None,
+            ci_branch: "main".into(),
+            ci_max_attempts: 1,
+            ci_poll_seconds: 1,
+            status_max_minutes: 1,
+            event_buffer: 64,
+            deploy_concurrency: 1,
+        };
+        opts.config.browser.submit_delay_seconds = 120;
+        opts.config.browser.submit_jitter_seconds = 10;
+        opts.config.browser.submit_jitter_percent = Some(20);
+
+        let (min_delay_ms, max_delay_ms) = submit_delay_window_ms(&opts);
+        assert_eq!(min_delay_ms, 96_000);
+        assert_eq!(max_delay_ms, 144_000);
+
+        let delay = submit_delay(&opts);
+        assert!((96_000..=144_000).contains(&delay.as_millis()));
+    }
+
+    #[test]
+    fn submit_delay_window_uses_additive_jitter_when_percent_is_unset() {
+        let mut opts = RunOptions {
+            run_id: "run-1".into(),
+            config: JailgunConfig::default(),
+            prompt_text: "hello".into(),
+            tabs_override: Some(7),
+            loop_count: 3,
+            no_deploy: false,
+            dry_run: false,
+            profile_dir: PathBuf::from("/tmp/profile"),
+            profile_pool: Vec::new(),
+            downloads_dir: PathBuf::from("/tmp/downloads"),
+            artifacts_dir: PathBuf::from("/tmp/artifacts"),
+            bridge_cmd: vec!["bridge".into()],
+            bridge_env: Default::default(),
+            repo_url: "https://example.com/repo.git".into(),
+            fresh_source_clone: true,
+            deploy_remote_host: None,
+            deploy_remote_dir: None,
+            deploy_remote_command: None,
+            deploy_expected_top_level: None,
+            ci_tracker_enabled: false,
+            ci_repo: None,
+            ci_branch: "main".into(),
+            ci_max_attempts: 1,
+            ci_poll_seconds: 1,
+            status_max_minutes: 1,
+            event_buffer: 64,
+            deploy_concurrency: 1,
+        };
+        opts.config.browser.submit_delay_seconds = 120;
+        opts.config.browser.submit_jitter_seconds = 10;
+        opts.config.browser.submit_jitter_percent = None;
+
+        let (min_delay_ms, max_delay_ms) = submit_delay_window_ms(&opts);
+        assert_eq!(min_delay_ms, 120_000);
+        assert_eq!(max_delay_ms, 130_000);
+    }
+
+    #[test]
+    fn profile_dir_for_tab_round_robins_profile_pool() {
+        let opts = RunOptions {
+            run_id: "run-1".into(),
+            config: JailgunConfig::default(),
+            prompt_text: "hello".into(),
+            tabs_override: Some(3),
+            loop_count: 0,
+            no_deploy: false,
+            dry_run: false,
+            profile_dir: PathBuf::from("/tmp/default-profile"),
+            profile_pool: vec![
+                PathBuf::from("/tmp/google-a"),
+                PathBuf::from("/tmp/google-b"),
+            ],
+            downloads_dir: PathBuf::from("/tmp/downloads"),
+            artifacts_dir: PathBuf::from("/tmp/artifacts"),
+            bridge_cmd: vec!["bridge".into()],
+            bridge_env: Default::default(),
+            repo_url: "https://example.com/repo.git".into(),
+            fresh_source_clone: true,
+            deploy_remote_host: None,
+            deploy_remote_dir: None,
+            deploy_remote_command: None,
+            deploy_expected_top_level: None,
+            ci_tracker_enabled: false,
+            ci_repo: None,
+            ci_branch: "main".into(),
+            ci_max_attempts: 1,
+            ci_poll_seconds: 1,
+            status_max_minutes: 1,
+            event_buffer: 64,
+            deploy_concurrency: 1,
+        };
+
+        assert_eq!(profile_dir_for_tab(&opts, 1), Path::new("/tmp/google-a"));
+        assert_eq!(profile_dir_for_tab(&opts, 2), Path::new("/tmp/google-b"));
+        assert_eq!(profile_dir_for_tab(&opts, 3), Path::new("/tmp/google-a"));
     }
 
     #[test]

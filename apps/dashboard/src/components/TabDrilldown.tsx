@@ -1,4 +1,4 @@
-import { ExternalLink } from 'lucide-react';
+import { Activity, ExternalLink, FileDiff, Minus, Plus } from 'lucide-react';
 import { useMemo, useState } from 'react';
 
 import type { JailgunEvent, TabSnapshot } from '../types';
@@ -70,13 +70,24 @@ export function TabDrilldown({ tab, events, receipts }: TabDrilldownProps) {
         <DrilldownField label="Download latency">
           <code>{tab.download_latency_ms ? `${tab.download_latency_ms} ms` : '—'}</code>
         </DrilldownField>
+        <DrilldownField label="Browser profile">
+          <code>{browserProfileLabel(tab)}</code>
+        </DrilldownField>
+        <DrilldownField label="Profile dir">
+          <code>{tab.browser_profile_dir ?? '—'}</code>
+        </DrilldownField>
+        <DrilldownField label="CDP">
+          <code>{tab.cdp_url ?? '—'}</code>
+        </DrilldownField>
         <DrilldownField label="Policy">
           <code>{tab.prompt_policy_decision ?? 'none'}</code>
         </DrilldownField>
       </div>
 
+      <ChangeStats summary={summary} />
+
       <section aria-label="files changed">
-        <h4>Files changed ({summary.filesChanged.length})</h4>
+        <h4>Files changed ({summary.filesChangedCount ?? summary.filesChanged.length})</h4>
         {summary.shortstat ? <p className="muted">{summary.shortstat}</p> : null}
         {summary.filesChanged.length === 0 ? (
           <p className="muted">No files reported yet.</p>
@@ -146,6 +157,66 @@ export function TabDrilldown({ tab, events, receipts }: TabDrilldownProps) {
   );
 }
 
+function ChangeStats({ summary }: { summary: ReturnType<typeof summarizeOutcome> }) {
+  return (
+    <section aria-label="change statistics">
+      <div className="changeStatsGrid">
+        <ChangeStatCard
+          tone="files"
+          icon={<FileDiff size={18} />}
+          label="Files"
+          value={formatCount(summary.filesChangedCount ?? summary.filesChanged.length)}
+          detail="changed"
+        />
+        <ChangeStatCard
+          tone="additions"
+          icon={<Plus size={18} />}
+          label="+lines"
+          value={formatCount(summary.additions)}
+          detail="added"
+        />
+        <ChangeStatCard
+          tone="deletions"
+          icon={<Minus size={18} />}
+          label="-lines"
+          value={formatCount(summary.deletions)}
+          detail="removed"
+        />
+        <ChangeStatCard
+          tone="tests"
+          icon={<Activity size={18} />}
+          label="CI/tests"
+          value={localCiLabel(summary)}
+          detail={testCountLabel(summary)}
+        />
+      </div>
+    </section>
+  );
+}
+
+function ChangeStatCard({
+  tone,
+  icon,
+  label,
+  value,
+  detail
+}: {
+  tone: 'files' | 'additions' | 'deletions' | 'tests';
+  icon: React.ReactNode;
+  label: string;
+  value: string;
+  detail: string;
+}) {
+  return (
+    <div className={`changeStatCard ${tone}`} aria-label={`${label} ${value} ${detail}`}>
+      <span className="changeStatIcon" aria-hidden="true">{icon}</span>
+      <span className="changeStatLabel">{label}</span>
+      <strong className="changeStatValue">{value}</strong>
+      <span className="changeStatDetail">{detail}</span>
+    </div>
+  );
+}
+
 function DrilldownField({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div className="tabDrilldownField">
@@ -186,6 +257,22 @@ function localCiLabel(summary: ReturnType<typeof summarizeOutcome>): string {
   if (summary.ciState === 'passed') return 'GitHub passed';
   if (summary.ciState === 'skipped') return 'GitHub skipped';
   return summary.ciState ?? 'pending';
+}
+
+function testCountLabel(summary: ReturnType<typeof summarizeOutcome>): string {
+  const tests = summary.localTestsPassed ?? summary.remoteTestsPassed;
+  return tests === null ? 'tests pending' : `${tests} passed`;
+}
+
+function browserProfileLabel(tab: TabSnapshot): string {
+  if (tab.browser_profile && tab.browser_slot) return `${tab.browser_profile} (#${tab.browser_slot})`;
+  if (tab.browser_profile) return tab.browser_profile;
+  if (tab.browser_slot) return `profile #${tab.browser_slot}`;
+  return '—';
+}
+
+function formatCount(value: number | null): string {
+  return value === null ? '—' : String(value);
 }
 
 function extractConversationId(url: string): string {

@@ -4,14 +4,22 @@ set -euo pipefail
 repo_root="$(git rev-parse --show-toplevel)"
 cd "$repo_root"
 
-token_file="${JAILGUN_TELEGRAM_TOKEN_FILE:-telegram/token.env}"
-if [[ ! -f "$token_file" ]]; then
+inbox_dir="${JAILGUN_JMCP_INBOX_DIR:-$HOME/code/jmcp/inbox}"
+# Resolve a leading tilde the cargo CLI also understands, in case the env
+# value came from a shell that did not expand it.
+case "$inbox_dir" in
+  "~"|"~/"*) inbox_dir="${HOME}${inbox_dir#~}" ;;
+esac
+
+# Skip silently when the JMCP inbox isn't available — e.g. on a fresh
+# checkout before the user has cloned the JMCP repo. The user can still see
+# the commit elsewhere; we just don't queue a notification.
+parent_dir="$(dirname "$inbox_dir")"
+if [[ ! -d "$parent_dir" ]]; then
   exit 0
 fi
-chat_id_cache="${JAILGUN_TELEGRAM_CHAT_ID_CACHE:-telegram/chat_id.cache}"
 
 cargo run -q -p jailgun-cli -- notify-commit \
-  --token-file "$token_file" \
-  --chat-id-cache "$chat_id_cache" \
+  --jmcp-inbox-dir "$inbox_dir" \
   --repo "$repo_root" \
   --revision HEAD >/dev/null
