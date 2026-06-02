@@ -40,5 +40,6 @@ remote_job_jitter_seconds = 30
 
 [prompt_policy]
 deny_github_write_by_default = true
+allow_write_prompts = false
 allow_info_prompts = false
 allowed_repositories = []

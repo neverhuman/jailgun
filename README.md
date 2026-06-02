@@ -1,7 +1,7 @@
 <img src="assets/jailgun.png" alt="Jailgun" width="100%">
 
 <!-- jankurai-badge:start -->
-[![Jankurai score: 70/100 advisory](agent/jankurai-badge.svg)](agent/repo-score.md)
+[![Jankurai score: 87/100 advisory](agent/jankurai-badge.svg)](agent/repo-score.md)
 <!-- jankurai-badge:end -->
 
 # Jailgun
@@ -44,6 +44,28 @@ README markers above.
 Start from `config/jailgun.example.toml` and write local values to an ignored
 `config/jailgun.local.toml` or environment variables. Use `.env.example` as the
 environment reference.
+
+### Remote Chrome over SSH
+
+Jailgun can attach to a Chrome instance that stays on another machine as long
+as that machine keeps the Chrome DevTools Protocol bound to `127.0.0.1` and the
+browser profile and state remain local there. The Mac only needs the forwarded
+CDP endpoint, not the browser UI.
+
+Use the helpers in `scripts/` to bring up a loopback-only SSH forward and keep
+it alive with `launchd`:
+
+- `scripts/chrome-cdp-tunnel.sh` opens `127.0.0.1:9224` on the Mac and forwards
+  it to the remote machine's loopback CDP port.
+- `scripts/chrome-cdp-launchd.sh` writes and loads a LaunchAgent so the tunnel
+  restarts after login or disconnect.
+
+When the tunnel is up, run `jailgun` or `chrome-bridge` on the Mac with
+`JAILGUN_CDP_URL=http://127.0.0.1:9224`.
+
+The tunnel helper uses SSH key authentication, `StrictHostKeyChecking=yes`, and
+a pinned `known_hosts` file so the CDP endpoint is only exposed through the
+trusted SSH connection.
 
 Remote cleanup policy defaults to `preserve-reset`. Clean divergent remote
 checkouts are preserved under a timestamped ref and receipt before reset.

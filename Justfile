@@ -1,7 +1,7 @@
 fast:
-    bash ops/ci/rust.sh
-    bash ops/ci/node.sh
-    bash ops/ci/scan.sh
+    cargo test -p jailgun-core -p jailgun-notify -p jailgun-orchestrator -p jailgun-cli -p jailgun-server --jobs 5
+    cargo test -p jailgun-deploy --lib --jobs 5
+    npm --workspace @jailgun/dashboard test
 
 fast-core:
     # optional cache marker for local agents: sccache

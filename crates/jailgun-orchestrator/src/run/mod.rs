@@ -6,12 +6,11 @@ pub use tab::{TabState, TabTransitionError};
 
 use std::{collections::BTreeSet, path::PathBuf, sync::Arc, time::Duration};
 
-use async_trait::async_trait;
 use jailgun_core::{EventKind, JailgunEvent, Severity};
 use jailgun_deploy::{
     cleanup_remote_checkout,
     shell::{SshCiTracker, SshRemoteGit, SshRemoteJob, SshRemoteUpload},
-    CleanupRequest, DeployError, DeployOutcome, DeployReceipt, DeployRequest, JsonReceiptWriter,
+    CleanupRequest, DeployRequest,
 };
 use serde::{Deserialize, Serialize};
 use time::{format_description::well_known::Rfc3339, OffsetDateTime};
@@ -25,6 +24,10 @@ use crate::{
     },
     config::RunOptions,
     errors::OrchestratorError,
+    support::{
+        deploy_outcome_label, deploy_outcome_succeeded, ensure_expected_top_level,
+        LocalReceiptWriter,
+    },
 };
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
@@ -748,9 +751,7 @@ async fn deploy_download(
     let mut upload = SshRemoteUpload::new(remote_host.clone());
     let mut job = SshRemoteJob::new(remote_host.clone());
     let mut ci = SshCiTracker::with_repo(opts.ci_repo.clone());
-    let mut writer = LocalReceiptWriter {
-        receipt_dir: receipt_dir.clone(),
-    };
+    let mut writer = LocalReceiptWriter::new(receipt_dir.clone());
     let receipt = jailgun_deploy::deploy_remote(
         &mut upload,
         &mut job,
@@ -806,26 +807,6 @@ async fn deploy_download(
     }
 }
 
-fn deploy_outcome_succeeded(outcome: DeployOutcome) -> bool {
-    matches!(
-        outcome,
-        DeployOutcome::Succeeded | DeployOutcome::SucceededCiSkipped | DeployOutcome::DryRunStaged
-    )
-}
-
-fn deploy_outcome_label(outcome: DeployOutcome) -> &'static str {
-    match outcome {
-        DeployOutcome::Succeeded => "succeeded",
-        DeployOutcome::SucceededCiFailed => "succeeded-ci-failed",
-        DeployOutcome::SucceededCiSkipped => "succeeded-ci-skipped",
-        DeployOutcome::FailedPreserved => "failed-preserved",
-        DeployOutcome::FailedHard => "failed-hard",
-        DeployOutcome::UploadShaMismatch => "upload-sha-mismatch",
-        DeployOutcome::TimedOut => "timed-out",
-        DeployOutcome::DryRunStaged => "dry-run-staged",
-    }
-}
-
 fn validate_download_archive(
     opts: &RunOptions,
     tab_id: u16,
@@ -843,12 +824,7 @@ fn validate_download_archive(
         ));
     }
     if let Some(expected) = opts.deploy_expected_top_level.as_deref() {
-        if validation.top_level.as_deref() != Some(expected) {
-            return Err(format!(
-                "archive top-level must be {expected}/, found {}; refusing remote upload",
-                validation.top_level.as_deref().unwrap_or("(multiple)")
-            ));
-        }
+        ensure_expected_top_level(&validation, expected).map_err(|error| error.to_string())?;
     }
     Ok(())
 }
@@ -862,7 +838,11 @@ fn run_deadline(opts: &RunOptions, total_tabs: u16) -> Duration {
     let stagger_seconds = (opts.config.browser.submit_delay_seconds as u64
         + opts.config.browser.submit_jitter_seconds as u64)
         * total_tabs.saturating_sub(1) as u64;
-    Duration::from_secs(tar_wait_seconds + stagger_seconds + 60)
+    let derived = Duration::from_secs(tar_wait_seconds + stagger_seconds + 60);
+    opts.max_runtime_seconds
+        .map(Duration::from_secs)
+        .map(|max| derived.min(max))
+        .unwrap_or(derived)
 }
 
 fn submit_delay(opts: &RunOptions) -> Duration {
@@ -945,24 +925,6 @@ struct DeployResult {
     result: Result<(), String>,
 }
 
-struct LocalReceiptWriter {
-    receipt_dir: PathBuf,
-}
-
-#[async_trait]
-impl JsonReceiptWriter for LocalReceiptWriter {
-    async fn write_receipt(&mut self, receipt: &DeployReceipt) -> Result<PathBuf, DeployError> {
-        tokio::fs::create_dir_all(&self.receipt_dir).await?;
-        let path = self.receipt_dir.join(format!(
-            "{}-tab-{:02}-deploy.json",
-            receipt.run_id, receipt.tab_id
-        ));
-        let bytes = serde_json::to_vec_pretty(receipt)?;
-        tokio::fs::write(&path, bytes).await?;
-        Ok(path)
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1005,10 +967,53 @@ mod tests {
     }
 
     #[test]
+    fn run_deadline_honors_explicit_runtime_cap() {
+        let mut opts = RunOptions {
+            run_id: "run-1".into(),
+            config: jailgun_core::JailgunConfig::default(),
+            prompt_text: "prompt".into(),
+            tabs_override: Some(5),
+            no_deploy: true,
+            dry_run: true,
+            profile_dir: PathBuf::from("/tmp/profile"),
+            downloads_dir: PathBuf::from("/tmp/downloads"),
+            artifacts_dir: PathBuf::from("/tmp/artifacts"),
+            bridge_cmd: vec!["bridge".into()],
+            bridge_env: Default::default(),
+            repo_url: "git@example.com:org/repo.git".into(),
+            deploy_remote_host: None,
+            deploy_remote_dir: None,
+            deploy_remote_command: None,
+            deploy_expected_top_level: None,
+            ci_tracker_enabled: false,
+            ci_repo: None,
+            ci_branch: "main".into(),
+            ci_max_attempts: 1,
+            ci_poll_seconds: 1,
+            status_max_minutes: 1,
+            max_runtime_seconds: Some(120),
+            event_buffer: 64,
+            deploy_concurrency: 1,
+        };
+
+        assert_eq!(run_deadline(&opts, 5), Duration::from_secs(120));
+        opts.max_runtime_seconds = None;
+        assert!(run_deadline(&opts, 5) > Duration::from_secs(120));
+    }
+
+    #[test]
     fn failed_preserved_deploy_outcome_is_not_successful() {
-        assert!(deploy_outcome_succeeded(DeployOutcome::Succeeded));
-        assert!(deploy_outcome_succeeded(DeployOutcome::SucceededCiSkipped));
-        assert!(!deploy_outcome_succeeded(DeployOutcome::FailedPreserved));
-        assert!(!deploy_outcome_succeeded(DeployOutcome::SucceededCiFailed));
+        assert!(deploy_outcome_succeeded(
+            jailgun_deploy::DeployOutcome::Succeeded
+        ));
+        assert!(deploy_outcome_succeeded(
+            jailgun_deploy::DeployOutcome::SucceededCiSkipped
+        ));
+        assert!(!deploy_outcome_succeeded(
+            jailgun_deploy::DeployOutcome::FailedPreserved
+        ));
+        assert!(!deploy_outcome_succeeded(
+            jailgun_deploy::DeployOutcome::SucceededCiFailed
+        ));
     }
 }
