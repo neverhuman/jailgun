@@ -1,6 +1,6 @@
 {
-  "report_fingerprint": "sha256:ee41d6f939f7066c11c937197c24af26311997c865281aff5a34c6a329f49496",
-  "input_fingerprint": "sha256:921a58d2f64496c30f1244b5f69e959aff5f466658764b4abdf3a4c0baa5614d",
+  "report_fingerprint": "sha256:ec3ea4089f3dc4b83af0b984f9da0d64eb074779c841e5c15244bc827f32dca7",
+  "input_fingerprint": "sha256:88dc6df190949bdf9a8481e95a36581bc83169cb45aaa64c0258f18a610287f1",
   "policy_fingerprint": "sha256:2e02fe1c1919de94a47a99164c962683a934c73ca5bb30bec62384f7b17fe742",
   "manifest_fingerprints": {
     "owner_map": "sha256:df0834474569b72ae63ca9845b7e8d25af3a84d1aec5e54872a617bf9570b7c5",
@@ -11,7 +11,7 @@
     "standard_version": "sha256:e89e3b08c1e1ab55b195b4041787100956f3888aaba37595bce4403606dcb996"
   },
   "dirty_worktree": false,
-  "generated_at": "1780359136",
+  "generated_at": "1780361594",
   "schema_url": "schemas/repo-score.schema.json",
   "standard": "jankurai",
   "standard_version": "0.9.0",
@@ -30,9 +30,9 @@
     "HLT-022-AUTHZ-ISOLATION-GAP on crates/jailgun-cli/src/main.rs"
   ],
   "repo": ".",
-  "run_id": "1780359136",
-  "started_at": "1780359136",
-  "elapsed_ms": 22879,
+  "run_id": "1780361594",
+  "started_at": "1780361594",
+  "elapsed_ms": 22399,
   "scope": {
     "mode": "full",
     "paths": []
@@ -59,7 +59,7 @@
     }
   },
   "git": {
-    "head": "db5787c",
+    "head": "6a1cc62",
     "base": null,
     "changed_files": 0,
     "mode": "full",
@@ -336,7 +336,7 @@
         "security lane present",
         "canonical security lane wrapper present",
         "agent-readiness audit gate found in CI",
-        "rust bad-behavior advisory signals: 313",
+        "rust bad-behavior advisory signals: 350",
         "typescript bad-behavior advisory signals: 2",
         "ci bad-behavior advisory signals: 1",
         "gittools bad-behavior advisory signals: 2",
@@ -352,13 +352,13 @@
       "score": 27,
       "weighted_points": 3.24,
       "evidence": [
-        "largest authored code file: crates/jailgun-orchestrator/src/run/mod.rs (1148 LOC)",
+        "largest authored code file: crates/jailgun-cli/src/main.rs (1190 LOC)",
         "code file exceeds 500 LOC",
         "code file exceeds 1000 LOC",
         "most code files stay under 300 LOC",
         "copy-code advisory classes found: 3 (advisory only, no score impact)",
         "fallback soup marker found",
-        "rust bad-behavior advisory signals: 313",
+        "rust bad-behavior advisory signals: 350",
         "typescript bad-behavior advisory signals: 2",
         "ci bad-behavior advisory signals: 1",
         "gittools bad-behavior advisory signals: 2",
@@ -1093,7 +1093,7 @@
   "copy_code": {
     "schema_version": "1.1.0",
     "generated_by": "jankurai copy-code",
-    "generated_at": "2026-06-02T00:11:54.370828+00:00",
+    "generated_at": "2026-06-02T00:52:52.557699+00:00",
     "repo": ".",
     "auditor_version": "1.4.3",
     "status": "review",
@@ -1131,9 +1131,9 @@
       ]
     },
     "summary": {
-      "files_scanned": 209,
-      "files_considered": 67,
-      "active_files": 67,
+      "files_scanned": 211,
+      "files_considered": 68,
+      "active_files": 68,
       "exact_file_classes": 0,
       "hard_classes": 0,
       "warning_classes": 3,
@@ -1501,7 +1501,7 @@
       "problem": "`Code shape and semantic surface` scored 27 below the standard floor of 85",
       "agent_fix": "split large or ambiguous authored code into smaller semantic modules with focused tests",
       "evidence": [
-        "largest authored code file: crates/jailgun-orchestrator/src/run/mod.rs (1148 LOC)",
+        "largest authored code file: crates/jailgun-cli/src/main.rs (1190 LOC)",
         "code file exceeds 500 LOC",
         "code file exceeds 1000 LOC",
         "most code files stay under 300 LOC"
@@ -1511,7 +1511,7 @@
       "confidence": 0.76,
       "evidence_kind": "repository-scan",
       "rerun_command": "just fast",
-      "fingerprint": "sha256:83df48da2ec2b7f66f2730c89203bbc58eb187a33c2eaea62ba4141965464b42",
+      "fingerprint": "sha256:5dbdb57c9a15d1f66ceceb8c95cdeeb62c60f90c392d4028c3ffcb2bc4e16704",
       "rule_id": "HLT-001-DEAD-MARKER",
       "tlr": "Entropy",
       "lane": "fast",
@@ -1650,7 +1650,7 @@
       "lane": "db",
       "docs_url": "docs/audit-rubric.md#top-level-risk-mapping",
       "owner": "rust-cli",
-      "line": 1122,
+      "line": 1175,
       "matched_term": "rls",
       "reason": "authz/data isolation requires negative proof evidence"
     }

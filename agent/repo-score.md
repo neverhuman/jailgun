@@ -7,9 +7,9 @@
 - Target stack ID: `rust-ts-vite-react-postgres-bounded-python`
 - Target stack: `Rust core + TypeScript/React/Vite + PostgreSQL + generated contracts + exception-only Python AI/data service`
 - Repo: `.`
-- Run ID: `1780359136`
-- Started at: `1780359136`
-- Elapsed: `22879` ms
+- Run ID: `1780361594`
+- Started at: `1780361594`
+- Elapsed: `22399` ms
 - Scope: `full`
 - Raw score: `85`
 - Final score: `70`
@@ -70,7 +70,7 @@
 
 ## Copy-Code Redundancy
 
-- Status: `review` hard=`0` warning=`3` files=`67`
+- Status: `review` hard=`0` warning=`3` files=`68`
 - Policy: min-lines=`10` min-tokens=`100` max-findings=`50` include-tests=`false` strict=`false`
 - Duplicate volume: lines=`3` tokens=`13` bytes=`119`
 
@@ -93,7 +93,7 @@
 | Contract and boundary integrity | 13 | 88 | 11.44 | contract surface found; generated contract artifacts found |
 | Proof lanes and test routing | 12 | 100 | 12.00 | one-command setup/validation lane found; deterministic fast lane found |
 | Security and supply-chain posture | 12 | 100 | 12.00 | lockfile present; secret or dependency scan tooling found |
-| Code shape and semantic surface | 12 | 27 | 3.24 | largest authored code file: crates/jailgun-orchestrator/src/run/mod.rs (1148 LOC); code file exceeds 500 LOC |
+| Code shape and semantic surface | 12 | 27 | 3.24 | largest authored code file: crates/jailgun-cli/src/main.rs (1190 LOC); code file exceeds 500 LOC |
 | Data truth and workflow safety | 8 | 100 | 8.00 | database surface present; structured db boundary manifest present |
 | Observability and repair evidence | 8 | 88 | 7.04 | observability libraries or patterns found; ops/observability directory present |
 | Context economy and agent instructions | 7 | 93 | 6.51 | root `AGENTS.md` present; root `AGENTS.md` stays short |
@@ -183,8 +183,8 @@ No audited runtime boundary reclassifications declared.
    Reason: `Code shape and semantic surface` scored 27 below the standard floor of 85
    Fix: split large or ambiguous authored code into smaller semantic modules with focused tests
    Rerun: `just fast`
-   Fingerprint: `sha256:83df48da2ec2b7f66f2730c89203bbc58eb187a33c2eaea62ba4141965464b42`
-   Evidence: largest authored code file: crates/jailgun-orchestrator/src/run/mod.rs (1148 LOC), code file exceeds 500 LOC, code file exceeds 1000 LOC, most code files stay under 300 LOC
+   Fingerprint: `sha256:5dbdb57c9a15d1f66ceceb8c95cdeeb62c60f90c392d4028c3ffcb2bc4e16704`
+   Evidence: largest authored code file: crates/jailgun-cli/src/main.rs (1190 LOC), code file exceeds 500 LOC, code file exceeds 1000 LOC, most code files stay under 300 LOC
 2. `medium` `proof` `Justfile`
    Rule: `HLT-018-PERF-CONCURRENCY-DRIFT`
    Check: `HLT-018-PERF-CONCURRENCY-DRIFT:proof` `soft` confidence `0.76`
@@ -235,7 +235,7 @@ No audited runtime boundary reclassifications declared.
    Rerun: `just fast`
    Fingerprint: `sha256:055a7daac3c239d96f7f6bf50816223a0e02e3aca2ce1aa297c70ff2cabbacc8`
    Evidence: apps/dashboard/src/App.tsx:64 if (others.length === 0) return null;
-7. `high` `security` `crates/jailgun-cli/src/main.rs:1122`
+7. `high` `security` `crates/jailgun-cli/src/main.rs:1175`
    Rule: `HLT-022-AUTHZ-ISOLATION-GAP`
    Check: `HLT-022-AUTHZ-ISOLATION-GAP:security` `hard` confidence `0.88`
    Route: TLR `Business truth`, lane `db`, owner `rust-cli`
