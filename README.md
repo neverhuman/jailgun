@@ -50,48 +50,51 @@ checkouts are preserved under a timestamped ref and receipt before reset.
 Dirty checkouts, missing `origin/main`, failed ref creation, and failed receipt
 writes stop the deploy.
 
-## Telegram notifications (optional)
+## Notifications via JMCP (optional)
 
-Jailgun can push a short message to a private Telegram chat each time a deploy
-commit succeeds or fails. The notifier is **optional** — Jailgun runs end-to-end
-without it.
+Jailgun does **not** talk to Telegram, Slack, or any user-facing channel
+directly. Instead it writes JPCM/2.0 envelopes into a local outbox; a
+separate JMCP bridge owns the bot token and ships the message. The
+notifier is **optional** — jailgun runs end-to-end without it.
 
 To enable it on your machine:
 
-1. Open Telegram and message `@BotFather`. Run `/newbot`, follow the prompts,
-   and copy the bot token it gives you (a string of the form `1234567:ABC...`).
-2. Put the token in a local file the repo will not commit:
+1. Make sure the JMCP repo is present at `~/code/jmcp/` (it ships the
+   bridge stub at `~/code/jmcp/bin/jmcp-bridge.mjs`).
+2. Copy `~/code/jmcp/.env.example` to `~/code/jmcp/.env` and fill in
+   `TELEGRAM_BOT_TOKEN` and `TELEGRAM_CHAT_ID`. The file is gitignored
+   and lives outside the jailgun tree.
+3. Start the bridge once (or wire it into `launchd`):
 
    ```bash
-   mkdir -p telegram
-   printf '%s\n' '<paste-your-bot-token-here>' > telegram/token.env
-   chmod 600 telegram/token.env
+   node ~/code/jmcp/bin/jmcp-bridge.mjs
    ```
 
-   The `telegram/` directory is listed in `.gitignore`, so the token, the
-   discovered chat id cache, and any local notes you keep there stay out of
-   Git.
-3. Open your bot in Telegram (search for the bot name you chose in step 1) and
-   send it `/start`. Bots cannot DM you until you DM them first.
-4. Send the first test message from the repo root:
+4. From the jailgun repo, send a one-off envelope:
 
    ```bash
-   cargo run -p jailgun-cli -- telegram-send \
-     --token-file telegram/token.env \
-     --message "Jailgun online"
+   cargo run -p jailgun-cli -- jmcp-send \
+     --message "Jailgun online" \
+     --title "Online" --summary-emoji "🛰"
    ```
 
-   The CLI auto-discovers your chat id via `getUpdates` on first run; you can
-   pass `--chat-id <id>` to skip discovery, or write `TELEGRAM_CHAT_ID=<id>`
-   into `telegram/token.env` alongside the token.
-5. To ping on every successful local commit, install the post-commit hook:
+   The CLI writes a `jpcm_*.json` envelope into
+   `~/code/jmcp/inbox/`; the bridge picks it up within a few seconds,
+   posts to Telegram, and moves the file to `~/code/jmcp/delivered/`.
+   No bot credentials live in jailgun.
+
+5. To ping on every successful local commit, install the post-commit
+   hook:
 
    ```bash
    bash ops/ci/install-hooks.sh   # or copy ops/git-hooks/post-commit yourself
    ```
 
-   The hook runs `jailgun notify-commit` after each commit. If `telegram/token.env`
-   is missing, the hook exits quietly without failing the commit.
+   The hook runs `jailgun notify-commit --jmcp-inbox-dir
+   ~/code/jmcp/inbox`. If the JMCP repo isn't present, the hook exits
+   quietly without failing the commit.
 
-Run history and deploy events also fan out over the dashboard's WebSocket
-endpoint regardless of Telegram setup.
+See `docs/jmcp-integration.md` for the full envelope contract.
+
+Run history and deploy events also fan out over the dashboard's
+WebSocket endpoint regardless of JMCP setup.
