@@ -30,8 +30,8 @@ JAILGUN_CI_POLL_SECONDS="${JAILGUN_CI_POLL_SECONDS:-20}"
 JAILGUN_MAX_DOWNLOAD_START_LATENCY_MS="${JAILGUN_MAX_DOWNLOAD_START_LATENCY_MS:-10000}"
 JAILGUN_MESSAGE_STREAM_RETRY_LIMIT="${JAILGUN_MESSAGE_STREAM_RETRY_LIMIT:-6}"
 JAILGUN_MESSAGE_STREAM_RETRY_DELAY_MS="${JAILGUN_MESSAGE_STREAM_RETRY_DELAY_MS:-10000}"
-JAILGUN_TELEGRAM_TOKEN_FILE="${JAILGUN_TELEGRAM_TOKEN_FILE:-telegram/token.env}"
-JAILGUN_TELEGRAM_CHAT_ID_CACHE="${JAILGUN_TELEGRAM_CHAT_ID_CACHE:-telegram/chat_id.cache}"
+JAILGUN_JMCP_INBOX_DIR="${JAILGUN_JMCP_INBOX_DIR:-$HOME/code/jmcp/inbox}"
+JAILGUN_JMCP_INBOX_DIR_RESOLVED=""
 
 run_dir="$repo_root/artifacts/live-runs/$RUN_ID"
 runtime_dir="$run_dir/runtime"
@@ -126,12 +126,22 @@ check_port_free() {
   fi
 }
 
-validate_telegram() {
-  require_file "$JAILGUN_TELEGRAM_TOKEN_FILE" "Telegram token file"
-  require_file "$JAILGUN_TELEGRAM_CHAT_ID_CACHE" "Telegram chat id cache"
-  if [[ "${JAILGUN_NOTIFY_TELEGRAM:-}" != "1" ]]; then
-    fail "Telegram notifications are not enabled" "JAILGUN_NOTIFY_TELEGRAM=${JAILGUN_NOTIFY_TELEGRAM:-unset}" "set JAILGUN_NOTIFY_TELEGRAM=1 in $env_file"
+validate_jmcp_inbox() {
+  if [[ "${JAILGUN_NOTIFY_JMCP:-}" != "1" ]]; then
+    fail "JMCP notifications are not enabled" "JAILGUN_NOTIFY_JMCP=${JAILGUN_NOTIFY_JMCP:-unset}" "set JAILGUN_NOTIFY_JMCP=1 in $env_file"
   fi
+  local inbox_dir="${JAILGUN_JMCP_INBOX_DIR:-$HOME/code/jmcp/inbox}"
+  case "$inbox_dir" in
+    "~"|"~/"*) inbox_dir="${HOME}${inbox_dir#~}" ;;
+  esac
+  local parent_dir
+  parent_dir="$(dirname "$inbox_dir")"
+  if [[ ! -d "$parent_dir" ]]; then
+    fail "JMCP inbox parent does not exist" "$parent_dir" "create $parent_dir or set JAILGUN_JMCP_INBOX_DIR to an existing JMCP repo"
+  fi
+  mkdir -p "$inbox_dir"
+  chmod 700 "$inbox_dir" 2>/dev/null || true
+  JAILGUN_JMCP_INBOX_DIR_RESOLVED="$inbox_dir"
 }
 
 validate_source_ref() {
@@ -191,7 +201,7 @@ run_preflight() {
   require_env JAILGUN_TAR_TARGET_NAME
   require_file "$JAILGUN_PROMPT_FILE" "prompt file"
   check_port_free
-  validate_telegram
+  validate_jmcp_inbox
   validate_source_ref
   validate_remote
   validate_ci
@@ -250,9 +260,8 @@ jailgun_cmd=(
   --addr "$JAILGUN_DASHBOARD_ADDR"
   --dashboard-dist apps/dashboard/dist
   --dashboard-hold-seconds "$JAILGUN_DASHBOARD_HOLD_SECONDS"
-  --notify-telegram
-  --telegram-token-file "$JAILGUN_TELEGRAM_TOKEN_FILE"
-  --telegram-chat-id-cache "$JAILGUN_TELEGRAM_CHAT_ID_CACHE"
+  --notify-jmcp
+  --jmcp-inbox-dir "${JAILGUN_JMCP_INBOX_DIR_RESOLVED:-$JAILGUN_JMCP_INBOX_DIR}"
 )
 
 if [[ "$JAILGUN_CI" == "1" ]]; then
@@ -316,6 +325,6 @@ proof_summary="$(node -e 'const fs=require("fs"); const p=JSON.parse(fs.readFile
   printf 'logs: %s %s\n' "$events_log" "$runner_log"
   printf 'screenshots: %s %s\n' "$run_dir/dashboard-ready.png" "$run_dir/dashboard-final.png"
   printf 'counts: %s\n' "$proof_summary"
-  printf 'Telegram enabled: true\n'
+  printf 'JMCP enabled: true (inbox %s)\n' "${JAILGUN_JMCP_INBOX_DIR_RESOLVED:-$JAILGUN_JMCP_INBOX_DIR}"
   printf 'proof: %s\n' "$proof_file"
 } | tee "$receipt_file"
