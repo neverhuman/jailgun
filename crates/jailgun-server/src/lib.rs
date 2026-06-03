@@ -3,6 +3,7 @@ pub mod bus;
 pub use bus::{BroadcastBus, EventBus, NoopBus, RecordingBus};
 
 use std::{
+    collections::HashMap,
     io,
     net::SocketAddr,
     path::{Path, PathBuf},
@@ -19,10 +20,15 @@ use axum::{
 };
 use futures::{SinkExt, StreamExt};
 use jailgun_core::{
-    read_run_history, summarize_run, write_run_history, DeployQueueState, EventKind, JailgunConfig,
-    JailgunEvent, RunHistoryEntry, RunSnapshot, Severity, TabSnapshot,
+    read_run_history, summarize_run, write_run_history, AgentError, DeployQueueState, EventKind,
+    JailgunAgentRunRequest, JailgunAgentRunSummary, JailgunConfig, JailgunEvent, RunHistoryEntry,
+    RunSnapshot, Severity, TabSnapshot,
 };
-use serde_json::json;
+use jailgun_orchestrator::{
+    execute_prepared_agent_run, prepare_agent_run, AgentRunBackend, AgentRunEventSink,
+    AgentRunPaths, DefaultAgentRunBackend, PreparedAgentRun,
+};
+use serde_json::{json, Value};
 use tokio::{
     net::TcpListener,
     sync::{broadcast, RwLock},
@@ -33,6 +39,7 @@ use tower_http::services::ServeDir;
 pub struct AppState {
     pub config: JailgunConfig,
     pub runs: Arc<RwLock<Vec<RunSnapshot>>>,
+    pub agent_summaries: Arc<RwLock<HashMap<String, JailgunAgentRunSummary>>>,
     pub events: Arc<RwLock<Vec<JailgunEvent>>>,
     pub receipt_dir: PathBuf,
     /// Directory where run history entries are persisted as JSON files.
@@ -44,6 +51,7 @@ pub struct AppState {
     /// When `Some`, POST `/api/events` requires `x-jailgun-token: <token>`.
     /// When `None`, the endpoint refuses every request with 503.
     pub ingest_token: Option<String>,
+    pub agent_backend: Arc<dyn AgentRunBackend>,
 }
 
 impl AppState {
@@ -74,6 +82,8 @@ impl AppState {
             history_dir: PathBuf::from("data/run-history"),
             event_bus: None,
             ingest_token: None,
+            agent_summaries: Arc::new(RwLock::new(HashMap::new())),
+            agent_backend: Arc::new(DefaultAgentRunBackend),
         }
     }
 
@@ -89,11 +99,13 @@ impl AppState {
         let state = Self {
             config,
             runs: Arc::new(RwLock::new(Vec::new())),
+            agent_summaries: Arc::new(RwLock::new(HashMap::new())),
             events: Arc::new(RwLock::new(Vec::new())),
             receipt_dir,
             history_dir: PathBuf::from("data/run-history"),
             event_bus: Some(tx),
             ingest_token: None,
+            agent_backend: Arc::new(DefaultAgentRunBackend),
         };
         (state, rx)
     }
@@ -108,6 +120,11 @@ impl AppState {
         self
     }
 
+    pub fn with_agent_backend(mut self, backend: Arc<dyn AgentRunBackend>) -> Self {
+        self.agent_backend = backend;
+        self
+    }
+
     pub async fn record_event(&self, event: JailgunEvent) {
         self.events.write().await.push(event.clone());
         apply_event_to_runs(&self.runs, &event).await;
@@ -117,10 +134,21 @@ impl AppState {
     }
 }
 
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct JailgunAgentRunAcceptedResponse {
+    pub run_id: String,
+    pub status: String,
+    pub summary_json: String,
+    pub events_jsonl: String,
+    pub run_url: String,
+    pub summary_url: String,
+}
+
 pub fn api_router(state: AppState) -> Router {
     Router::new()
-        .route("/api/runs", get(get_runs))
+        .route("/api/runs", get(get_runs).post(start_agent_run))
         .route("/api/runs/{run_id}", get(get_run))
+        .route("/api/runs/{run_id}/agent-summary", get(get_agent_summary))
         .route("/api/config/effective", get(get_effective_config))
         .route("/api/receipts/{run_id}", get(get_receipts))
         .route("/api/history", get(get_history))
@@ -165,6 +193,59 @@ async fn get_run(
         None => (
             StatusCode::NOT_FOUND,
             Json(json!({ "error": "run not found" })),
+        )
+            .into_response(),
+    }
+}
+
+async fn get_agent_summary(
+    State(state): State<Arc<AppState>>,
+    AxumPath(run_id): AxumPath<String>,
+) -> Response {
+    if let Some(summary) = state.agent_summaries.read().await.get(&run_id).cloned() {
+        return Json(summary).into_response();
+    }
+
+    let summary_path = agent_summary_path(&state.receipt_dir.join(&run_id));
+    match tokio::fs::read_to_string(&summary_path).await {
+        Ok(text) => match serde_json::from_str::<JailgunAgentRunSummary>(&text) {
+            Ok(summary) => {
+                state
+                    .agent_summaries
+                    .write()
+                    .await
+                    .insert(run_id.clone(), summary.clone());
+                Json(summary).into_response()
+            }
+            Err(_) => (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(json!({ "error": "summary-json-invalid", "run_id": run_id })),
+            )
+                .into_response(),
+        },
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
+            let runs = state.runs.read().await;
+            match runs.iter().find(|run| run.run_id == run_id) {
+                Some(run) if run.status == "failed" => (
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    Json(json!({ "run_id": run_id, "status": "failed" })),
+                )
+                    .into_response(),
+                Some(run) => (
+                    StatusCode::ACCEPTED,
+                    Json(json!({ "run_id": run_id, "status": run.status })),
+                )
+                    .into_response(),
+                None => (
+                    StatusCode::NOT_FOUND,
+                    Json(json!({ "error": "run not found" })),
+                )
+                    .into_response(),
+            }
+        }
+        Err(_) => (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(json!({ "error": "summary-json-read-failed", "run_id": run_id })),
         )
             .into_response(),
     }
@@ -290,6 +371,232 @@ async fn post_event(
     } else {
         StatusCode::SERVICE_UNAVAILABLE
     }
+}
+
+async fn start_agent_run(
+    State(state): State<Arc<AppState>>,
+    headers: HeaderMap,
+    Json(body): Json<Value>,
+) -> Response {
+    if state.event_bus.is_none() {
+        return (
+            StatusCode::SERVICE_UNAVAILABLE,
+            Json(agent_error(
+                "agent-run-unavailable",
+                "start a Jailgun agent run",
+                "live mode is required to start server-side runs",
+            )),
+        )
+            .into_response();
+    }
+    let Some(expected) = state.ingest_token.as_deref() else {
+        return (
+            StatusCode::SERVICE_UNAVAILABLE,
+            Json(agent_error(
+                "agent-run-unavailable",
+                "start a Jailgun agent run",
+                "x-jailgun-token is required when run ingestion is enabled",
+            )),
+        )
+            .into_response();
+    };
+    let provided = headers
+        .get("x-jailgun-token")
+        .and_then(|value| value.to_str().ok());
+    if provided != Some(expected) {
+        return (
+            StatusCode::UNAUTHORIZED,
+            Json(agent_error(
+                "agent-run-unauthorized",
+                "start a Jailgun agent run",
+                "x-jailgun-token did not match the configured token",
+            )),
+        )
+            .into_response();
+    }
+
+    let mut request = match parse_agent_run_request(body) {
+        Ok(request) => request,
+        Err(error) => {
+            return (
+                StatusCode::BAD_REQUEST,
+                Json(agent_error(
+                    "agent-run-invalid",
+                    "start a Jailgun agent run",
+                    error,
+                )),
+            )
+                .into_response();
+        }
+    };
+
+    let run_id = request
+        .run_id
+        .clone()
+        .unwrap_or_else(|| format!("run-{}", uuid::Uuid::new_v4()));
+    request.run_id = Some(run_id.clone());
+    let run_dir = state.receipt_dir.join(&run_id);
+    let output_paths = AgentRunPaths {
+        events_jsonl: agent_events_path(&run_dir),
+        summary_json: agent_summary_path(&run_dir),
+    };
+    let accepted_paths = output_paths.clone();
+    let prepared = match prepare_agent_run(request, output_paths) {
+        Ok(prepared) => prepared,
+        Err(error) => {
+            return (
+                StatusCode::BAD_REQUEST,
+                Json(agent_error(
+                    "agent-run-invalid",
+                    "start a Jailgun agent run",
+                    error.to_string(),
+                )),
+            )
+                .into_response();
+        }
+    };
+
+    insert_run_snapshot(&state, prepared_snapshot(&prepared)).await;
+
+    let backend = state.agent_backend.clone();
+    let sink = ServerAgentEventSink {
+        state: state.clone(),
+    };
+    let failure_run_id = run_id.clone();
+    tokio::spawn(async move {
+        if let Err(error) = execute_prepared_agent_run(prepared, backend.as_ref(), &sink).await {
+            mark_agent_run_failed(&sink.state, &failure_run_id, error.to_string()).await;
+        }
+    });
+
+    let response_run_id = run_id.clone();
+    let response = JailgunAgentRunAcceptedResponse {
+        run_id,
+        status: "accepted".into(),
+        summary_json: accepted_paths.summary_json.display().to_string(),
+        events_jsonl: accepted_paths.events_jsonl.display().to_string(),
+        run_url: format!("/api/runs/{response_run_id}"),
+        summary_url: format!("/api/runs/{response_run_id}/agent-summary"),
+    };
+    (StatusCode::ACCEPTED, Json(response)).into_response()
+}
+
+fn parse_agent_run_request(body: Value) -> Result<JailgunAgentRunRequest, String> {
+    match body.get("version").and_then(Value::as_u64) {
+        Some(version) if version == jailgun_core::JAILGUN_AGENT_INTERFACE_VERSION as u64 => {}
+        Some(version) => {
+            return Err(format!(
+                "unsupported Jailgun agent interface version {}; expected {}",
+                version,
+                jailgun_core::JAILGUN_AGENT_INTERFACE_VERSION
+            ));
+        }
+        None => {
+            return Err(format!(
+                "Jailgun agent request requires version: {}",
+                jailgun_core::JAILGUN_AGENT_INTERFACE_VERSION
+            ));
+        }
+    }
+    serde_json::from_value(body).map_err(|error| format!("parsing agent request JSON: {error}"))
+}
+
+#[derive(Clone)]
+struct ServerAgentEventSink {
+    state: Arc<AppState>,
+}
+
+#[async_trait::async_trait]
+impl AgentRunEventSink for ServerAgentEventSink {
+    async fn on_event(&self, event: &JailgunEvent) -> anyhow::Result<()> {
+        self.state.record_event(event.clone()).await;
+        Ok(())
+    }
+
+    async fn on_summary(&self, summary: &JailgunAgentRunSummary) -> anyhow::Result<()> {
+        self.state
+            .agent_summaries
+            .write()
+            .await
+            .insert(summary.run_id.clone(), summary.clone());
+        let mut runs = self.state.runs.write().await;
+        if let Some(run) = runs.iter_mut().find(|run| run.run_id == summary.run_id) {
+            run.finished_at = Some(summary.finished_at.clone());
+            run.status = summary.status.clone();
+            run.denied_github_prompts = summary.denied_github_prompts;
+            run.allowed_info_prompts = summary.allowed_info_prompts;
+            run.early_stops_succeeded = summary.early_stops_succeeded;
+            run.early_stops_attempted = summary.early_stops_attempted;
+        }
+        Ok(())
+    }
+}
+
+fn prepared_snapshot(prepared: &PreparedAgentRun) -> RunSnapshot {
+    RunSnapshot {
+        run_id: prepared.opts.run_id.clone(),
+        started_at: prepared.started_at.clone(),
+        finished_at: None,
+        status: "running".into(),
+        batch_tabs: prepared.opts.batch_tabs(),
+        loop_count: prepared.opts.loop_count,
+        planned_tabs: prepared.opts.planned_tabs().unwrap_or(prepared.tabs),
+        tabs: Vec::new(),
+        deploy_queue: if prepared.config.deploy.enabled {
+            DeployQueueState::Running
+        } else {
+            DeployQueueState::Idle
+        },
+        denied_github_prompts: 0,
+        allowed_info_prompts: 0,
+        early_stops_succeeded: 0,
+        early_stops_attempted: 0,
+    }
+}
+
+async fn insert_run_snapshot(state: &Arc<AppState>, snapshot: RunSnapshot) {
+    let mut runs = state.runs.write().await;
+    if let Some(existing) = runs.iter_mut().find(|run| run.run_id == snapshot.run_id) {
+        *existing = snapshot;
+    } else {
+        runs.insert(0, snapshot);
+    }
+}
+
+async fn mark_agent_run_failed(state: &Arc<AppState>, run_id: &str, reason: String) {
+    let event = JailgunEvent::new(run_id.to_string(), EventKind::Error, reason)
+        .with_severity(jailgun_core::Severity::Error)
+        .with_field("status", "failed");
+    state.record_event(event.clone()).await;
+
+    let mut runs = state.runs.write().await;
+    if let Some(run) = runs.iter_mut().find(|run| run.run_id == run_id) {
+        run.finished_at = Some(event.timestamp.clone());
+        run.status = "failed".into();
+    }
+}
+
+fn agent_events_path(run_dir: &Path) -> PathBuf {
+    run_dir.join("agent-events.jsonl")
+}
+
+fn agent_summary_path(run_dir: &Path) -> PathBuf {
+    run_dir.join("agent-summary.json")
+}
+
+fn agent_error(code: &'static str, purpose: &'static str, reason: impl Into<String>) -> AgentError {
+    AgentError::new(
+        code,
+        purpose,
+        reason.into(),
+        vec![
+            "verify the live server token and request body",
+            "check the configured prompt file path",
+            "run the mapped rust test lane if the failure persists",
+        ],
+        "docs/testing.md",
+        "rerun the agent request with a valid prompt file and token",
+    )
 }
 
 async fn apply_event_to_runs(runs: &Arc<RwLock<Vec<RunSnapshot>>>, event: &JailgunEvent) {
