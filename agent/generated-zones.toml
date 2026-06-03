@@ -33,6 +33,14 @@ read_only = true
 write_policy = "generator-only"
 
 [[zone]]
+path = "artifacts/ux-qa/"
+source = "scripts/render-dashboard-ux-qa.mjs"
+generator = "dashboard UX QA renderer"
+command = "bash ops/ci/ux-qa.sh"
+read_only = true
+write_policy = "generator-only"
+
+[[zone]]
 path = "agent/repo-score.json"
 source = "tracked source tree"
 generator = "jankurai"

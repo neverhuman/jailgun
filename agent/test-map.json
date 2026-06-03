@@ -51,6 +51,11 @@
       "purpose": "verify repository assets remain routed through audit metadata",
       "lane": "audit"
     },
+    "artifacts/ux-qa/": {
+      "command": "bash ops/ci/ux-qa.sh",
+      "purpose": "verify generated dashboard rendered-UX evidence stays reproducible",
+      "lane": "web"
+    },
     "docs/": {
       "command": "bash ops/ci/release.sh && bash ops/ci/jankurai.sh",
       "purpose": "verify documentation remains routed through governance and release lanes",

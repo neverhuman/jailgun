@@ -109,7 +109,7 @@ To enable it on your machine:
 5. To ping on every successful local commit, install the post-commit hook:
 
    ```bash
-   bash ops/ci/install-hooks.sh   # or copy ops/git-hooks/post-commit yourself
+   just install-hooks   # or run: git config core.hooksPath ops/git-hooks
    ```
 
    The hook runs `jailgun notify-commit` after each commit. If `telegram/token.env`

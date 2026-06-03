@@ -13,6 +13,7 @@ receipts/
 profiles/
 browser-state/
 .cache/
+.jankurai/
 .vite/
 dist/
 target/
