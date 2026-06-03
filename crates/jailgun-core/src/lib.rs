@@ -12,9 +12,9 @@ pub mod tarball;
 
 pub use agent::{
     JailgunAgentBrowserRequest, JailgunAgentDeployRequest, JailgunAgentRunRequest,
-    JailgunAgentRunSummary, JailgunArtifact, JailgunChangedFile, JailgunCiRequest,
-    JailgunFailure, JailgunGithubPolicyRequest, JailgunRepoRef, JailgunReviewPacket,
-    JailgunSourceArchiveRequest, JailgunSourceArchiveSummary, JAILGUN_AGENT_INTERFACE_VERSION,
+    JailgunAgentRunSummary, JailgunArtifact, JailgunChangedFile, JailgunCiRequest, JailgunFailure,
+    JailgunGithubPolicyRequest, JailgunRepoRef, JailgunReviewPacket, JailgunSourceArchiveRequest,
+    JailgunSourceArchiveSummary, JAILGUN_AGENT_INTERFACE_VERSION,
     JAILGUN_AGENT_MAX_RUNTIME_SECONDS, JAILGUN_AGENT_MAX_TABS,
 };
 pub use agent_error::{AgentError, AgentErrorExt};

@@ -920,6 +920,82 @@ mod tests {
     use axum::{body::Body, http::Request};
     use tower::ServiceExt;
 
+    struct FakeBackend {
+        completion_delay_ms: u64,
+    }
+
+    #[async_trait::async_trait]
+    impl AgentRunBackend for FakeBackend {
+        async fn start(
+            &self,
+            opts: jailgun_orchestrator::RunOptions,
+        ) -> anyhow::Result<jailgun_orchestrator::OrchestratorHandle> {
+            let (events_tx, events_rx) = broadcast::channel(8);
+            let (completion_tx, completion_rx) = tokio::sync::oneshot::channel();
+            let (shutdown_tx, _shutdown_rx) = tokio::sync::watch::channel(false);
+            let run_id = opts.run_id.clone();
+            let batch_tabs = opts.batch_tabs();
+            let loop_count = opts.loop_count;
+            let planned_tabs = opts.planned_tabs().unwrap_or(batch_tabs);
+            let completion_delay_ms = self.completion_delay_ms;
+            tokio::spawn(async move {
+                let event =
+                    JailgunEvent::new(run_id.clone(), EventKind::RunStarted, "fake started")
+                        .with_field("batch_tabs", batch_tabs.to_string())
+                        .with_field("loop_count", loop_count.to_string())
+                        .with_field("planned_tabs", planned_tabs.to_string());
+                let _ = events_tx.send(event);
+                tokio::time::sleep(std::time::Duration::from_millis(completion_delay_ms)).await;
+                let summary = jailgun_orchestrator::RunSummary {
+                    run_id,
+                    batch_tabs,
+                    loop_count,
+                    planned_tabs,
+                    total_tabs: planned_tabs,
+                    downloaded: 0,
+                    deployed: 0,
+                    failures: Vec::new(),
+                    denied_github_prompts: 0,
+                    allowed_info_prompts: 0,
+                    early_stops_succeeded: 0,
+                    early_stops_attempted: 0,
+                };
+                let _ = completion_tx.send(summary);
+            });
+            Ok(jailgun_orchestrator::OrchestratorHandle {
+                events_rx,
+                completion: completion_rx,
+                shutdown: shutdown_tx,
+            })
+        }
+    }
+
+    fn agent_request(prompt_file: PathBuf) -> JailgunAgentRunRequest {
+        let mut request = JailgunAgentRunRequest {
+            version: jailgun_core::JAILGUN_AGENT_INTERFACE_VERSION,
+            run_id: Some("run-1".into()),
+            prompt_ref: "jmcp://prompt/1".into(),
+            prompt_file,
+            config_path: None,
+            tabs: Some(1),
+            max_runtime_seconds: Some(60),
+            repo: Default::default(),
+            source_archive: Default::default(),
+            deploy: Default::default(),
+            ci: Default::default(),
+            browser: Default::default(),
+            github: Default::default(),
+        };
+        request.browser.bridge_cmd = vec!["fake-bridge".into()];
+        request
+    }
+
+    fn write_prompt(temp: &tempfile::TempDir) -> PathBuf {
+        let prompt_file = temp.path().join("prompt.txt");
+        std::fs::write(&prompt_file, "review this change").expect("write prompt");
+        prompt_file
+    }
+
     #[tokio::test]
     async fn serves_run_snapshot_and_redacted_config() {
         let app = api_router(AppState::fixture(JailgunConfig::default()));
@@ -1007,6 +1083,205 @@ mod tests {
             .await
             .unwrap();
         assert_eq!(resp.status(), StatusCode::SERVICE_UNAVAILABLE);
+    }
+
+    #[tokio::test]
+    async fn start_agent_run_requires_live_mode() {
+        let app = api_router(AppState::fixture(JailgunConfig::default()));
+        let resp = app
+            .oneshot(
+                Request::builder()
+                    .method("POST")
+                    .uri("/api/runs")
+                    .header("content-type", "application/json")
+                    .body(Body::from(r#"{"version":1}"#))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(resp.status(), StatusCode::SERVICE_UNAVAILABLE);
+    }
+
+    #[tokio::test]
+    async fn start_agent_run_requires_ingest_token() {
+        let (state, _rx) = AppState::live(JailgunConfig::default(), PathBuf::from("receipts"), 64);
+        let app = api_router(state);
+        let resp = app
+            .oneshot(
+                Request::builder()
+                    .method("POST")
+                    .uri("/api/runs")
+                    .header("content-type", "application/json")
+                    .body(Body::from(r#"{"version":1}"#))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(resp.status(), StatusCode::SERVICE_UNAVAILABLE);
+    }
+
+    #[tokio::test]
+    async fn start_agent_run_rejects_wrong_token() {
+        let (state, _rx) = AppState::live(JailgunConfig::default(), PathBuf::from("receipts"), 64);
+        let app = api_router(state.with_ingest_token(Some("secret".into())));
+        let resp = app
+            .oneshot(
+                Request::builder()
+                    .method("POST")
+                    .uri("/api/runs")
+                    .header("content-type", "application/json")
+                    .header("x-jailgun-token", "wrong")
+                    .body(Body::from(r#"{"version":1}"#))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(resp.status(), StatusCode::UNAUTHORIZED);
+    }
+
+    #[tokio::test]
+    async fn invalid_agent_request_returns_structured_error() {
+        let (state, _rx) = AppState::live(JailgunConfig::default(), PathBuf::from("receipts"), 64);
+        let app = api_router(state.with_ingest_token(Some("secret".into())));
+        let resp = app
+            .oneshot(
+                Request::builder()
+                    .method("POST")
+                    .uri("/api/runs")
+                    .header("content-type", "application/json")
+                    .header("x-jailgun-token", "secret")
+                    .body(Body::from(r#"{"version":2}"#))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(resp.status(), StatusCode::BAD_REQUEST);
+        let body = axum::body::to_bytes(resp.into_body(), 65536).await.unwrap();
+        let value: serde_json::Value = serde_json::from_slice(&body).unwrap();
+        assert_eq!(value["code"], "agent-run-invalid");
+        assert!(value["reason"]
+            .as_str()
+            .unwrap()
+            .contains("unsupported Jailgun agent interface version"));
+    }
+
+    #[tokio::test]
+    async fn accepted_agent_run_inserts_running_snapshot() {
+        let temp = tempfile::tempdir().expect("tempdir");
+        let prompt_file = write_prompt(&temp);
+        let backend = Arc::new(FakeBackend {
+            completion_delay_ms: 250,
+        });
+        let (state, _rx) =
+            AppState::live(JailgunConfig::default(), temp.path().join("receipts"), 64);
+        let app = api_router(
+            state
+                .with_ingest_token(Some("secret".into()))
+                .with_agent_backend(backend),
+        );
+        let request = agent_request(prompt_file);
+
+        let response = app
+            .clone()
+            .oneshot(
+                Request::builder()
+                    .method("POST")
+                    .uri("/api/runs")
+                    .header("content-type", "application/json")
+                    .header("x-jailgun-token", "secret")
+                    .body(Body::from(serde_json::to_vec(&request).unwrap()))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(response.status(), StatusCode::ACCEPTED);
+
+        let runs_response = app
+            .oneshot(
+                Request::builder()
+                    .uri("/api/runs")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        let body = axum::body::to_bytes(runs_response.into_body(), 65536)
+            .await
+            .unwrap();
+        let runs: Vec<RunSnapshot> = serde_json::from_slice(&body).unwrap();
+        let run = runs.iter().find(|run| run.run_id == "run-1").unwrap();
+        assert_eq!(run.status, "running");
+        assert_eq!(run.batch_tabs, 1);
+        assert_eq!(run.planned_tabs, 1);
+    }
+
+    #[tokio::test]
+    async fn fake_backend_success_stores_agent_summary_and_events() {
+        let temp = tempfile::tempdir().expect("tempdir");
+        let prompt_file = write_prompt(&temp);
+        let backend = Arc::new(FakeBackend {
+            completion_delay_ms: 10,
+        });
+        let (state, _rx) =
+            AppState::live(JailgunConfig::default(), temp.path().join("receipts"), 64);
+        let events = state.events.clone();
+        let app = api_router(
+            state
+                .with_ingest_token(Some("secret".into()))
+                .with_agent_backend(backend),
+        );
+        let request = agent_request(prompt_file);
+
+        let response = app
+            .clone()
+            .oneshot(
+                Request::builder()
+                    .method("POST")
+                    .uri("/api/runs")
+                    .header("content-type", "application/json")
+                    .header("x-jailgun-token", "secret")
+                    .body(Body::from(serde_json::to_vec(&request).unwrap()))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(response.status(), StatusCode::ACCEPTED);
+
+        tokio::time::timeout(std::time::Duration::from_secs(2), async {
+            loop {
+                let response = app
+                    .clone()
+                    .oneshot(
+                        Request::builder()
+                            .uri("/api/runs/run-1/agent-summary")
+                            .body(Body::empty())
+                            .unwrap(),
+                    )
+                    .await
+                    .unwrap();
+                if response.status() == StatusCode::OK {
+                    let body = axum::body::to_bytes(response.into_body(), 65536)
+                        .await
+                        .unwrap();
+                    let summary: JailgunAgentRunSummary = serde_json::from_slice(&body).unwrap();
+                    assert_eq!(summary.status, "succeeded");
+                    assert_eq!(summary.batch_tabs, 1);
+                    break;
+                }
+                tokio::time::sleep(std::time::Duration::from_millis(25)).await;
+            }
+        })
+        .await
+        .expect("summary became available");
+
+        let events = events.read().await;
+        assert!(events
+            .iter()
+            .any(|event| event.run_id == "run-1" && matches!(event.kind, EventKind::RunStarted)));
     }
 
     #[tokio::test]

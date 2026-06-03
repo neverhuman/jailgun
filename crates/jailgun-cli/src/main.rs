@@ -212,6 +212,28 @@ enum Command {
         #[arg(long, default_value = "~/code/jmcp/inbox")]
         jmcp_inbox_dir: PathBuf,
     },
+    RunAgent {
+        #[arg(long)]
+        request: String,
+        #[arg(long)]
+        events_jsonl: PathBuf,
+        #[arg(long)]
+        summary_json: PathBuf,
+    },
+    ReviewPacket {
+        #[arg(long = "summary-json")]
+        summary_json: PathBuf,
+        #[arg(long)]
+        base: String,
+        #[arg(long)]
+        head: String,
+        #[arg(long, default_value = ".")]
+        repo: PathBuf,
+        #[arg(long)]
+        output: Option<PathBuf>,
+        #[arg(long, default_value_t = 128 * 1024)]
+        patch_bytes: usize,
+    },
     /// Write a commit-notice JMCP envelope to the outbox. Invoked by the
     /// post-commit hook so a successful commit is reported via JMCP.
     NotifyCommit {
@@ -787,6 +809,37 @@ async fn main() -> Result<()> {
                 })
             );
         }
+        Command::RunAgent {
+            request,
+            events_jsonl,
+            summary_json,
+        } => {
+            jailgun_orchestrator::run_agent(request, events_jsonl, summary_json).await?;
+        }
+        Command::ReviewPacket {
+            summary_json,
+            base,
+            head,
+            repo,
+            output,
+            patch_bytes,
+        } => {
+            let packet = jailgun_orchestrator::build_review_packet(
+                &summary_json,
+                &repo,
+                &base,
+                &head,
+                patch_bytes,
+            )?;
+            let bytes = serde_json::to_vec_pretty(&packet)?;
+            if let Some(output) = output {
+                ensure_parent_dir(&output)?;
+                fs::write(&output, bytes)
+                    .with_context(|| format!("writing {}", output.display()))?;
+            } else {
+                println!("{}", String::from_utf8_lossy(&bytes));
+            }
+        }
         Command::NotifyCommit {
             jmcp_inbox_dir,
             repo,
@@ -1059,6 +1112,16 @@ fn deploy_remote_command(value: Option<String>, env_name: &str) -> Result<String
             anyhow::bail!("remote command environment variable ${env_name} is not valid UTF-8")
         }
     }
+}
+
+fn ensure_parent_dir(path: &Path) -> Result<()> {
+    if let Some(parent) = path
+        .parent()
+        .filter(|parent| !parent.as_os_str().is_empty())
+    {
+        fs::create_dir_all(parent).with_context(|| format!("creating {}", parent.display()))?;
+    }
+    Ok(())
 }
 
 fn ensure_expected_top_level(validation: &TarValidation, expected: &str) -> Result<()> {
@@ -1459,6 +1522,72 @@ mod tests {
                 );
             }
             other => panic!("expected runs command, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn run_agent_cli_parses_paths() {
+        let cli = Cli::try_parse_from([
+            "jailgun",
+            "run-agent",
+            "--request",
+            "request.json",
+            "--events-jsonl",
+            "events.jsonl",
+            "--summary-json",
+            "summary.json",
+        ])
+        .expect("run-agent args parse");
+        match cli.command {
+            Command::RunAgent {
+                request,
+                events_jsonl,
+                summary_json,
+            } => {
+                assert_eq!(request, "request.json");
+                assert_eq!(events_jsonl, PathBuf::from("events.jsonl"));
+                assert_eq!(summary_json, PathBuf::from("summary.json"));
+            }
+            other => panic!("expected run-agent command, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn review_packet_cli_parses_output_and_patch_limit() {
+        let cli = Cli::try_parse_from([
+            "jailgun",
+            "review-packet",
+            "--summary-json",
+            "summary.json",
+            "--base",
+            "origin/main",
+            "--head",
+            "HEAD",
+            "--repo",
+            ".",
+            "--output",
+            "packet.json",
+            "--patch-bytes",
+            "4096",
+        ])
+        .expect("review-packet args parse");
+        match cli.command {
+            Command::ReviewPacket {
+                summary_json,
+                base,
+                head,
+                repo,
+                output,
+                patch_bytes,
+            } => {
+                assert_eq!(summary_json, PathBuf::from("summary.json"));
+                assert_eq!(base, "origin/main");
+                assert_eq!(head, "HEAD");
+                assert_eq!(repo, PathBuf::from("."));
+                assert_eq!(output, Some(PathBuf::from("packet.json")));
+                assert_eq!(patch_bytes, 4096);
+            }
+            other => panic!("expected review-packet command, got {other:?}"),
         }
     }
 

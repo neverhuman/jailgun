@@ -669,6 +669,7 @@ dependencies = [
 name = "jailgun-orchestrator"
 version = "0.1.0"
 dependencies = [
+ "anyhow",
  "async-trait",
  "bytes",
  "futures",
@@ -688,9 +689,12 @@ dependencies = [
 name = "jailgun-server"
 version = "0.1.0"
 dependencies = [
+ "anyhow",
+ "async-trait",
  "axum",
  "futures",
  "jailgun-core",
+ "jailgun-orchestrator",
  "serde",
  "serde_json",
  "tempfile",
@@ -698,6 +702,7 @@ dependencies = [
  "tower",
  "tower-http",
  "tracing",
+ "uuid",
 ]
 
 [[package]]
