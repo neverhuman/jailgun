@@ -36,11 +36,13 @@ pub fn map_bridge_event(
             }
             event
         }
-        BridgeEvent::ArchiveUploaded(payload) => base(EventKind::TabOpened, "archive uploaded")
-            .with_field("sha256", payload.sha256.clone())
-            .with_field("size_bytes", payload.size_bytes.to_string())
-            .with_field("commit", payload.commit.clone())
-            .with_field("archive_filename", payload.archive_filename.clone()),
+        BridgeEvent::ArchiveUploaded(payload) => {
+            base(EventKind::ArchiveUploaded, "archive uploaded")
+                .with_field("sha256", payload.sha256.clone())
+                .with_field("size_bytes", payload.size_bytes.to_string())
+                .with_field("commit", payload.commit.clone())
+                .with_field("archive_filename", payload.archive_filename.clone())
+        }
         BridgeEvent::PromptSubmitted(payload) => {
             base(EventKind::PromptSubmitted, "prompt submitted")
                 .with_field("char_count", payload.char_count.to_string())
@@ -163,6 +165,7 @@ mod tests {
         let mapped = map_bridge_event("run-1", Some(2), &event).expect("mapped");
         assert_eq!(mapped.run_id, "run-1");
         assert_eq!(mapped.tab_id, Some(2));
+        assert_eq!(mapped.kind, EventKind::ArchiveUploaded);
         assert_eq!(
             mapped.fields.get("archive_filename").map(String::as_str),
             Some("source.tar.gz")

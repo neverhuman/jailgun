@@ -554,6 +554,7 @@ fn tab_status_for_event(event: &JailgunEvent, current: String) -> String {
     }
     match &event.kind {
         EventKind::TabOpened => "opened".to_string(),
+        EventKind::ArchiveUploaded => current,
         EventKind::PromptSubmitted => "prompt-submitted".to_string(),
         EventKind::TarDiscovered => "tar-discovered".to_string(),
         EventKind::DownloadStarted => "downloading".to_string(),

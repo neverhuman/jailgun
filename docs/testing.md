@@ -49,15 +49,24 @@ batch envelope is validated by the Rust tests, and the cockpit quality
 summary is exercised by the dashboard tests plus the rendered UX lane.
 
 Browser profile-pool coverage lives in the Chrome bridge self-test,
-orchestrator Rust tests, and dashboard tests. These lanes validate profile
-rotation, per-profile state planning, event metadata mapping, and dashboard
-rendering without opening real Chrome or requiring Google credentials.
+orchestrator Rust tests, the fake-chatgpt smoke, and dashboard tests. These
+lanes validate profile rotation, per-profile state planning, event metadata
+mapping, and dashboard rendering without requiring Google credentials. The
+fake-chatgpt smoke runs managed Chrome headless against artifact-scoped profile
+directories under `target/e2e-fake-chatgpt/`. By default it runs 10 tabs per
+batch with `loops=2`, proving 30 planned tab opens, three 5/5 profile-and-slot
+batches, exactly two `cdp_url` values, overlapping slot windows, and cleanup
+status in `target/e2e-fake-chatgpt/profile-proof.json`.
+
+The fake smoke also verifies that no process still has open files under the
+lane artifact directory, that the selected fake-chatgpt port is closed, and
+that the selected managed CDP ports are closed after the runner exits. Real
+ChatGPT, real Google profiles, visible Chrome setup, and paid API calls remain
+operator-only smoke surfaces, not cleanup proof inputs.
 
 `apps/fake-chatgpt` is the CI-owned ChatGPT copycat surface. New end-to-end
 coverage for upload, prompt submission, tar discovery, and multi-profile
-browser orchestration should target that fake service first. Real ChatGPT,
-real Google profiles, and paid API calls remain operator-only smoke surfaces,
-not default CI requirements.
+browser orchestration should target that fake service first.
 
 ## Budgets and Stop Conditions
 

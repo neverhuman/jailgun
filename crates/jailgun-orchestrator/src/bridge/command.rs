@@ -35,6 +35,16 @@ pub struct UploadArchivePayload {
     pub confirm_selectors: Vec<String>,
     #[serde(default = "default_upload_timeout_ms")]
     pub timeout_ms: u64,
+    /// When set, the bridge fills this prompt into the composer while the
+    /// upload is still processing and clicks send the instant the button
+    /// becomes enabled.  This eliminates the round-trip delay between the
+    /// `upload-archive` and `submit-prompt` commands.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub prompt: Option<String>,
+    /// Timeout for the prompt submission readiness poll (only used when
+    /// `prompt` is set).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub submit_timeout_ms: Option<u64>,
 }
 
 fn default_ref_name() -> String {
@@ -182,10 +192,17 @@ mod tests {
             delete_after_upload: true,
             confirm_selectors: Vec::new(),
             timeout_ms: 45_000,
+            prompt: None,
+            submit_timeout_ms: None,
         };
         let value = serde_json::to_value(&payload).expect("serialize");
         assert_eq!(value["fresh_source_clone"], true);
+        assert!(
+            value.get("prompt").is_none(),
+            "prompt should be omitted when None"
+        );
         let decoded: UploadArchivePayload = serde_json::from_value(value).expect("decode");
         assert!(decoded.fresh_source_clone);
+        assert!(decoded.prompt.is_none());
     }
 }

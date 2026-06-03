@@ -48,6 +48,17 @@ describe('fake-chatgpt server', () => {
     expect(body).toMatch(/<meta name="fake-chatgpt-state" content="idle"/);
   });
 
+  it('serves a new automation-ready conversation at /new', async () => {
+    const { status, body } = await getHtml('/new');
+    expect(status).toBe(200);
+    expect(body).toMatch(/data-testid="composer-text-input"/);
+    expect(body).toMatch(/file-upload-input/);
+    expect(body).toMatch(/upload-chip/);
+    expect(body).toMatch(/data-testid="send-button"/);
+    expect(body).toMatch(/\/admin\/state/);
+    expect(body).toMatch(/<meta name="fake-chatgpt-state" content="idle"/);
+  });
+
   it('admin/state transitions the conversation state', async () => {
     const set = await postJson('/admin/state', {
       conversation_id: 'tab-1',
@@ -108,6 +119,15 @@ describe('fake-chatgpt server', () => {
     expect(page.body).toMatch(/jekko\.tar\.gz/);
     expect(page.body).toMatch(/jekko-fixes\.tar\.gz/);
     expect(page.body).toMatch(/dummy\.tar\.gz/);
+  });
+
+  it('serves local tar.gz downloads for fixture links', async () => {
+    const res = await fetch(`${handle.url}/downloads/jekko-fixes.tar.gz`);
+    expect(res.status).toBe(200);
+    expect(res.headers.get('content-disposition')).toMatch(/jekko-fixes\.tar\.gz/);
+    const bytes = new Uint8Array(await res.arrayBuffer());
+    expect(bytes[0]).toBe(0x1f);
+    expect(bytes[1]).toBe(0x8b);
   });
 
   it('404s for unknown routes', async () => {

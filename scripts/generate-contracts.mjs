@@ -27,6 +27,7 @@ const schema = {
       enum: [
         'run-started',
         'tab-opened',
+        'archive-uploaded',
         'prompt-submitted',
         'tar-discovered',
         'download-receipt',
@@ -73,6 +74,20 @@ const fixtures = {
     severity: 'info',
     message: 'tab opened',
     fields: { page_url: 'https://chatgpt.com/' }
+  },
+  'archive-uploaded.json': {
+    run_id: 'run-fixture',
+    tab_id: 1,
+    timestamp: '2026-05-31T12:00:20Z',
+    kind: 'archive-uploaded',
+    severity: 'info',
+    message: 'archive uploaded',
+    fields: {
+      sha256: sha,
+      size_bytes: '4096',
+      commit: 'abc123',
+      archive_filename: 'source.tar.gz'
+    }
   },
   'prompt-submitted.json': {
     run_id: 'run-fixture',

@@ -53,7 +53,7 @@ directories instead of sharing one logged-in profile:
 ```bash
 cargo run -p jailgun-cli -- run \
   --prompt-file prompts/templates/harden-repo.txt \
-  --tabs 2 \
+  --tabs 10 \
   --profile-pool ~/.jailgun/profiles/google-a \
   --profile-pool ~/.jailgun/profiles/google-b
 ```
@@ -68,6 +68,12 @@ You can also set `JAILGUN_CHROME_PROFILE_POOL` or
 `JAILGUN_CHROME_PROFILE_DIRS` to a path-list. Tab launches rotate through the
 pool, and the dashboard shows the assigned browser profile, profile directory,
 slot, and CDP URL for each tab.
+
+The CI smoke lane mirrors that shape with 10 tabs per batch split 5/5 across
+two artifact-scoped profile directories under `target/e2e-fake-chatgpt/`. It
+checks three batches by default, two unique CDP URLs, overlapping slot windows,
+source upload, bundled prompt injection, prompt submission, downloads, and
+post-run cleanup.
 
 Remote cleanup policy defaults to `preserve-reset`. Clean divergent remote
 checkouts are preserved under a timestamped ref and receipt before reset.
