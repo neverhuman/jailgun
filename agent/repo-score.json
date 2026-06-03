@@ -1,17 +1,17 @@
 {
-  "report_fingerprint": "sha256:bec59f50c6af9debb3097c1c98bdfcbd55ee93f05a4bc641a8637743d30137ee",
-  "input_fingerprint": "sha256:2a7e605611696915ee086f0f3b7b284d93935ddd9b921a84c6887ec00ec21a10",
+  "report_fingerprint": "sha256:06016b10425e77004c1422d86f0f7dc5f10ec0d45f2db7ea4368849f311eb115",
+  "input_fingerprint": "sha256:92c49f5408927114f2ad4e0d9a15954658c178e58e06b1e5aac4a190ab519e27",
   "policy_fingerprint": "sha256:2e02fe1c1919de94a47a99164c962683a934c73ca5bb30bec62384f7b17fe742",
   "manifest_fingerprints": {
-    "owner_map": "sha256:c5d6ff65c3420d96e00ff0232f7d382635d4e54169dc799c4c14d8602d9491ef",
-    "test_map": "sha256:84747d495eb8ed36ebee4f12f6c49dbb111562b4fa69fdb06c235312ac7ea578",
-    "generated_zones": "sha256:e0d08bcd5dc39068bb9929dd463afebb2e6a16b208ef255348196e78dae8c17c",
+    "owner_map": "sha256:3d4dee6bdcad6f20a716ef593fc957ad3d891f587f9f2e27ed2afeaaf2f29abf",
+    "test_map": "sha256:10d8db2a42670fcaa5e038df0b65cdc67e3badc368c2d7cc9fe117f2e50280f8",
+    "generated_zones": "sha256:3eb7f69a09a1452a4189e7e132cda2275525ed4bcf640a3f983723e1d67ade1a",
     "boundaries": "sha256:e603dc2c37fd526ad62380eb9f3d8dda55bfd85d62125e9479e2ecc8004bf771",
     "proof_lanes": "sha256:15ec3d011b63046bbc896e0de66f4c8ec26bc4b72e286200e2ece5f714024c73",
     "standard_version": "sha256:e89e3b08c1e1ab55b195b4041787100956f3888aaba37595bce4403606dcb996"
   },
-  "dirty_worktree": true,
-  "generated_at": "1780407531",
+  "dirty_worktree": false,
+  "generated_at": "1780502667",
   "schema_url": "schemas/repo-score.schema.json",
   "standard": "jankurai",
   "standard_version": "0.9.0",
@@ -23,40 +23,25 @@
   "claimed_conformance_level": "HL3",
   "observed_conformance_level": "HL3",
   "conformance_decision": "pass",
-  "conformance_blockers": [
-    "HLT-003-OWNERLESS-PATH on agent/owner-map.json",
-    "HLT-003-OWNERLESS-PATH on agent/owner-map.json",
-    "HLT-003-OWNERLESS-PATH on agent/owner-map.json",
-    "HLT-003-OWNERLESS-PATH on agent/owner-map.json",
-    "HLT-003-OWNERLESS-PATH on agent/owner-map.json",
-    "HLT-003-OWNERLESS-PATH on agent/owner-map.json",
-    "HLT-003-OWNERLESS-PATH on agent/owner-map.json",
-    "HLT-004-UNMAPPED-PROOF on agent/test-map.json",
-    "HLT-004-UNMAPPED-PROOF on agent/test-map.json",
-    "HLT-004-UNMAPPED-PROOF on agent/test-map.json",
-    "HLT-004-UNMAPPED-PROOF on agent/test-map.json",
-    "HLT-004-UNMAPPED-PROOF on agent/test-map.json",
-    "HLT-004-UNMAPPED-PROOF on agent/test-map.json",
-    "HLT-004-UNMAPPED-PROOF on agent/test-map.json"
-  ],
+  "conformance_blockers": [],
   "repo": ".",
-  "run_id": "1780407531",
-  "started_at": "1780407531",
-  "elapsed_ms": 27068,
+  "run_id": "1780502667",
+  "started_at": "1780502667",
+  "elapsed_ms": 4439,
   "scope": {
     "mode": "full",
     "paths": []
   },
-  "score": 87,
-  "raw_score": 87,
+  "score": 89,
+  "raw_score": 89,
   "decision": {
     "status": "advisory",
     "minimum_score": 85,
     "passed": true,
     "hard_findings": 0,
-    "soft_findings": 17,
+    "soft_findings": 2,
     "ratchet": {
-      "baseline_score": 87,
+      "baseline_score": 89,
       "allowed_drop": 0,
       "passed": true,
       "score_delta": 0,
@@ -69,11 +54,11 @@
     }
   },
   "git": {
-    "head": "e2fcbe1",
+    "head": "8819e48",
     "base": null,
     "changed_files": 0,
     "mode": "full",
-    "dirty_worktree": true
+    "dirty_worktree": false
   },
   "policy": {
     "path": "./agent/audit-policy.toml",
@@ -278,8 +263,8 @@
     {
       "name": "Ownership and navigation surface",
       "weight": 13,
-      "score": 83,
-      "weighted_points": 10.79,
+      "score": 98,
+      "weighted_points": 12.74,
       "evidence": [
         "root `AGENTS.md` present",
         "owner map present",
@@ -292,6 +277,8 @@
         "reference-profile cell `ops` is canonical",
         "reference-profile cell `ops` has local AGENTS.md guidance",
         "root `README.md` routes to workspace layout",
+        "owner map covers audited paths",
+        "test map covers audited paths",
         "authored code file exceeds 500 LOC",
         "authored code file exceeds 1000 LOC"
       ],
@@ -468,6 +455,7 @@
     "missing_categories": [],
     "evidence": {
       "accessibility": [
+        ".jankurai/repo-score.json",
         "agent/repo-score.json",
         "agent/repo-score.md",
         "ops/ci/ux-qa.sh",
@@ -505,6 +493,7 @@
         "scripts/render-dashboard-ux-qa.mjs"
       ],
       "storybook": [
+        ".jankurai/repo-score.json",
         "agent/repo-score.json"
       ],
       "visual_review": [
@@ -1112,7 +1101,7 @@
   "copy_code": {
     "schema_version": "1.1.0",
     "generated_by": "jankurai copy-code",
-    "generated_at": "2026-06-02T13:38:24.880911817+00:00",
+    "generated_at": "2026-06-03T16:04:22.927317469+00:00",
     "repo": ".",
     "auditor_version": "1.6.10",
     "status": "review",
@@ -1150,7 +1139,7 @@
       ]
     },
     "summary": {
-      "files_scanned": 221,
+      "files_scanned": 223,
       "files_considered": 73,
       "active_files": 73,
       "exact_file_classes": 0,
@@ -1518,337 +1507,9 @@
       "lane": "fast",
       "docs_url": "docs/testing.md",
       "owner": "ci-release"
-    },
-    {
-      "severity": "medium",
-      "category": "context",
-      "path": "agent/owner-map.json",
-      "problem": "`Ownership and navigation surface` scored 83 below the standard floor of 85",
-      "agent_fix": "tighten owner/test maps and root routing until agents can localize ownership without inference",
-      "evidence": [
-        "root `AGENTS.md` present",
-        "owner map present",
-        "test/proof routing map present",
-        "local `AGENTS.md` file(s)"
-      ],
-      "check_id": "HLT-003-OWNERLESS-PATH:context",
-      "hardness": "soft",
-      "confidence": 0.76,
-      "evidence_kind": "policy-manifest",
-      "rerun_command": "just fast",
-      "fingerprint": "sha256:f22331131a2d75b4ff814289d01473fb3ab281f4b3c8ac366b63eb97cfe85438",
-      "rule_id": "HLT-003-OWNERLESS-PATH",
-      "tlr": "Context/setup",
-      "lane": "fast",
-      "docs_url": "agent/JANKURAI_STANDARD.md#ownership-boundaries",
-      "owner": "repo-governance"
-    },
-    {
-      "severity": "high",
-      "category": "context",
-      "path": "agent/owner-map.json",
-      "problem": "path `artifacts/ux-qa/README.md` has no owner-map route",
-      "agent_fix": "add the narrowest stable prefix for this path to `agent/owner-map.json`",
-      "evidence": [
-        "artifacts/ux-qa/README.md"
-      ],
-      "check_id": "HLT-003-OWNERLESS-PATH:context",
-      "hardness": "hard",
-      "confidence": 0.88,
-      "evidence_kind": "policy-manifest",
-      "rerun_command": "just fast",
-      "fingerprint": "sha256:4b20d81f0407cb2c38810012aad8dc60c8df531d7835583381d84e06d773992a",
-      "rule_id": "HLT-003-OWNERLESS-PATH",
-      "tlr": "Context/setup",
-      "lane": "fast",
-      "docs_url": "agent/JANKURAI_STANDARD.md#ownership-boundaries",
-      "owner": "repo-governance"
-    },
-    {
-      "severity": "high",
-      "category": "context",
-      "path": "agent/owner-map.json",
-      "problem": "path `artifacts/ux-qa/dashboard-desktop.accessibility.json` has no owner-map route",
-      "agent_fix": "add the narrowest stable prefix for this path to `agent/owner-map.json`",
-      "evidence": [
-        "artifacts/ux-qa/dashboard-desktop.accessibility.json"
-      ],
-      "check_id": "HLT-003-OWNERLESS-PATH:context",
-      "hardness": "hard",
-      "confidence": 0.88,
-      "evidence_kind": "policy-manifest",
-      "rerun_command": "just fast",
-      "fingerprint": "sha256:73560711fb43ffc9973f24eeb2b4390ae4ab13cc8ba5e3cf5bea79e74c8f0e77",
-      "rule_id": "HLT-003-OWNERLESS-PATH",
-      "tlr": "Context/setup",
-      "lane": "fast",
-      "docs_url": "agent/JANKURAI_STANDARD.md#ownership-boundaries",
-      "owner": "repo-governance"
-    },
-    {
-      "severity": "high",
-      "category": "context",
-      "path": "agent/owner-map.json",
-      "problem": "path `artifacts/ux-qa/dashboard-desktop.aria.json` has no owner-map route",
-      "agent_fix": "add the narrowest stable prefix for this path to `agent/owner-map.json`",
-      "evidence": [
-        "artifacts/ux-qa/dashboard-desktop.aria.json"
-      ],
-      "check_id": "HLT-003-OWNERLESS-PATH:context",
-      "hardness": "hard",
-      "confidence": 0.88,
-      "evidence_kind": "policy-manifest",
-      "rerun_command": "just fast",
-      "fingerprint": "sha256:b9d04cdc860c171c9ee42fa0901ccb4266017488d919e8e80e15bc750946e73e",
-      "rule_id": "HLT-003-OWNERLESS-PATH",
-      "tlr": "Context/setup",
-      "lane": "fast",
-      "docs_url": "agent/JANKURAI_STANDARD.md#ownership-boundaries",
-      "owner": "repo-governance"
-    },
-    {
-      "severity": "high",
-      "category": "context",
-      "path": "agent/owner-map.json",
-      "problem": "path `artifacts/ux-qa/dashboard-desktop.svg` has no owner-map route",
-      "agent_fix": "add the narrowest stable prefix for this path to `agent/owner-map.json`",
-      "evidence": [
-        "artifacts/ux-qa/dashboard-desktop.svg"
-      ],
-      "check_id": "HLT-003-OWNERLESS-PATH:context",
-      "hardness": "hard",
-      "confidence": 0.88,
-      "evidence_kind": "policy-manifest",
-      "rerun_command": "just fast",
-      "fingerprint": "sha256:513bd7f1bf9022ac9746645a1cfb4b15bd34981d6549e573f6477e598f4670ff",
-      "rule_id": "HLT-003-OWNERLESS-PATH",
-      "tlr": "Context/setup",
-      "lane": "fast",
-      "docs_url": "agent/JANKURAI_STANDARD.md#ownership-boundaries",
-      "owner": "repo-governance"
-    },
-    {
-      "severity": "high",
-      "category": "context",
-      "path": "agent/owner-map.json",
-      "problem": "path `artifacts/ux-qa/dashboard-mobile.accessibility.json` has no owner-map route",
-      "agent_fix": "add the narrowest stable prefix for this path to `agent/owner-map.json`",
-      "evidence": [
-        "artifacts/ux-qa/dashboard-mobile.accessibility.json"
-      ],
-      "check_id": "HLT-003-OWNERLESS-PATH:context",
-      "hardness": "hard",
-      "confidence": 0.88,
-      "evidence_kind": "policy-manifest",
-      "rerun_command": "just fast",
-      "fingerprint": "sha256:08044b6298138f6dd1024e3398e901aab2621b4fbee3c9306a8c936d9dd2854f",
-      "rule_id": "HLT-003-OWNERLESS-PATH",
-      "tlr": "Context/setup",
-      "lane": "fast",
-      "docs_url": "agent/JANKURAI_STANDARD.md#ownership-boundaries",
-      "owner": "repo-governance"
-    },
-    {
-      "severity": "high",
-      "category": "context",
-      "path": "agent/owner-map.json",
-      "problem": "path `artifacts/ux-qa/dashboard-mobile.aria.json` has no owner-map route",
-      "agent_fix": "add the narrowest stable prefix for this path to `agent/owner-map.json`",
-      "evidence": [
-        "artifacts/ux-qa/dashboard-mobile.aria.json"
-      ],
-      "check_id": "HLT-003-OWNERLESS-PATH:context",
-      "hardness": "hard",
-      "confidence": 0.88,
-      "evidence_kind": "policy-manifest",
-      "rerun_command": "just fast",
-      "fingerprint": "sha256:4cd2fc1a398df0afaa0831f3f53c69191e0d87b5364bd17a4ae8902e46f7afb9",
-      "rule_id": "HLT-003-OWNERLESS-PATH",
-      "tlr": "Context/setup",
-      "lane": "fast",
-      "docs_url": "agent/JANKURAI_STANDARD.md#ownership-boundaries",
-      "owner": "repo-governance"
-    },
-    {
-      "severity": "high",
-      "category": "context",
-      "path": "agent/owner-map.json",
-      "problem": "path `artifacts/ux-qa/dashboard-mobile.svg` has no owner-map route",
-      "agent_fix": "add the narrowest stable prefix for this path to `agent/owner-map.json`",
-      "evidence": [
-        "artifacts/ux-qa/dashboard-mobile.svg"
-      ],
-      "check_id": "HLT-003-OWNERLESS-PATH:context",
-      "hardness": "hard",
-      "confidence": 0.88,
-      "evidence_kind": "policy-manifest",
-      "rerun_command": "just fast",
-      "fingerprint": "sha256:b7daaa46f9bed5b994619e45b52205691fda5cf81a527ffb6f654baed3f741de",
-      "rule_id": "HLT-003-OWNERLESS-PATH",
-      "tlr": "Context/setup",
-      "lane": "fast",
-      "docs_url": "agent/JANKURAI_STANDARD.md#ownership-boundaries",
-      "owner": "repo-governance"
-    },
-    {
-      "severity": "high",
-      "category": "proof",
-      "path": "agent/test-map.json",
-      "problem": "path `artifacts/ux-qa/README.md` has no test-map proof route",
-      "agent_fix": "add the narrowest stable prefix and runnable proof command to `agent/test-map.json`",
-      "evidence": [
-        "artifacts/ux-qa/README.md"
-      ],
-      "check_id": "HLT-004-UNMAPPED-PROOF:proof",
-      "hardness": "hard",
-      "confidence": 0.88,
-      "evidence_kind": "policy-manifest",
-      "rerun_command": "just fast",
-      "fingerprint": "sha256:c5c9d91b1282ad603bbe8ced18af820a3f2775da903d7c7a3b9dad865aa4a164",
-      "rule_id": "HLT-004-UNMAPPED-PROOF",
-      "tlr": "Verification",
-      "lane": "fast",
-      "docs_url": "agent/JANKURAI_STANDARD.md#proof-lanes",
-      "owner": "repo-governance"
-    },
-    {
-      "severity": "high",
-      "category": "proof",
-      "path": "agent/test-map.json",
-      "problem": "path `artifacts/ux-qa/dashboard-desktop.accessibility.json` has no test-map proof route",
-      "agent_fix": "add the narrowest stable prefix and runnable proof command to `agent/test-map.json`",
-      "evidence": [
-        "artifacts/ux-qa/dashboard-desktop.accessibility.json"
-      ],
-      "check_id": "HLT-004-UNMAPPED-PROOF:proof",
-      "hardness": "hard",
-      "confidence": 0.88,
-      "evidence_kind": "policy-manifest",
-      "rerun_command": "just fast",
-      "fingerprint": "sha256:bbfd41992fdf7c2d592257b4b233669c1688cfcec413e06c226108d70b379601",
-      "rule_id": "HLT-004-UNMAPPED-PROOF",
-      "tlr": "Verification",
-      "lane": "fast",
-      "docs_url": "agent/JANKURAI_STANDARD.md#proof-lanes",
-      "owner": "repo-governance"
-    },
-    {
-      "severity": "high",
-      "category": "proof",
-      "path": "agent/test-map.json",
-      "problem": "path `artifacts/ux-qa/dashboard-desktop.aria.json` has no test-map proof route",
-      "agent_fix": "add the narrowest stable prefix and runnable proof command to `agent/test-map.json`",
-      "evidence": [
-        "artifacts/ux-qa/dashboard-desktop.aria.json"
-      ],
-      "check_id": "HLT-004-UNMAPPED-PROOF:proof",
-      "hardness": "hard",
-      "confidence": 0.88,
-      "evidence_kind": "policy-manifest",
-      "rerun_command": "just fast",
-      "fingerprint": "sha256:abd35e2f457e4e724cbe79c2811bab9dfb06abb1c4be11ed09ac6adf0b25ee9d",
-      "rule_id": "HLT-004-UNMAPPED-PROOF",
-      "tlr": "Verification",
-      "lane": "fast",
-      "docs_url": "agent/JANKURAI_STANDARD.md#proof-lanes",
-      "owner": "repo-governance"
-    },
-    {
-      "severity": "high",
-      "category": "proof",
-      "path": "agent/test-map.json",
-      "problem": "path `artifacts/ux-qa/dashboard-desktop.svg` has no test-map proof route",
-      "agent_fix": "add the narrowest stable prefix and runnable proof command to `agent/test-map.json`",
-      "evidence": [
-        "artifacts/ux-qa/dashboard-desktop.svg"
-      ],
-      "check_id": "HLT-004-UNMAPPED-PROOF:proof",
-      "hardness": "hard",
-      "confidence": 0.88,
-      "evidence_kind": "policy-manifest",
-      "rerun_command": "just fast",
-      "fingerprint": "sha256:1da5944d6c6969133316ef4eb190c4765524bd5757e34bada7043040bc92c057",
-      "rule_id": "HLT-004-UNMAPPED-PROOF",
-      "tlr": "Verification",
-      "lane": "fast",
-      "docs_url": "agent/JANKURAI_STANDARD.md#proof-lanes",
-      "owner": "repo-governance"
-    },
-    {
-      "severity": "high",
-      "category": "proof",
-      "path": "agent/test-map.json",
-      "problem": "path `artifacts/ux-qa/dashboard-mobile.accessibility.json` has no test-map proof route",
-      "agent_fix": "add the narrowest stable prefix and runnable proof command to `agent/test-map.json`",
-      "evidence": [
-        "artifacts/ux-qa/dashboard-mobile.accessibility.json"
-      ],
-      "check_id": "HLT-004-UNMAPPED-PROOF:proof",
-      "hardness": "hard",
-      "confidence": 0.88,
-      "evidence_kind": "policy-manifest",
-      "rerun_command": "just fast",
-      "fingerprint": "sha256:5497e12fbf0cfaa1c94b79077ac16181d39693c21486d97ffdbed91ea46d051f",
-      "rule_id": "HLT-004-UNMAPPED-PROOF",
-      "tlr": "Verification",
-      "lane": "fast",
-      "docs_url": "agent/JANKURAI_STANDARD.md#proof-lanes",
-      "owner": "repo-governance"
-    },
-    {
-      "severity": "high",
-      "category": "proof",
-      "path": "agent/test-map.json",
-      "problem": "path `artifacts/ux-qa/dashboard-mobile.aria.json` has no test-map proof route",
-      "agent_fix": "add the narrowest stable prefix and runnable proof command to `agent/test-map.json`",
-      "evidence": [
-        "artifacts/ux-qa/dashboard-mobile.aria.json"
-      ],
-      "check_id": "HLT-004-UNMAPPED-PROOF:proof",
-      "hardness": "hard",
-      "confidence": 0.88,
-      "evidence_kind": "policy-manifest",
-      "rerun_command": "just fast",
-      "fingerprint": "sha256:47da12caf3669f0338c18b66fdc1840c863ff9a74bd917fc5d35ceb692349b72",
-      "rule_id": "HLT-004-UNMAPPED-PROOF",
-      "tlr": "Verification",
-      "lane": "fast",
-      "docs_url": "agent/JANKURAI_STANDARD.md#proof-lanes",
-      "owner": "repo-governance"
-    },
-    {
-      "severity": "high",
-      "category": "proof",
-      "path": "agent/test-map.json",
-      "problem": "path `artifacts/ux-qa/dashboard-mobile.svg` has no test-map proof route",
-      "agent_fix": "add the narrowest stable prefix and runnable proof command to `agent/test-map.json`",
-      "evidence": [
-        "artifacts/ux-qa/dashboard-mobile.svg"
-      ],
-      "check_id": "HLT-004-UNMAPPED-PROOF:proof",
-      "hardness": "hard",
-      "confidence": 0.88,
-      "evidence_kind": "policy-manifest",
-      "rerun_command": "just fast",
-      "fingerprint": "sha256:b1785a6ab95cc6bc4abf20802340b2bd30165e1cdac3a63f49b9443e70f395e3",
-      "rule_id": "HLT-004-UNMAPPED-PROOF",
-      "tlr": "Verification",
-      "lane": "fast",
-      "docs_url": "agent/JANKURAI_STANDARD.md#proof-lanes",
-      "owner": "repo-governance"
     }
   ],
   "agent_fix_queue": [
-    {
-      "path": "agent/test-map.json",
-      "priority": "high",
-      "rule_id": "HLT-004-UNMAPPED-PROOF",
-      "tlr": "Verification",
-      "lane": "fast",
-      "owner": "repo-governance",
-      "task": "add the narrowest stable prefix and runnable proof command to `agent/test-map.json`",
-      "why": "path `artifacts/ux-qa/README.md` has no test-map proof route"
-    },
     {
       "path": "Justfile",
       "priority": "medium",
@@ -1858,26 +1519,6 @@
       "owner": "ci-release",
       "task": "add fast deterministic build/test targets, caches, and narrow proof lanes for agent iteration",
       "why": "`Build speed signals` scored 70 below the standard floor of 85"
-    },
-    {
-      "path": "agent/owner-map.json",
-      "priority": "high",
-      "rule_id": "HLT-003-OWNERLESS-PATH",
-      "tlr": "Context/setup",
-      "lane": "fast",
-      "owner": "repo-governance",
-      "task": "add the narrowest stable prefix for this path to `agent/owner-map.json`",
-      "why": "path `artifacts/ux-qa/README.md` has no owner-map route"
-    },
-    {
-      "path": "agent/owner-map.json",
-      "priority": "medium",
-      "rule_id": "HLT-003-OWNERLESS-PATH",
-      "tlr": "Context/setup",
-      "lane": "fast",
-      "owner": "repo-governance",
-      "task": "tighten owner/test maps and root routing until agents can localize ownership without inference",
-      "why": "`Ownership and navigation surface` scored 83 below the standard floor of 85"
     },
     {
       "path": ".",
