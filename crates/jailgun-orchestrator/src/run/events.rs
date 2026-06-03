@@ -18,24 +18,8 @@ pub fn map_bridge_event(
     };
     let event = match event {
         BridgeEvent::BridgeReady(_) => return None,
-        BridgeEvent::TabOpened(payload) => {
-            let mut event = base(EventKind::TabOpened, "tab opened")
-                .with_field("page_url", payload.page_url.clone());
-            if !payload.browser_profile.is_empty() {
-                event = event.with_field("browser_profile", payload.browser_profile.clone());
-            }
-            if !payload.browser_profile_dir.is_empty() {
-                event =
-                    event.with_field("browser_profile_dir", payload.browser_profile_dir.clone());
-            }
-            if let Some(slot) = payload.browser_slot {
-                event = event.with_field("browser_slot", slot.to_string());
-            }
-            if !payload.cdp_url.is_empty() {
-                event = event.with_field("cdp_url", payload.cdp_url.clone());
-            }
-            event
-        }
+        BridgeEvent::TabOpened(payload) => base(EventKind::TabOpened, "tab opened")
+            .with_field("page_url", payload.page_url.clone()),
         BridgeEvent::ArchiveUploaded(payload) => base(EventKind::TabOpened, "archive uploaded")
             .with_field("sha256", payload.sha256.clone())
             .with_field("size_bytes", payload.size_bytes.to_string())
@@ -47,34 +31,15 @@ pub fn map_bridge_event(
         }
         BridgeEvent::TabProgress(_) => return None,
         BridgeEvent::TarDiscovered(_) => base(EventKind::TarDiscovered, "tar link discovered"),
-        BridgeEvent::DownloadStarted(payload) => {
-            base(EventKind::DownloadStarted, "download started")
-                .with_field("remote_url", payload.remote_url.clone())
-                .with_field("target_path", payload.target_path.clone())
-                .with_field("started_at", payload.started_at.clone())
-                .with_field("tab_status", "downloading")
-        }
+        BridgeEvent::DownloadStarted(payload) => base(EventKind::TarDiscovered, "download started")
+            .with_field("remote_url", payload.remote_url.clone())
+            .with_field("target_path", payload.target_path.clone()),
         BridgeEvent::DownloadComplete(payload) => {
-            let mut event = base(EventKind::DownloadReceipt, "download complete")
+            base(EventKind::DownloadReceipt, "download complete")
                 .with_field("sha256", payload.sha256.clone())
                 .with_field("size_bytes", payload.size_bytes.to_string())
                 .with_field("local_path", payload.local_path.clone())
                 .with_field("receipt_path", payload.receipt_path.clone())
-                .with_field("original_name", payload.original_name.clone())
-                .with_field("local_name", payload.local_name.clone())
-                .with_field("started_at", payload.started_at.clone())
-                .with_field("finished_at", payload.finished_at.clone())
-                .with_field("tab_status", "downloaded");
-            if let Some(url) = payload.download_url.as_ref() {
-                event = event.with_field("download_url", url.clone());
-            }
-            if let Some(entry_count) = payload.entry_count {
-                event = event.with_field("entry_count", entry_count.to_string());
-            }
-            if let Some(latency_ms) = payload.download_latency_ms {
-                event = event.with_field("download_latency_ms", latency_ms.to_string());
-            }
-            event
         }
         BridgeEvent::ToolPromptDetected(_) => return None,
         BridgeEvent::PromptPolicyApplied(payload) => {
@@ -96,18 +61,8 @@ pub fn map_bridge_event(
                 .with_field("dismissed", payload.dismissed.to_string())
                 .with_field("excerpt", payload.excerpt.clone())
         }
-        BridgeEvent::GenerationStopped(payload) => {
-            let mut event = base(EventKind::GenerationStopped, "generation stopped")
-                .with_field("method", payload.method.clone());
-            if !payload.phase.is_empty() {
-                event = event.with_field("phase", payload.phase.clone());
-            }
-            event
-        }
-        BridgeEvent::TabClosed(payload) => base(EventKind::TabClosed, "tab closed")
-            .with_field("page_url", payload.page_url.clone())
-            .with_field("reason", payload.reason.clone())
-            .with_field("tab_status", "closed"),
+        BridgeEvent::GenerationStopped(_) => return None,
+        BridgeEvent::TabClosed(_) => return None,
         BridgeEvent::BridgeLog(payload) => {
             let severity = match payload.level.as_str() {
                 "debug" | "DEBUG" => Severity::Debug,
@@ -147,8 +102,7 @@ mod tests {
     use std::collections::BTreeMap;
 
     use crate::bridge::{
-        ArchiveUploadedPayload, BridgeLogPayload, DownloadCompletePayload,
-        RateLimitDetectedPayload, TabOpenedPayload,
+        ArchiveUploadedPayload, BridgeLogPayload, DownloadCompletePayload, RateLimitDetectedPayload,
     };
 
     #[test]
@@ -170,27 +124,6 @@ mod tests {
     }
 
     #[test]
-    fn maps_tab_opened_profile_metadata() {
-        let event = BridgeEvent::TabOpened(TabOpenedPayload {
-            page_url: "https://chatgpt.com/".into(),
-            page_id: "tab-01".into(),
-            browser_profile: "writer".into(),
-            browser_profile_dir: "/tmp/google-a".into(),
-            browser_slot: Some(1),
-            cdp_url: "http://127.0.0.1:9224".into(),
-        });
-        let mapped = map_bridge_event("run-1", Some(1), &event).expect("mapped");
-        assert_eq!(
-            mapped.fields.get("browser_profile").map(String::as_str),
-            Some("writer")
-        );
-        assert_eq!(
-            mapped.fields.get("browser_slot").map(String::as_str),
-            Some("1")
-        );
-    }
-
-    #[test]
     fn maps_download_complete_to_download_receipt_kind() {
         let event = BridgeEvent::DownloadComplete(DownloadCompletePayload {
             sha256: "b".repeat(64),
@@ -200,8 +133,6 @@ mod tests {
             original_name: "x.tar.gz".into(),
             local_name: "x.tar.gz".into(),
             download_url: None,
-            entry_count: Some(3),
-            download_latency_ms: Some(5_000),
             started_at: "2026-05-31T12:00:00Z".into(),
             finished_at: "2026-05-31T12:00:05Z".into(),
         });

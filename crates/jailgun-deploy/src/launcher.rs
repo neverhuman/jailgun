@@ -61,11 +61,7 @@ RESET_OK=""
 FILES_CHANGED=""
 ADDITIONS=""
 DELETIONS=""
-SHORTSTAT=""
 TOP_PATHS_JSON="[]"
-CHANGED_PATHS_JSON="[]"
-PRE_STATUS_JSON="[]"
-POST_STATUS_JSON="[]"
 STARTED_AT="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
 FINISHED_AT=""
 FAILED_AT=""
@@ -98,30 +94,6 @@ opt_bool() {{
   esac
 }}
 
-json_array_from_lines() {{
-  local INPUT="$1"
-  local LIST=""
-  while IFS= read -r item; do
-    [ -z "$item" ] && continue
-    local ESCAPED
-    ESCAPED="$(json_escape "$item")"
-    if [ -z "$LIST" ]; then
-      LIST="\"$ESCAPED\""
-    else
-      LIST="$LIST,\"$ESCAPED\""
-    fi
-  done <<EOF
-$INPUT
-EOF
-  printf '[%s]' "$LIST"
-}}
-
-git_status_json() {{
-  local STATUS
-  STATUS="$(git status --short 2>/dev/null || true)"
-  json_array_from_lines "$STATUS"
-}}
-
 write_status() {{
   local PHASE="$1"
   local TMP="$STATUS_PATH.tmp"
@@ -143,11 +115,7 @@ write_status() {{
     printf '"files_changed":%s,' "$(opt_int "$FILES_CHANGED")"
     printf '"additions":%s,' "$(opt_int "$ADDITIONS")"
     printf '"deletions":%s,' "$(opt_int "$DELETIONS")"
-    printf '"shortstat":%s,' "$(opt_string "$SHORTSTAT")"
     printf '"top_paths":%s,' "$TOP_PATHS_JSON"
-    printf '"changed_paths":%s,' "$CHANGED_PATHS_JSON"
-    printf '"pre_status":%s,' "$PRE_STATUS_JSON"
-    printf '"post_status":%s,' "$POST_STATUS_JSON"
     printf '"started_at":%s,' "$(opt_string "$STARTED_AT")"
     printf '"finished_at":%s,' "$(opt_string "$FINISHED_AT")"
     printf '"failed_at":%s' "$(opt_string "$FAILED_AT")"
@@ -176,6 +144,7 @@ collect_commit_stats() {{
   if [ -z "$PRE_HEAD" ] || [ -z "$POST_HEAD" ] || [ "$PRE_HEAD" = "$POST_HEAD" ]; then
     return 0
   fi
+  local SHORTSTAT
   SHORTSTAT="$(git diff --shortstat "$PRE_HEAD".."$POST_HEAD" 2>/dev/null || true)"
   if [ -n "$SHORTSTAT" ]; then
     FILES_CHANGED="$(printf '%s' "$SHORTSTAT" | sed -n 's/.* \([0-9]\{{1,\}}\) file.*/\1/p')"
@@ -183,10 +152,24 @@ collect_commit_stats() {{
     DELETIONS="$(printf '%s' "$SHORTSTAT" | sed -n 's/.* \([0-9]\{{1,\}}\) deletion.*/\1/p')"
   fi
   local NAMES
-  NAMES="$(git diff --name-only "$PRE_HEAD".."$POST_HEAD" 2>/dev/null || true)"
+  NAMES="$(git diff --name-only "$PRE_HEAD".."$POST_HEAD" 2>/dev/null | head -5 || true)"
   if [ -n "$NAMES" ]; then
-    CHANGED_PATHS_JSON="$(json_array_from_lines "$NAMES")"
-    TOP_PATHS_JSON="$(json_array_from_lines "$(printf '%s\n' "$NAMES" | head -5)")"
+    local LIST=""
+    while IFS= read -r path; do
+      [ -z "$path" ] && continue
+      local ESCAPED
+      ESCAPED="$(json_escape "$path")"
+      if [ -z "$LIST" ]; then
+        LIST="\"$ESCAPED\""
+      else
+        LIST="$LIST,\"$ESCAPED\""
+      fi
+    done <<EOF
+$NAMES
+EOF
+    if [ -n "$LIST" ]; then
+      TOP_PATHS_JSON="[$LIST]"
+    fi
   fi
 }}
 
@@ -197,7 +180,6 @@ fail_now() {{
   FINISHED_AT="$FAILED_AT"
   FAILURE_REASON="$REASON"
   [ -z "$EXIT_CODE" ] && EXIT_CODE="$CODE"
-  POST_STATUS_JSON="$(git_status_json)"
   write_status "failed"
   write_failure_marker
   echo "FAIL ($CODE): $REASON" >&2
@@ -214,7 +196,6 @@ preserve_and_reset() {{
   [ -z "$EXIT_CODE" ] && EXIT_CODE="$CODE"
   local CUR; CUR="$(git_head)"
   POST_HEAD="$CUR"
-  POST_STATUS_JSON="$(git_status_json)"
 
   if [ -n "$CUR" ] && [ -n "$PRE_HEAD" ] && [ "$CUR" != "$PRE_HEAD" ]; then
     local PREF="jailgun-failed/$JOB_ID"
@@ -260,7 +241,6 @@ trap 'fail_now "$?" "unexpected-error"' ERR
 write_status "queued"
 cd "$REMOTE_DIR"
 PRE_HEAD="$(git_head)"
-PRE_STATUS_JSON="$(git_status_json)"
 write_status "running"
 
 if [ -f "$FAILURE_MARKER" ]; then
@@ -294,7 +274,6 @@ else
 fi
 
 POST_HEAD="$(git_head)"
-POST_STATUS_JSON="$(git_status_json)"
 if git_dirty; then
   EXIT_CODE=23
   collect_commit_stats
@@ -302,10 +281,9 @@ if git_dirty; then
 fi
 
 collect_commit_stats
-POST_STATUS_JSON="$(git_status_json)"
 FINISHED_AT="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
 write_status "done"
-echo "DONE: pre=$PRE_HEAD post=$POST_HEAD shortstat=${{SHORTSTAT:-none}}" >&2
+echo "DONE: pre=$PRE_HEAD post=$POST_HEAD" >&2
 exit 0
 "#,
         schema = LAUNCHER_SCHEMA_VERSION,
@@ -375,9 +353,6 @@ mod tests {
         assert!(body.contains("write_status \"done\""));
         assert!(body.contains("preserve_and_reset"));
         assert!(body.contains("collect_commit_stats"));
-        assert!(body.contains("\"changed_paths\""));
-        assert!(body.contains("\"pre_status\""));
-        assert!(body.contains("\"post_status\""));
         assert!(body.contains("JOB_ID='run-fixture-tab-01'"));
         assert!(body.contains("STASH_ON_FAILURE=1"));
         assert!(body.contains("STRIP_COMPONENTS=1"));
@@ -410,11 +385,7 @@ mod tests {
             "files_changed": 3,
             "additions": 10,
             "deletions": 2,
-            "shortstat": "3 files changed, 10 insertions(+), 2 deletions(-)",
             "top_paths": ["src/main.rs", "README.md"],
-            "changed_paths": ["src/main.rs", "README.md", "docs/dummy_agent_llm.md"],
-            "pre_status": [],
-            "post_status": [],
             "started_at": "2026-05-31T12:00:00Z",
             "finished_at": "2026-05-31T12:01:00Z",
             "failed_at": null
@@ -424,14 +395,6 @@ mod tests {
         assert_eq!(parsed.exit_code, Some(0));
         assert_eq!(parsed.files_changed, Some(3));
         assert_eq!(parsed.top_paths, vec!["src/main.rs", "README.md"]);
-        assert_eq!(
-            parsed.changed_paths,
-            vec!["src/main.rs", "README.md", "docs/dummy_agent_llm.md"]
-        );
-        assert_eq!(
-            parsed.shortstat.as_deref(),
-            Some("3 files changed, 10 insertions(+), 2 deletions(-)")
-        );
         assert!(parsed.raw.is_object());
     }
 

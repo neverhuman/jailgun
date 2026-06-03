@@ -52,8 +52,6 @@ pub struct BrowserConfig {
     pub completion_check_seconds: u16,
     pub submit_delay_seconds: u16,
     pub submit_jitter_seconds: u16,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub submit_jitter_percent: Option<u16>,
     pub tar_wait_minutes: u16,
     pub profile_dir_env: String,
     pub state_dir_env: String,
@@ -118,13 +116,6 @@ impl JailgunConfig {
             return Err(ConfigError::Invalid(
                 "browser.completion_check_seconds must be positive".into(),
             ));
-        }
-        if let Some(percent) = self.browser.submit_jitter_percent {
-            if percent > 100 {
-                return Err(ConfigError::Invalid(
-                    "browser.submit_jitter_percent must be between 0 and 100".into(),
-                ));
-            }
         }
         if self.deploy.enabled {
             if self.deploy.remote_host_env.trim().is_empty()
@@ -213,7 +204,6 @@ impl Default for JailgunConfig {
                 completion_check_seconds: 2,
                 submit_delay_seconds: 60,
                 submit_jitter_seconds: 10,
-                submit_jitter_percent: None,
                 tar_wait_minutes: 30,
                 profile_dir_env: "JAILGUN_CHROME_PROFILE_DIR".into(),
                 state_dir_env: "JAILGUN_CHROME_STATE_DIR".into(),

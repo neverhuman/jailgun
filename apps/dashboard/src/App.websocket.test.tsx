@@ -54,5 +54,5 @@ it('creates a visible run from WebSocket events when the API starts empty', asyn
   });
 
   await waitFor(() => expect(screen.getAllByText(/live-run/).length).toBeGreaterThan(0));
-  expect(screen.getByLabelText('tab 1 of 1 row')).toBeInTheDocument();
+  expect(screen.getByLabelText('tab 1 row')).toBeInTheDocument();
 });

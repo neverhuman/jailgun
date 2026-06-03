@@ -7,7 +7,6 @@
     "jailgun-chrome-bridge": "./bin/chrome-bridge.mjs"
   },
   "scripts": {
-    "smoke:cdp-recovery": "node bin/cdp-recovery-smoke.mjs",
     "test": "node bin/chrome-bridge.mjs --self-test"
   },
   "dependencies": {

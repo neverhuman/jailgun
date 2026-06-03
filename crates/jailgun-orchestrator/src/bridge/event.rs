@@ -12,42 +12,13 @@ pub struct BridgeReadyPayload {
     pub playwright_version: String,
     pub browser: String,
     pub browser_version: String,
-    #[serde(default)]
-    pub cdp_url: Option<String>,
-    #[serde(default)]
-    pub managed_chrome_started: Option<bool>,
-    #[serde(default)]
-    pub profile_count: Option<u16>,
-    #[serde(default)]
-    pub profiles: Vec<BridgeProfilePayload>,
     pub capabilities: Vec<String>,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
-pub struct BridgeProfilePayload {
-    pub slot: u16,
-    #[serde(default)]
-    pub profile_name: String,
-    #[serde(default)]
-    pub profile_dir: String,
-    #[serde(default)]
-    pub state_dir: String,
-    #[serde(default)]
-    pub cdp_url: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct TabOpenedPayload {
     pub page_url: String,
     pub page_id: String,
-    #[serde(default)]
-    pub browser_profile: String,
-    #[serde(default)]
-    pub browser_profile_dir: String,
-    #[serde(default)]
-    pub browser_slot: Option<u16>,
-    #[serde(default)]
-    pub cdp_url: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
@@ -108,10 +79,6 @@ pub struct DownloadCompletePayload {
     pub local_name: String,
     #[serde(default)]
     pub download_url: Option<String>,
-    #[serde(default)]
-    pub entry_count: Option<u64>,
-    #[serde(default)]
-    pub download_latency_ms: Option<u64>,
     pub started_at: String,
     pub finished_at: String,
 }
@@ -139,8 +106,6 @@ pub struct RateLimitDetectedPayload {
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct GenerationStoppedPayload {
     pub method: String,
-    #[serde(default, skip_serializing_if = "String::is_empty")]
-    pub phase: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
@@ -289,8 +254,6 @@ mod tests {
             original_name: "patch.tar.gz".into(),
             local_name: "patch.tar.gz".into(),
             download_url: Some("blob:https://chatgpt.com/x".into()),
-            entry_count: Some(12),
-            download_latency_ms: Some(8_000),
             started_at: "2026-05-31T12:00:00Z".into(),
             finished_at: "2026-05-31T12:00:08Z".into(),
         };

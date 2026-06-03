@@ -3,15 +3,10 @@ export interface RunSnapshot {
   started_at: string;
   finished_at: string | null;
   status: string;
-  batch_tabs: number;
-  loop_count: number;
-  planned_tabs: number;
   tabs: TabSnapshot[];
   deploy_queue: 'idle' | 'waiting' | 'running' | 'blocked' | 'done';
   denied_github_prompts: number;
   allowed_info_prompts: number;
-  early_stops_succeeded: number;
-  early_stops_attempted: number;
 }
 
 export interface TabSnapshot {
@@ -22,11 +17,6 @@ export interface TabSnapshot {
   download_latency_ms: number | null;
   deploy_status: string;
   prompt_policy_decision: string | null;
-  early_stop_outcome: 'succeeded' | 'attempted' | null;
-  browser_profile: string | null;
-  browser_profile_dir: string | null;
-  browser_slot: number | null;
-  cdp_url: string | null;
 }
 
 export interface JailgunEvent {
@@ -44,27 +34,3 @@ export interface ReceiptResponse {
   receipts: unknown[];
 }
 
-export interface RunHistoryEntry {
-  run_id: string;
-  started_at: string;
-  finished_at: string | null;
-  status: string;
-  batch_tabs: number;
-  loop_count: number;
-  planned_tabs: number;
-  total_tabs: number;
-  tabs_passed: number;
-  tabs_failed: number;
-  tabs_pushed: number;
-  deploy_queue_final: string;
-  denied_github_prompts: number;
-  allowed_info_prompts: number;
-  early_stops_succeeded: number;
-  early_stops_attempted: number;
-  code_stats?: {
-    total_files_changed: number;
-    total_additions: number;
-    total_deletions: number;
-    total_test_count: number;
-  } | null;
-}

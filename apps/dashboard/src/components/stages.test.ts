@@ -1,14 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
-import type { RunSnapshot, TabSnapshot } from '../types';
-import {
-  deriveStages,
-  isTabClosed,
-  isTabFailed,
-  isTabPassed,
-  summarizeOutcome,
-  summarizeRunQuality
-} from './stages';
+import type { TabSnapshot } from '../types';
+import { deriveStages, isTabClosed, isTabFailed, isTabPassed, summarizeOutcome } from './stages';
 
 function makeTab(overrides: Partial<TabSnapshot> = {}): TabSnapshot {
   return {
@@ -19,30 +12,6 @@ function makeTab(overrides: Partial<TabSnapshot> = {}): TabSnapshot {
     download_latency_ms: null,
     deploy_status: 'pending',
     prompt_policy_decision: null,
-    browser_profile: null,
-    browser_profile_dir: null,
-    browser_slot: null,
-    cdp_url: null,
-    ...overrides,
-    early_stop_outcome: overrides.early_stop_outcome ?? null
-  };
-}
-
-function makeRun(overrides: Partial<RunSnapshot> = {}): RunSnapshot {
-  return {
-    run_id: 'run-1',
-    started_at: '2026-01-01T00:00:00Z',
-    finished_at: null,
-    status: 'running',
-    batch_tabs: 3,
-    loop_count: 0,
-    planned_tabs: 3,
-    deploy_queue: 'running',
-    denied_github_prompts: 0,
-    allowed_info_prompts: 0,
-    early_stops_succeeded: 0,
-    early_stops_attempted: 0,
-    tabs: [makeTab({ tab_id: 1, deploy_status: 'validated', archive_sha256: 'abc' }), makeTab({ tab_id: 2, deploy_status: 'running' }), makeTab({ tab_id: 3, deploy_status: 'running' })],
     ...overrides
   };
 }
@@ -153,9 +122,6 @@ describe('summarizeOutcome', () => {
     expect(summary.remoteTarget).toBe('remote-host:/srv/example-project');
     expect(summary.logTail).toBe('lane PASS');
     expect(summary.filesChanged).toEqual(['src/a.rs', 'src/b.rs']);
-    expect(summary.filesChangedCount).toBeNull();
-    expect(summary.additions).toBeNull();
-    expect(summary.deletions).toBeNull();
     expect(summary.localSha).toBe('aaa');
     expect(summary.remoteSha).toBe('bbb');
   });
@@ -164,7 +130,6 @@ describe('summarizeOutcome', () => {
     const summary = summarizeOutcome([], 1);
     expect(summary.outcome).toBe('');
     expect(summary.filesChanged).toEqual([]);
-    expect(summary.filesChangedCount).toBeNull();
     expect(summary.logTail).toBeNull();
   });
 
@@ -255,114 +220,5 @@ describe('summarizeOutcome', () => {
       5
     );
     expect(summary.shortstat).toBe(' 3 files changed, 12 insertions(+), 4 deletions(-)');
-    expect(summary.filesChangedCount).toBe(3);
-    expect(summary.additions).toBe(12);
-    expect(summary.deletions).toBe(4);
-  });
-
-  it('prefers deploy change stat fields over shortstat parsing', () => {
-    const summary = summarizeOutcome(
-      [
-        {
-          run_id: 'r',
-          tab_id: 6,
-          timestamp: '2026-01-01T00:00:05Z',
-          kind: 'deploy-finished',
-          severity: 'info',
-          message: 'deploy done',
-          fields: {
-            outcome: 'succeeded',
-            files_changed: '8',
-            additions: '99',
-            deletions: '7',
-            shortstat: ' 3 files changed, 12 insertions(+), 4 deletions(-)'
-          }
-        }
-      ],
-      6
-    );
-    expect(summary.filesChangedCount).toBe(8);
-    expect(summary.additions).toBe(99);
-    expect(summary.deletions).toBe(7);
-  });
-
-  it('parses test counts from local log tail without requiring the field', () => {
-    const summary = summarizeOutcome(
-      [
-        {
-          run_id: 'r',
-          tab_id: 8,
-          timestamp: '2026-01-01T00:00:06Z',
-          kind: 'deploy-finished',
-          severity: 'info',
-          message: 'deploy done',
-          fields: {
-            outcome: 'succeeded',
-            ci_state: 'passed',
-            log_tail: 'ci-fast-push: jekko-fast passed\ncargo test: 41 passed\nvitest: 12 passed'
-          }
-        }
-      ],
-      8
-    );
-    expect(summary.localTestsPassed).toBe(53);
-    expect(summary.remoteTestsPassed).toBe(53);
-  });
-});
-
-describe('summarizeRunQuality', () => {
-  it('marks an evidence-free run as pending', () => {
-    const quality = summarizeRunQuality(
-      makeRun({
-        tabs: [
-          makeTab({ tab_id: 1, deploy_status: 'pending' }),
-          makeTab({ tab_id: 2, deploy_status: 'pending' }),
-          makeTab({ tab_id: 3, deploy_status: 'pending' })
-        ]
-      }),
-      [],
-      []
-    );
-    expect(quality.verdict).toBe('pending');
-    expect(quality.detail).toContain('waiting for evidence');
-  });
-
-  it('marks a fully evidenced success as excellent', () => {
-    const quality = summarizeRunQuality(
-      makeRun({
-        finished_at: '2026-01-01T01:00:00Z',
-        status: 'finished',
-        tabs: [
-          makeTab({ tab_id: 1, status: 'closed', archive_sha256: 'abc', deploy_status: 'succeeded' }),
-          makeTab({ tab_id: 2, status: 'closed', archive_sha256: 'def', deploy_status: 'succeeded' }),
-          makeTab({ tab_id: 3, status: 'closed', archive_sha256: 'ghi', deploy_status: 'succeeded' })
-        ]
-      }),
-      [
-        {
-          run_id: 'run-1',
-          tab_id: 1,
-          timestamp: '2026-01-01T00:00:01Z',
-          kind: 'download-receipt',
-          severity: 'info',
-          message: 'receipt confirmed',
-          fields: { sha256: 'abc123' }
-        },
-        {
-          run_id: 'run-1',
-          tab_id: 1,
-          timestamp: '2026-01-01T00:00:02Z',
-          kind: 'deploy-finished',
-          severity: 'info',
-          message: 'deploy done',
-          fields: { outcome: 'succeeded' }
-        }
-      ],
-      [{ tab_id: 1, sha256: 'abc123' }]
-    );
-    expect(quality.verdict).toBe('excellent');
-    expect(quality.detail).toContain('passed');
-    expect(quality.evidenceKinds).toContain('download-receipt');
-    expect(quality.evidenceKinds).toContain('deploy-finished');
   });
 });

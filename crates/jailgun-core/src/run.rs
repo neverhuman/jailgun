@@ -19,16 +19,6 @@ pub struct TabSnapshot {
     pub download_latency_ms: Option<u64>,
     pub deploy_status: String,
     pub prompt_policy_decision: Option<String>,
-    #[serde(default)]
-    pub early_stop_outcome: Option<String>,
-    #[serde(default)]
-    pub browser_profile: Option<String>,
-    #[serde(default)]
-    pub browser_profile_dir: Option<String>,
-    #[serde(default)]
-    pub browser_slot: Option<u16>,
-    #[serde(default)]
-    pub cdp_url: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
@@ -37,17 +27,10 @@ pub struct RunSnapshot {
     pub started_at: String,
     pub finished_at: Option<String>,
     pub status: String,
-    pub batch_tabs: u16,
-    pub loop_count: u16,
-    pub planned_tabs: u16,
     pub tabs: Vec<TabSnapshot>,
     pub deploy_queue: DeployQueueState,
     pub denied_github_prompts: u32,
     pub allowed_info_prompts: u32,
-    #[serde(default)]
-    pub early_stops_succeeded: u16,
-    #[serde(default)]
-    pub early_stops_attempted: u16,
 }
 
 impl RunSnapshot {
@@ -57,14 +40,9 @@ impl RunSnapshot {
             started_at: "2026-01-01T00:00:00Z".into(),
             finished_at: None,
             status: "running".into(),
-            batch_tabs: 3,
-            loop_count: 0,
-            planned_tabs: 3,
             deploy_queue: DeployQueueState::Running,
             denied_github_prompts: 2,
             allowed_info_prompts: 1,
-            early_stops_succeeded: 0,
-            early_stops_attempted: 0,
             tabs: vec![
                 TabSnapshot {
                     tab_id: 1,
@@ -74,11 +52,6 @@ impl RunSnapshot {
                     download_latency_ms: Some(1200),
                     deploy_status: "validated".into(),
                     prompt_policy_decision: Some("deny".into()),
-                    early_stop_outcome: None,
-                    browser_profile: Some("writer".into()),
-                    browser_profile_dir: None,
-                    browser_slot: Some(1),
-                    cdp_url: None,
                 },
                 TabSnapshot {
                     tab_id: 2,
@@ -88,11 +61,6 @@ impl RunSnapshot {
                     download_latency_ms: Some(1700),
                     deploy_status: "remote-job-launched".into(),
                     prompt_policy_decision: Some("allow-info".into()),
-                    early_stop_outcome: None,
-                    browser_profile: Some("reviewer".into()),
-                    browser_profile_dir: None,
-                    browser_slot: Some(2),
-                    cdp_url: None,
                 },
             ],
         }

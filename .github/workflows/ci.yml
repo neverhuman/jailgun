@@ -19,15 +19,6 @@ jobs:
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
-      - uses: actions/cache@5a3ec84eff668545956fd18022155c47e93e2684
-        with:
-          path: |
-            ~/.cargo/registry
-            ~/.cargo/git
-            target
-          key: rust-${{ runner.os }}-${{ hashFiles('Cargo.lock') }}
-          restore-keys: |
-            rust-${{ runner.os }}-
       - run: bash ops/ci/rust.sh
 
   node:
@@ -53,7 +44,6 @@ jobs:
       - run: bash tools/security-lane.sh # gitleaks detect dependency-review npm audit cargo audit syft sbom actionlint; catalog: jankurai security run . --out target/jankurai/security/evidence.json
       - uses: actions/dependency-review-action@2031cfc080254a8a887f58cffee85186f0e49e48
         if: github.event_name == 'pull_request'
-        continue-on-error: true
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         if: always()
         with:
@@ -106,29 +96,6 @@ jobs:
           name: e2e-artifacts
           path: |
             artifacts/
-
-  coverage:
-    needs: [rust]
-    runs-on: ubuntu-latest
-    timeout-minutes: 30
-    steps:
-      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
-      - uses: actions/cache@5a3ec84eff668545956fd18022155c47e93e2684
-        with:
-          path: |
-            ~/.cargo/registry
-            ~/.cargo/git
-            target
-          key: rust-${{ runner.os }}-${{ hashFiles('Cargo.lock') }}
-          restore-keys: |
-            rust-${{ runner.os }}-
-      - run: bash ops/ci/coverage.sh
-      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
-        if: always()
-        with:
-          name: coverage
-          path: |
-            target/coverage/
 
   copy-code:
     runs-on: ubuntu-latest

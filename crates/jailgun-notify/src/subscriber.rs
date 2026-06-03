@@ -1,112 +1,67 @@
-//! Broadcast subscriber that turns jailgun events into JMCP envelopes and
-//! drops them into the inbox. The bridge (e.g.
-//! `~/code/jmcp/bin/jmcp-bridge.mjs`) takes it from there.
+//! Broadcast subscriber that fires terse Telegram notifications at the three
+//! milestones the user cares about:
+//!
+//! 1. Job started on a tab (`EventKind::PromptSubmitted`)
+//! 2. Tar acquired (`EventKind::DownloadReceipt`)
+//! 3. Remote CI passed and the commit landed on `main`, or the remote
+//!    command itself completed local CI + push
+//!
+//! Plus a brief failure ping when a deploy ends with severity=Error so the
+//! user knows something broke without watching the dashboard.
 
-use std::collections::BTreeMap;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 use jailgun_core::{EventKind, JailgunEvent, Severity};
-use thiserror::Error;
 use tokio::sync::broadcast::{self, error::RecvError};
 
-use crate::envelope::{JmcpEnvelope, NotifyEventPayload, Payload, Routing, TaskRef};
-use crate::writer::{JmcpInbox, JmcpInboxError};
+use crate::notice::{read_chat_id_cache, write_chat_id_cache};
+use crate::{send_telegram_message, NotifyError, TelegramConfig};
 
-#[derive(Debug, Error)]
-pub enum JmcpSubscriberError {
-    #[error(transparent)]
-    Inbox(#[from] JmcpInboxError),
-}
-
-/// Spawn-and-forget loop. Reads events, builds envelopes for the milestones
-/// we care about, writes them to the inbox. Logs and skips transient write
-/// failures so the subscriber never blocks the run.
-pub async fn run_jmcp_subscriber(mut rx: broadcast::Receiver<JailgunEvent>, inbox_dir: PathBuf) {
-    let inbox = JmcpInbox::new(inbox_dir);
+/// Spawn-and-forget loop. Reads events off the broadcast, formats Telegram
+/// notices for the milestones we care about, and sends them. Logs and skips
+/// transient Telegram failures so the subscriber never blocks the run.
+pub async fn run_telegram_subscriber(
+    mut rx: broadcast::Receiver<JailgunEvent>,
+    token_path: PathBuf,
+    chat_id_cache: PathBuf,
+) {
     loop {
         match rx.recv().await {
             Ok(event) => {
-                let Some(payload) = event_to_payload(&event) else {
+                let Some(text) = format_event_notice(&event) else {
                     continue;
                 };
-                let envelope = JmcpEnvelope::new(
-                    payload,
-                    TaskRef::for_run(&event.run_id, event.tab_id),
-                    Routing::notify_user(),
-                );
-                match inbox.write_envelope(&envelope).await {
-                    Ok(path) => {
-                        tracing::info!(
-                            run_id = %event.run_id,
-                            tab_id = ?event.tab_id,
-                            kind = ?event.kind,
-                            envelope = ?path,
-                            "jmcp envelope written"
-                        );
-                    }
-                    Err(error) => {
-                        tracing::warn!(?error, "jmcp envelope write failed");
-                    }
+                if let Err(error) = send_one(&token_path, &chat_id_cache, &text).await {
+                    tracing::warn!(?error, "telegram notify failed");
+                } else {
+                    tracing::info!(
+                        run_id = %event.run_id,
+                        tab_id = ?event.tab_id,
+                        kind = ?event.kind,
+                        "telegram notify sent"
+                    );
                 }
             }
             Err(RecvError::Lagged(dropped)) => {
-                tracing::warn!(dropped, "jmcp subscriber lagged");
+                tracing::warn!(dropped, "telegram subscriber lagged");
             }
             Err(RecvError::Closed) => return,
         }
     }
 }
 
-/// Build a JMCP payload for the milestones the user cares about, or `None`
-/// for events we deliberately skip.
-pub fn event_to_payload(event: &JailgunEvent) -> Option<Payload> {
-    let body = format_event_notice(event)?;
-    let (title, emoji, severity_label) = match event.kind {
-        EventKind::PromptSubmitted => ("Job started", "▶", "info"),
-        EventKind::DownloadReceipt => ("Tar acquired", "📦", "info"),
-        EventKind::DeployFinished if event.severity == Severity::Error => {
-            ("Deploy failed", "❌", "error")
-        }
-        EventKind::DeployFinished => ("Deploy succeeded", "✅", "info"),
-        _ => return None,
-    };
-    let metrics = collect_metrics(event);
-    Some(Payload::NotifyEvent(NotifyEventPayload {
-        title: title.to_string(),
-        summary_emoji: emoji.to_string(),
-        body_markdown: body,
-        run_id: event.run_id.clone(),
-        tab_id: event.tab_id,
-        event_kind: format!("{:?}", event.kind),
-        event_severity: severity_label.to_string(),
-        metrics,
-    }))
-}
-
-fn collect_metrics(event: &JailgunEvent) -> BTreeMap<String, String> {
-    let mut metrics = BTreeMap::new();
-    for key in [
-        "outcome",
-        "ci_state",
-        "exit_code",
-        "files_changed",
-        "additions",
-        "deletions",
-        "sha256",
-        "post_head",
-        "phase",
-        "early_stops_succeeded",
-        "early_stops_attempted",
-    ] {
-        if let Some(value) = event.fields.get(key) {
-            metrics.insert(key.to_string(), value.clone());
-        }
+async fn send_one(token_path: &Path, chat_id_cache: &Path, text: &str) -> Result<(), NotifyError> {
+    let mut config = TelegramConfig::from_token_file(token_path)?;
+    if config.chat_id.is_none() {
+        config.chat_id = read_chat_id_cache(chat_id_cache)?;
     }
-    metrics
+    let chat_id = send_telegram_message(&config, text).await?;
+    write_chat_id_cache(chat_id_cache, &chat_id)?;
+    Ok(())
 }
 
-/// Human-readable notification body — same format the Telegram path used to
-/// send, kept verbatim so the bridge has a ready-to-render markdown string.
+/// Returns the short notification body for the events the user asked about,
+/// or `None` for events we deliberately do not ping on.
 pub fn format_event_notice(event: &JailgunEvent) -> Option<String> {
     let tab = match event.tab_id {
         Some(t) => format!("tab {t}"),
@@ -265,32 +220,5 @@ mod tests {
             .with_field("ci_state", "skipped")
             .with_field("post_head", "aaaaaaaa");
         assert!(format_event_notice(&event).is_none());
-    }
-
-    #[test]
-    fn event_to_payload_wraps_success_with_metrics() {
-        let event = base(EventKind::DeployFinished, 4)
-            .with_field("outcome", "succeeded")
-            .with_field("ci_state", "passed")
-            .with_field("post_head", "abc1234d")
-            .with_field("files_changed", "3")
-            .with_field("additions", "10")
-            .with_field("deletions", "2");
-        let payload = event_to_payload(&event).expect("some");
-        match payload {
-            Payload::NotifyEvent(p) => {
-                assert_eq!(p.summary_emoji, "✅");
-                assert_eq!(p.event_severity, "info");
-                assert_eq!(
-                    p.metrics.get("ci_state").map(String::as_str),
-                    Some("passed")
-                );
-                assert_eq!(
-                    p.metrics.get("files_changed").map(String::as_str),
-                    Some("3")
-                );
-            }
-            _ => panic!("expected NotifyEvent"),
-        }
     }
 }

@@ -1,5 +1,5 @@
-import { fixtureEvents, fixtureHistory, fixtureReceipts, fixtureRuns } from './fixtures';
-import type { JailgunEvent, ReceiptResponse, RunHistoryEntry, RunSnapshot, TabSnapshot } from './types';
+import { fixtureEvents, fixtureReceipts, fixtureRuns } from './fixtures';
+import type { JailgunEvent, ReceiptResponse, RunSnapshot, TabSnapshot } from './types';
 
 export type DashboardDataMode = 'api' | 'fixture';
 
@@ -78,60 +78,6 @@ export function subscribeEvents(
   };
 }
 
-export async function fetchHistory(options: DashboardRequestOptions = {}): Promise<RunHistoryEntry[]> {
-  const mode = options.mode ?? 'api';
-  if (mode === 'fixture') {
-    return fixtureHistory;
-  }
-  const fetcher = options.fetcher ?? fetch;
-  const response = await fetcher('/api/history');
-  if (!response.ok) {
-    throw new Error(`GET /api/history failed ${response.status}`);
-  }
-  return decodeRunHistoryEntries(await response.json());
-}
-
-function decodeRunHistoryEntries(value: unknown): RunHistoryEntry[] {
-  if (!Array.isArray(value)) {
-    throw new Error('invalid history payload: expected array');
-  }
-  return value.map(decodeRunHistoryEntry);
-}
-
-function decodeRunHistoryEntry(value: unknown): RunHistoryEntry {
-  const record = expectRecord(value, 'history entry');
-  const codeStats = record.code_stats != null ? decodeCodeStats(record.code_stats) : null;
-  return {
-    run_id: expectString(record.run_id, 'run_id'),
-    started_at: expectString(record.started_at, 'started_at'),
-    finished_at: expectNullableString(record.finished_at, 'finished_at'),
-    status: expectString(record.status, 'status'),
-    batch_tabs: expectNumber(record.batch_tabs, 'batch_tabs'),
-    loop_count: expectNumber(record.loop_count, 'loop_count'),
-    planned_tabs: expectNumber(record.planned_tabs, 'planned_tabs'),
-    total_tabs: expectNumber(record.total_tabs, 'total_tabs'),
-    tabs_passed: expectNumber(record.tabs_passed, 'tabs_passed'),
-    tabs_failed: expectNumber(record.tabs_failed, 'tabs_failed'),
-    tabs_pushed: expectNumber(record.tabs_pushed, 'tabs_pushed'),
-    deploy_queue_final: expectString(record.deploy_queue_final, 'deploy_queue_final'),
-    denied_github_prompts: expectNumber(record.denied_github_prompts, 'denied_github_prompts'),
-    allowed_info_prompts: expectNumber(record.allowed_info_prompts, 'allowed_info_prompts'),
-    early_stops_succeeded: expectNumber(record.early_stops_succeeded, 'early_stops_succeeded'),
-    early_stops_attempted: expectNumber(record.early_stops_attempted, 'early_stops_attempted'),
-    code_stats: codeStats
-  };
-}
-
-function decodeCodeStats(value: unknown): NonNullable<RunHistoryEntry['code_stats']> {
-  const record = expectRecord(value, 'code_stats');
-  return {
-    total_files_changed: expectNumber(record.total_files_changed, 'total_files_changed'),
-    total_additions: expectNumber(record.total_additions, 'total_additions'),
-    total_deletions: expectNumber(record.total_deletions, 'total_deletions'),
-    total_test_count: expectNumber(record.total_test_count, 'total_test_count')
-  };
-}
-
 function decodeRunSnapshots(value: unknown): RunSnapshot[] {
   if (!Array.isArray(value)) {
     throw new Error('invalid run snapshot payload: expected array');
@@ -147,15 +93,10 @@ function decodeRunSnapshot(value: unknown): RunSnapshot {
     started_at: expectString(record.started_at, 'started_at'),
     finished_at: expectNullableString(record.finished_at, 'finished_at'),
     status: expectString(record.status, 'status'),
-    batch_tabs: expectNumber(record.batch_tabs, 'batch_tabs'),
-    loop_count: expectNumber(record.loop_count, 'loop_count'),
-    planned_tabs: expectNumber(record.planned_tabs, 'planned_tabs'),
     tabs,
     deploy_queue: expectDeployQueue(record.deploy_queue),
     denied_github_prompts: expectNumber(record.denied_github_prompts, 'denied_github_prompts'),
-    allowed_info_prompts: expectNumber(record.allowed_info_prompts, 'allowed_info_prompts'),
-    early_stops_succeeded: optionalNumber(record.early_stops_succeeded) ?? 0,
-    early_stops_attempted: optionalNumber(record.early_stops_attempted) ?? 0
+    allowed_info_prompts: expectNumber(record.allowed_info_prompts, 'allowed_info_prompts')
   };
 }
 
@@ -168,30 +109,8 @@ function decodeTabSnapshot(value: unknown): TabSnapshot {
     archive_sha256: expectNullableString(record.archive_sha256, 'archive_sha256'),
     download_latency_ms: expectNullableNumber(record.download_latency_ms, 'download_latency_ms'),
     deploy_status: expectString(record.deploy_status, 'deploy_status'),
-    prompt_policy_decision: expectNullableString(record.prompt_policy_decision, 'prompt_policy_decision'),
-    early_stop_outcome: decodeEarlyStopOutcome(record.early_stop_outcome),
-    browser_profile: expectNullableString(record.browser_profile ?? null, 'browser_profile'),
-    browser_profile_dir: expectNullableString(record.browser_profile_dir ?? null, 'browser_profile_dir'),
-    browser_slot: expectNullableNumber(record.browser_slot ?? null, 'browser_slot'),
-    cdp_url: expectNullableString(record.cdp_url ?? null, 'cdp_url')
+    prompt_policy_decision: expectNullableString(record.prompt_policy_decision, 'prompt_policy_decision')
   };
-}
-
-function optionalNumber(value: unknown): number | null {
-  if (value === undefined || value === null) {
-    return null;
-  }
-  if (typeof value !== 'number' || Number.isNaN(value)) {
-    return null;
-  }
-  return value;
-}
-
-function decodeEarlyStopOutcome(value: unknown): 'succeeded' | 'attempted' | null {
-  if (value === 'succeeded' || value === 'attempted') {
-    return value;
-  }
-  return null;
 }
 
 function decodeReceiptResponse(value: unknown): ReceiptResponse {

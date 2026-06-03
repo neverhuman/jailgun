@@ -85,8 +85,5 @@ fake-chatgpt *args:
 fake-chatgpt-test:
     npm run test --workspace apps/fake-chatgpt
 
-coverage:
-    bash ops/ci/coverage.sh
-
 e2e:
     bash ops/ci/e2e.sh

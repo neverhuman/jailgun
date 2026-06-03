@@ -27,8 +27,6 @@ pub struct UploadArchivePayload {
     pub archive_filename: String,
     #[serde(default)]
     pub tmp_parent: Option<String>,
-    #[serde(default)]
-    pub fresh_source_clone: bool,
     #[serde(default = "default_delete_after_upload")]
     pub delete_after_upload: bool,
     #[serde(default)]
@@ -168,24 +166,5 @@ mod tests {
         let err =
             BridgeCommand::decode("does-not-exist", serde_json::json!({})).expect_err("unknown");
         assert!(matches!(err, ProtocolError::UnknownCommand(_)));
-    }
-
-    #[test]
-    fn upload_archive_payload_serializes_fresh_source_clone() {
-        let payload = UploadArchivePayload {
-            repo_url: "/tmp/source".into(),
-            ref_name: "HEAD".into(),
-            prefix: "source/".into(),
-            archive_filename: "source.tar.gz".into(),
-            tmp_parent: None,
-            fresh_source_clone: true,
-            delete_after_upload: true,
-            confirm_selectors: Vec::new(),
-            timeout_ms: 45_000,
-        };
-        let value = serde_json::to_value(&payload).expect("serialize");
-        assert_eq!(value["fresh_source_clone"], true);
-        let decoded: UploadArchivePayload = serde_json::from_value(value).expect("decode");
-        assert!(decoded.fresh_source_clone);
     }
 }

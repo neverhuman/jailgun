@@ -1,18 +1,14 @@
+You’re right — the previous version was overbuilt for a tool-rich coding agent. Here’s a tighter prompt that assumes the model may mostly **read source files and generate a patch artifact**, not necessarily run real commands. It keeps the archive as source of truth and focuses hard on **repo-matching code changes + tar.gz deliverable**. 
+
 # SUPER PROMPT: Patch Uploaded Jekko Source Archive With Deterministic `dummy_agent_llm`
 
 You are given an uploaded `.tar.gz` archive containing the current Jekko repository source.
 
 Your job is to inspect the uploaded source tree, make the smallest correct high-value code change, and deliver a `.tar.gz` patch archive containing only changed files in repo-relative layout.
 
-This is an artifact-production task, not a prose answer task. A final message without a real downloadable `.tar.gz` attachment is a failed answer.
-
 Do **not** use GitHub, web search, repository mirrors, guessed raw URLs, or external docs. The uploaded archive is the source of truth.
 
 Do **not** assume command execution is available. If you can execute commands, use them to inspect/package/check. If you cannot execute commands, still read the uploaded source files carefully and produce the changed files exactly.
-
-Do **not** finish with only a summary, instructions, code snippets, patch text, or commands for the user to run. You must create a real downloadable archive named `jekko.tar.gz`.
-
-Before your final answer, verify that the ChatGPT UI shows a downloadable file/link/chip for `jekko.tar.gz`. If it is not visible, keep working until it is created.
 
 ---
 
@@ -217,7 +213,7 @@ Keep docs concise.
 
 ## Deliverable
 
-Create a tarball named exactly `jekko.tar.gz` containing only changed files.
+Create a tarball containing only changed files.
 
 The archive must preserve repo-relative paths under exactly one top-level directory named `jekko/`.
 
@@ -261,12 +257,6 @@ The archive must not include:
 * the uploaded source archive
 * unrelated files
 * unchanged repo files
-
-Final answer format:
-
-1. Attach the actual downloadable file `jekko.tar.gz`.
-2. Include a single short sentence saying the archive is attached.
-3. Do not include long explanations unless the archive is already attached.
 
 Preferred output path:
 
