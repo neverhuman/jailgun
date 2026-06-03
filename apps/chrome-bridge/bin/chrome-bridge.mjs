@@ -2090,15 +2090,20 @@ async function confirmUpload(page, archiveFilename, extraSelectors, timeoutMs) {
     'text=Attached',
     'text=Uploading',
   ];
-  for (const selector of selectors) {
-    try {
-      await page.waitForSelector(selector, { timeout: Math.min(timeoutMs, 10000) });
-      return true;
-    } catch (error) {
-      void error;
-    }
-  }
-  return false;
+  // Race ALL selectors in parallel. First successful match wins. This
+  // avoids the O(N * per-selector-timeout) blocking wait that previously
+  // stalled the submit click for ~90s per tab when ChatGPT's DOM did not
+  // expose the expected confirmation chip.
+  const perSelectorTimeout = Math.min(timeoutMs, 10000);
+  const winner = await Promise.race([
+    Promise.any(
+      selectors.map((selector) =>
+        page.waitForSelector(selector, { timeout: perSelectorTimeout }).then(() => true),
+      ),
+    ).catch(() => false),
+    new Promise((resolve) => setTimeout(() => resolve(false), perSelectorTimeout)),
+  ]);
+  return Boolean(winner);
 }
 
 async function submitPromptToChat(page, prompt, timeoutMs, hooks = {}) {
