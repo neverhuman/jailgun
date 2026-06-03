@@ -1046,16 +1046,44 @@ async function confirmUpload(page, archiveFilename, extraSelectors, timeoutMs) {
     `[title*="${cssAttr(filename)}"]`,
     '[data-testid*="attachment"]',
   ];
-  let lastError = null;
-  for (const selector of selectors) {
-    try {
-      await page.waitForSelector(selector, { timeout: Math.min(timeoutMs, 10000) });
-      return;
-    } catch (error) {
-      lastError = error;
-    }
+  // Race ALL selectors in parallel. First successful match wins. The
+  // previous sequential `for ... waitForSelector` loop blocked the
+  // submit click for up to N * perSelectorTimeout (N=5, ~50s) when
+  // ChatGPT's DOM did not match the legacy chip selectors. Tabs sat
+  // with the prompt typed but the send button unclicked. Live run
+  // `live-2profile-20260603T220417Z-deploy` showed
+  // `prompt-injected-during-upload` followed by a ~90s wait before the
+  // sequential loop fell through. Race + a single ceiling collapses the
+  // worst case to perSelectorTimeout.
+  const perSelectorTimeout = Math.min(timeoutMs, 10000);
+  const winner = await Promise.race([
+    Promise.any(
+      selectors.map((selector) =>
+        page.waitForSelector(selector, { timeout: perSelectorTimeout }).then(() => true),
+      ),
+    ).catch((error) => {
+      // Promise.any rejects with AggregateError when every selector
+      // times out. Preserve a representative error so the caller's throw
+      // remains informative.
+      const inner =
+        error?.errors?.find?.((err) => err && err.message)?.message || error?.message || error;
+      throw new Error(`uploaded archive was not confirmed in chat UI: ${inner}`);
+    }),
+    new Promise((_, reject) =>
+      setTimeout(
+        () =>
+          reject(
+            new Error(
+              `uploaded archive was not confirmed in chat UI: ceiling ${perSelectorTimeout}ms reached`,
+            ),
+          ),
+        perSelectorTimeout,
+      ),
+    ),
+  ]);
+  if (!winner) {
+    throw new Error('uploaded archive was not confirmed in chat UI');
   }
-  throw new Error(`uploaded archive was not confirmed in chat UI: ${lastError?.message || lastError}`);
 }
 
 async function submitPromptToChat(page, prompt, timeoutMs, hooks = {}) {
