@@ -4,9 +4,6 @@ use std::{
 };
 
 use anyhow::{Context, Result};
-use async_trait::async_trait;
-use jailgun_core::TarValidation;
-use jailgun_deploy::{DeployError, DeployReceipt, JsonReceiptWriter};
 
 pub fn infer_github_repo(url: &str) -> Option<String> {
     let value = url.trim();
@@ -162,64 +159,6 @@ pub fn ensure_parent_dir(path: &Path) -> Result<()> {
         fs::create_dir_all(parent).with_context(|| format!("creating {}", parent.display()))?;
     }
     Ok(())
-}
-
-pub fn ensure_expected_top_level(validation: &TarValidation, expected: &str) -> Result<()> {
-    let expected = expected.trim();
-    if !expected.is_empty() && validation.top_level.as_deref() != Some(expected) {
-        anyhow::bail!(
-            "archive top-level must be {expected}/, found {}; refusing remote upload",
-            validation.top_level.as_deref().unwrap_or("(multiple)")
-        );
-    }
-    Ok(())
-}
-
-pub fn deploy_outcome_succeeded(outcome: jailgun_deploy::DeployOutcome) -> bool {
-    matches!(
-        outcome,
-        jailgun_deploy::DeployOutcome::Succeeded
-            | jailgun_deploy::DeployOutcome::SucceededCiSkipped
-            | jailgun_deploy::DeployOutcome::DryRunStaged
-    )
-}
-
-pub fn deploy_outcome_label(outcome: jailgun_deploy::DeployOutcome) -> &'static str {
-    match outcome {
-        jailgun_deploy::DeployOutcome::Succeeded => "succeeded",
-        jailgun_deploy::DeployOutcome::SucceededCiFailed => "succeeded-ci-failed",
-        jailgun_deploy::DeployOutcome::SucceededCiSkipped => "succeeded-ci-skipped",
-        jailgun_deploy::DeployOutcome::FailedPreserved => "failed-preserved",
-        jailgun_deploy::DeployOutcome::FailedHard => "failed-hard",
-        jailgun_deploy::DeployOutcome::UploadShaMismatch => "upload-sha-mismatch",
-        jailgun_deploy::DeployOutcome::TimedOut => "timed-out",
-        jailgun_deploy::DeployOutcome::DryRunStaged => "dry-run-staged",
-    }
-}
-
-#[derive(Debug, Clone)]
-pub struct LocalReceiptWriter {
-    receipt_dir: PathBuf,
-}
-
-impl LocalReceiptWriter {
-    pub fn new(receipt_dir: PathBuf) -> Self {
-        Self { receipt_dir }
-    }
-}
-
-#[async_trait]
-impl JsonReceiptWriter for LocalReceiptWriter {
-    async fn write_receipt(&mut self, receipt: &DeployReceipt) -> Result<PathBuf, DeployError> {
-        tokio::fs::create_dir_all(&self.receipt_dir).await?;
-        let path = self.receipt_dir.join(format!(
-            "{}-tab-{:02}-deploy.json",
-            receipt.run_id, receipt.tab_id
-        ));
-        let bytes = serde_json::to_vec_pretty(receipt)?;
-        tokio::fs::write(&path, bytes).await?;
-        Ok(path)
-    }
 }
 
 fn home_dir_or_current() -> PathBuf {
