@@ -1,17 +1,17 @@
 {
-  "report_fingerprint": "sha256:339b3c5468ca8d983dffc8cc92b44df97622a104265224a4be52a4a30dff1ff8",
-  "input_fingerprint": "sha256:a6a6fca1157416a2c971babf222e7372d06fa6e63d3a80c82b36f2878bfc4eb7",
+  "report_fingerprint": "sha256:b6bc6642cb8b89e0080a1487b5c3b9869fa512c67d4ef26b605e3f20512316a2",
+  "input_fingerprint": "sha256:1b91b6021c6213c29e24bb5611c22c0766ba46cdc01970562d95bd3041b3a369",
   "policy_fingerprint": "sha256:2e02fe1c1919de94a47a99164c962683a934c73ca5bb30bec62384f7b17fe742",
   "manifest_fingerprints": {
-    "owner_map": "sha256:df0834474569b72ae63ca9845b7e8d25af3a84d1aec5e54872a617bf9570b7c5",
-    "test_map": "sha256:c1fae6a836b0fc9ee89ab8a432c0a8bee9153f84246ebf48518a4cf7be23cf55",
+    "owner_map": "sha256:0d9dccf49c86fdb87d004a7694c3b0837e9bf48e3ce9a94f6dfc2d0f0be6e159",
+    "test_map": "sha256:2540b3d01e5fa56d19cd06b185599e0062d5ab133c07d4978cbc5757a4f7afe4",
     "generated_zones": "sha256:eb2cb0462a9f165fd321c43da2668a397fa9bcca5b7f7087c1edbf7823e6eebc",
     "boundaries": "sha256:e603dc2c37fd526ad62380eb9f3d8dda55bfd85d62125e9479e2ecc8004bf771",
     "proof_lanes": "sha256:15ec3d011b63046bbc896e0de66f4c8ec26bc4b72e286200e2ece5f714024c73",
     "standard_version": "sha256:e89e3b08c1e1ab55b195b4041787100956f3888aaba37595bce4403606dcb996"
   },
-  "dirty_worktree": false,
-  "generated_at": "1780499673",
+  "dirty_worktree": true,
+  "generated_at": "1780506268",
   "schema_url": "schemas/repo-score.schema.json",
   "standard": "jankurai",
   "standard_version": "0.9.0",
@@ -25,31 +25,26 @@
   "conformance_decision": "block",
   "conformance_blockers": [
     "HLT-034-CI-BAD-BEHAVIOR on .github/workflows/ci.yml",
-    "HLT-003-OWNERLESS-PATH on agent/owner-map.json",
-    "HLT-003-OWNERLESS-PATH on agent/owner-map.json",
-    "HLT-003-OWNERLESS-PATH on agent/owner-map.json",
-    "HLT-003-OWNERLESS-PATH on agent/owner-map.json",
-    "HLT-004-UNMAPPED-PROOF on agent/test-map.json",
     "HLT-001-DEAD-MARKER on apps/dashboard/src/App.tsx",
     "HLT-007-HANDWRITTEN-CONTRACT on contracts/fixtures/jmcp/harden-task.json",
     "HLT-022-AUTHZ-ISOLATION-GAP on crates/jailgun-cli/src/main.rs"
   ],
   "repo": ".",
-  "run_id": "1780499673",
-  "started_at": "1780499673",
-  "elapsed_ms": 27564,
+  "run_id": "1780506268",
+  "started_at": "1780506268",
+  "elapsed_ms": 40059,
   "scope": {
     "mode": "full",
     "paths": []
   },
   "score": 70,
-  "raw_score": 80,
+  "raw_score": 82,
   "decision": {
     "status": "advisory",
     "minimum_score": 85,
     "passed": true,
     "hard_findings": 0,
-    "soft_findings": 13,
+    "soft_findings": 7,
     "ratchet": {
       "baseline_score": 70,
       "allowed_drop": 0,
@@ -64,11 +59,11 @@
     }
   },
   "git": {
-    "head": "5c22ce8",
+    "head": "540cbe5",
     "base": null,
     "changed_files": 0,
     "mode": "full",
-    "dirty_worktree": false
+    "dirty_worktree": true
   },
   "policy": {
     "path": "./agent/audit-policy.toml",
@@ -277,8 +272,8 @@
     {
       "name": "Ownership and navigation surface",
       "weight": 13,
-      "score": 83,
-      "weighted_points": 10.79,
+      "score": 98,
+      "weighted_points": 12.74,
       "evidence": [
         "root `AGENTS.md` present",
         "owner map present",
@@ -291,6 +286,8 @@
         "reference-profile cell `ops` is canonical",
         "reference-profile cell `ops` has local AGENTS.md guidance",
         "root `README.md` routes to workspace layout",
+        "owner map covers audited paths",
+        "test map covers audited paths",
         "authored code file exceeds 500 LOC",
         "authored code file exceeds 1000 LOC"
       ],
@@ -1098,7 +1095,7 @@
   "copy_code": {
     "schema_version": "1.1.0",
     "generated_by": "jankurai copy-code",
-    "generated_at": "2026-06-03T15:14:06.634563+00:00",
+    "generated_at": "2026-06-03T17:03:49.060670+00:00",
     "repo": ".",
     "auditor_version": "1.4.3",
     "status": "review",
@@ -1635,135 +1632,6 @@
       "owner": "repo-governance"
     },
     {
-      "severity": "medium",
-      "category": "context",
-      "path": "agent/owner-map.json",
-      "problem": "`Ownership and navigation surface` scored 83 below the standard floor of 85",
-      "agent_fix": "tighten owner/test maps and root routing until agents can localize ownership without inference",
-      "evidence": [
-        "root `AGENTS.md` present",
-        "owner map present",
-        "test/proof routing map present",
-        "local `AGENTS.md` file(s)"
-      ],
-      "check_id": "HLT-003-OWNERLESS-PATH:context",
-      "hardness": "soft",
-      "confidence": 0.76,
-      "evidence_kind": "policy-manifest",
-      "rerun_command": "just fast",
-      "fingerprint": "sha256:f22331131a2d75b4ff814289d01473fb3ab281f4b3c8ac366b63eb97cfe85438",
-      "rule_id": "HLT-003-OWNERLESS-PATH",
-      "tlr": "Context/setup",
-      "lane": "fast",
-      "docs_url": "agent/JANKURAI_STANDARD.md#ownership-boundaries",
-      "owner": "repo-governance"
-    },
-    {
-      "severity": "high",
-      "category": "context",
-      "path": "agent/owner-map.json",
-      "problem": "path `.env.live-7tab.example` has no owner-map route",
-      "agent_fix": "add the narrowest stable prefix for this path to `agent/owner-map.json`",
-      "evidence": [
-        ".env.live-7tab.example"
-      ],
-      "check_id": "HLT-003-OWNERLESS-PATH:context",
-      "hardness": "hard",
-      "confidence": 0.88,
-      "evidence_kind": "policy-manifest",
-      "rerun_command": "just fast",
-      "fingerprint": "sha256:07d5e436bb09bfec5a2ab483be7f4bba4c73281b200019abbf585c767bd750d7",
-      "rule_id": "HLT-003-OWNERLESS-PATH",
-      "tlr": "Context/setup",
-      "lane": "fast",
-      "docs_url": "agent/JANKURAI_STANDARD.md#ownership-boundaries",
-      "owner": "repo-governance"
-    },
-    {
-      "severity": "high",
-      "category": "context",
-      "path": "agent/owner-map.json",
-      "problem": "path `data/run-history/.gitkeep` has no owner-map route",
-      "agent_fix": "add the narrowest stable prefix for this path to `agent/owner-map.json`",
-      "evidence": [
-        "data/run-history/.gitkeep"
-      ],
-      "check_id": "HLT-003-OWNERLESS-PATH:context",
-      "hardness": "hard",
-      "confidence": 0.88,
-      "evidence_kind": "policy-manifest",
-      "rerun_command": "just fast",
-      "fingerprint": "sha256:e9bf5b252a68eaf7fb16aa144c626e3ee6a6c8e3cf1317f2e0119922e96d704a",
-      "rule_id": "HLT-003-OWNERLESS-PATH",
-      "tlr": "Context/setup",
-      "lane": "fast",
-      "docs_url": "agent/JANKURAI_STANDARD.md#ownership-boundaries",
-      "owner": "repo-governance"
-    },
-    {
-      "severity": "high",
-      "category": "context",
-      "path": "agent/owner-map.json",
-      "problem": "path `prompts/templates/README.md` has no owner-map route",
-      "agent_fix": "add the narrowest stable prefix for this path to `agent/owner-map.json`",
-      "evidence": [
-        "prompts/templates/README.md"
-      ],
-      "check_id": "HLT-003-OWNERLESS-PATH:context",
-      "hardness": "hard",
-      "confidence": 0.88,
-      "evidence_kind": "policy-manifest",
-      "rerun_command": "just fast",
-      "fingerprint": "sha256:34e89b5cbb1755a1b75fec482481fc0530a40dbc26b9a070ba74884227720417",
-      "rule_id": "HLT-003-OWNERLESS-PATH",
-      "tlr": "Context/setup",
-      "lane": "fast",
-      "docs_url": "agent/JANKURAI_STANDARD.md#ownership-boundaries",
-      "owner": "repo-governance"
-    },
-    {
-      "severity": "high",
-      "category": "context",
-      "path": "agent/owner-map.json",
-      "problem": "path `prompts/templates/harden-repo.txt` has no owner-map route",
-      "agent_fix": "add the narrowest stable prefix for this path to `agent/owner-map.json`",
-      "evidence": [
-        "prompts/templates/harden-repo.txt"
-      ],
-      "check_id": "HLT-003-OWNERLESS-PATH:context",
-      "hardness": "hard",
-      "confidence": 0.88,
-      "evidence_kind": "policy-manifest",
-      "rerun_command": "just fast",
-      "fingerprint": "sha256:dfcb986741d0e61f066591aec7e5f1fb4642011a8b64fe562b555e242317e811",
-      "rule_id": "HLT-003-OWNERLESS-PATH",
-      "tlr": "Context/setup",
-      "lane": "fast",
-      "docs_url": "agent/JANKURAI_STANDARD.md#ownership-boundaries",
-      "owner": "repo-governance"
-    },
-    {
-      "severity": "high",
-      "category": "proof",
-      "path": "agent/test-map.json",
-      "problem": "path `.env.live-7tab.example` has no test-map proof route",
-      "agent_fix": "add the narrowest stable prefix and runnable proof command to `agent/test-map.json`",
-      "evidence": [
-        ".env.live-7tab.example"
-      ],
-      "check_id": "HLT-004-UNMAPPED-PROOF:proof",
-      "hardness": "hard",
-      "confidence": 0.88,
-      "evidence_kind": "policy-manifest",
-      "rerun_command": "just fast",
-      "fingerprint": "sha256:aa75117206f500a5d1bbbe7216f33393819c8df163bfd8bf810d26bdb70fdb74",
-      "rule_id": "HLT-004-UNMAPPED-PROOF",
-      "tlr": "Verification",
-      "lane": "fast",
-      "docs_url": "agent/JANKURAI_STANDARD.md#proof-lanes",
-      "owner": "repo-governance"
-    },
-    {
       "severity": "high",
       "category": "vibe",
       "path": "apps/dashboard/src/App.tsx",
@@ -1864,16 +1732,6 @@
       "why": "`Contract and boundary integrity` scored 73 below the standard floor of 85"
     },
     {
-      "path": "agent/test-map.json",
-      "priority": "high",
-      "rule_id": "HLT-004-UNMAPPED-PROOF",
-      "tlr": "Verification",
-      "lane": "fast",
-      "owner": "repo-governance",
-      "task": "add the narrowest stable prefix and runnable proof command to `agent/test-map.json`",
-      "why": "path `.env.live-7tab.example` has no test-map proof route"
-    },
-    {
       "path": "Justfile",
       "priority": "medium",
       "rule_id": "HLT-018-PERF-CONCURRENCY-DRIFT",
@@ -1882,26 +1740,6 @@
       "owner": "ci-release",
       "task": "add fast deterministic build/test targets, caches, and narrow proof lanes for agent iteration",
       "why": "`Build speed signals` scored 70 below the standard floor of 85"
-    },
-    {
-      "path": "agent/owner-map.json",
-      "priority": "high",
-      "rule_id": "HLT-003-OWNERLESS-PATH",
-      "tlr": "Context/setup",
-      "lane": "fast",
-      "owner": "repo-governance",
-      "task": "add the narrowest stable prefix for this path to `agent/owner-map.json`",
-      "why": "path `.env.live-7tab.example` has no owner-map route"
-    },
-    {
-      "path": "agent/owner-map.json",
-      "priority": "medium",
-      "rule_id": "HLT-003-OWNERLESS-PATH",
-      "tlr": "Context/setup",
-      "lane": "fast",
-      "owner": "repo-governance",
-      "task": "tighten owner/test maps and root routing until agents can localize ownership without inference",
-      "why": "`Ownership and navigation surface` scored 83 below the standard floor of 85"
     },
     {
       "path": ".github/workflows/ci.yml",

@@ -7,11 +7,11 @@
 - Target stack ID: `rust-ts-vite-react-postgres-bounded-python`
 - Target stack: `Rust core + TypeScript/React/Vite + PostgreSQL + generated contracts + exception-only Python AI/data service`
 - Repo: `.`
-- Run ID: `1780499673`
-- Started at: `1780499673`
-- Elapsed: `27564` ms
+- Run ID: `1780506268`
+- Started at: `1780506268`
+- Elapsed: `40059` ms
 - Scope: `full`
-- Raw score: `80`
+- Raw score: `82`
 - Final score: `70`
 - Decision: `advisory`
 - Minimum score: `85`
@@ -90,7 +90,7 @@
 
 | Dimension | Weight | Score | Weighted | Evidence |
 | --- | ---: | ---: | ---: | --- |
-| Ownership and navigation surface | 13 | 83 | 10.79 | root `AGENTS.md` present; owner map present |
+| Ownership and navigation surface | 13 | 98 | 12.74 | root `AGENTS.md` present; owner map present |
 | Contract and boundary integrity | 13 | 73 | 9.49 | contract surface found; generated contract artifacts found |
 | Proof lanes and test routing | 12 | 100 | 12.00 | one-command setup/validation lane found; deterministic fast lane found |
 | Security and supply-chain posture | 12 | 94 | 11.28 | lockfile present; secret or dependency scan tooling found |
@@ -217,67 +217,7 @@ No audited runtime boundary reclassifications declared.
    Rerun: `just fast`
    Fingerprint: `sha256:6b0c42073e9966a0a9974db6b1d4614736c65798b81b87c159f7e6f4974cebb9`
    Evidence: contract surface found, generated contract artifacts found, boundary manifest present, Rust typed boundary helpers found
-5. `medium` `context` `agent/owner-map.json`
-   Rule: `HLT-003-OWNERLESS-PATH`
-   Check: `HLT-003-OWNERLESS-PATH:context` `soft` confidence `0.76`
-   Route: TLR `Context/setup`, lane `fast`, owner `repo-governance`
-   Docs: `agent/JANKURAI_STANDARD.md#ownership-boundaries`
-   Reason: `Ownership and navigation surface` scored 83 below the standard floor of 85
-   Fix: tighten owner/test maps and root routing until agents can localize ownership without inference
-   Rerun: `just fast`
-   Fingerprint: `sha256:f22331131a2d75b4ff814289d01473fb3ab281f4b3c8ac366b63eb97cfe85438`
-   Evidence: root `AGENTS.md` present, owner map present, test/proof routing map present, local `AGENTS.md` file(s)
-6. `high` `context` `agent/owner-map.json`
-   Rule: `HLT-003-OWNERLESS-PATH`
-   Check: `HLT-003-OWNERLESS-PATH:context` `hard` confidence `0.88`
-   Route: TLR `Context/setup`, lane `fast`, owner `repo-governance`
-   Docs: `agent/JANKURAI_STANDARD.md#ownership-boundaries`
-   Reason: path `.env.live-7tab.example` has no owner-map route
-   Fix: add the narrowest stable prefix for this path to `agent/owner-map.json`
-   Rerun: `just fast`
-   Fingerprint: `sha256:07d5e436bb09bfec5a2ab483be7f4bba4c73281b200019abbf585c767bd750d7`
-   Evidence: .env.live-7tab.example
-7. `high` `context` `agent/owner-map.json`
-   Rule: `HLT-003-OWNERLESS-PATH`
-   Check: `HLT-003-OWNERLESS-PATH:context` `hard` confidence `0.88`
-   Route: TLR `Context/setup`, lane `fast`, owner `repo-governance`
-   Docs: `agent/JANKURAI_STANDARD.md#ownership-boundaries`
-   Reason: path `data/run-history/.gitkeep` has no owner-map route
-   Fix: add the narrowest stable prefix for this path to `agent/owner-map.json`
-   Rerun: `just fast`
-   Fingerprint: `sha256:e9bf5b252a68eaf7fb16aa144c626e3ee6a6c8e3cf1317f2e0119922e96d704a`
-   Evidence: data/run-history/.gitkeep
-8. `high` `context` `agent/owner-map.json`
-   Rule: `HLT-003-OWNERLESS-PATH`
-   Check: `HLT-003-OWNERLESS-PATH:context` `hard` confidence `0.88`
-   Route: TLR `Context/setup`, lane `fast`, owner `repo-governance`
-   Docs: `agent/JANKURAI_STANDARD.md#ownership-boundaries`
-   Reason: path `prompts/templates/README.md` has no owner-map route
-   Fix: add the narrowest stable prefix for this path to `agent/owner-map.json`
-   Rerun: `just fast`
-   Fingerprint: `sha256:34e89b5cbb1755a1b75fec482481fc0530a40dbc26b9a070ba74884227720417`
-   Evidence: prompts/templates/README.md
-9. `high` `context` `agent/owner-map.json`
-   Rule: `HLT-003-OWNERLESS-PATH`
-   Check: `HLT-003-OWNERLESS-PATH:context` `hard` confidence `0.88`
-   Route: TLR `Context/setup`, lane `fast`, owner `repo-governance`
-   Docs: `agent/JANKURAI_STANDARD.md#ownership-boundaries`
-   Reason: path `prompts/templates/harden-repo.txt` has no owner-map route
-   Fix: add the narrowest stable prefix for this path to `agent/owner-map.json`
-   Rerun: `just fast`
-   Fingerprint: `sha256:dfcb986741d0e61f066591aec7e5f1fb4642011a8b64fe562b555e242317e811`
-   Evidence: prompts/templates/harden-repo.txt
-10. `high` `proof` `agent/test-map.json`
-   Rule: `HLT-004-UNMAPPED-PROOF`
-   Check: `HLT-004-UNMAPPED-PROOF:proof` `hard` confidence `0.88`
-   Route: TLR `Verification`, lane `fast`, owner `repo-governance`
-   Docs: `agent/JANKURAI_STANDARD.md#proof-lanes`
-   Reason: path `.env.live-7tab.example` has no test-map proof route
-   Fix: add the narrowest stable prefix and runnable proof command to `agent/test-map.json`
-   Rerun: `just fast`
-   Fingerprint: `sha256:aa75117206f500a5d1bbbe7216f33393819c8df163bfd8bf810d26bdb70fdb74`
-   Evidence: .env.live-7tab.example
-11. `high` `vibe` `apps/dashboard/src/App.tsx:74`
+5. `high` `vibe` `apps/dashboard/src/App.tsx:74`
    Rule: `HLT-001-DEAD-MARKER`
    Check: `HLT-001-DEAD-MARKER:vibe` `hard` confidence `0.88`
    Route: TLR `Entropy`, lane `fast`, owner `dashboard-ui`
@@ -287,7 +227,7 @@ No audited runtime boundary reclassifications declared.
    Rerun: `just fast`
    Fingerprint: `sha256:eb35da9594a4e3df3db2ac790198be71b0b014618c32a510e9329ad548f07c5c`
    Evidence: apps/dashboard/src/App.tsx:74 if (others.length === 0) return null;
-12. `high` `boundary` `contracts/fixtures/jmcp/harden-task.json:1`
+6. `high` `boundary` `contracts/fixtures/jmcp/harden-task.json:1`
    Rule: `HLT-007-HANDWRITTEN-CONTRACT`
    Check: `HLT-007-HANDWRITTEN-CONTRACT:boundary` `hard` confidence `0.88`
    Route: TLR `Contracts/data`, lane `contract`, owner `contracts`
@@ -297,7 +237,7 @@ No audited runtime boundary reclassifications declared.
    Rerun: `just fast`
    Fingerprint: `sha256:41bc3b7725393d0f4078acd654aafc8fa5792537c76b6261a934e0a68ee0376c`
    Evidence: contract source `contracts/fixtures/jmcp/harden-task.json` has no generated zone entry — handwritten drift is likely
-13. `high` `security` `crates/jailgun-cli/src/main.rs:1466`
+7. `high` `security` `crates/jailgun-cli/src/main.rs:1466`
    Rule: `HLT-022-AUTHZ-ISOLATION-GAP`
    Check: `HLT-022-AUTHZ-ISOLATION-GAP:security` `hard` confidence `0.88`
    Route: TLR `Business truth`, lane `db`, owner `rust-cli`
@@ -323,17 +263,11 @@ No audited runtime boundary reclassifications declared.
    Route: `Contracts/data`/`contract`
 3. `medium` `HLT-007-HANDWRITTEN-CONTRACT` `agent/boundaries.toml` - add generated contracts and boundary checks for public APIs, data access, and cross-runtime seams
    Route: `Contracts/data`/`contract`
-4. `high` `HLT-004-UNMAPPED-PROOF` `agent/test-map.json` - add the narrowest stable prefix and runnable proof command to `agent/test-map.json`
+4. `medium` `HLT-018-PERF-CONCURRENCY-DRIFT` `Justfile` - add fast deterministic build/test targets, caches, and narrow proof lanes for agent iteration
    Route: `Verification`/`fast`
-5. `medium` `HLT-018-PERF-CONCURRENCY-DRIFT` `Justfile` - add fast deterministic build/test targets, caches, and narrow proof lanes for agent iteration
-   Route: `Verification`/`fast`
-6. `high` `HLT-003-OWNERLESS-PATH` `agent/owner-map.json` - add the narrowest stable prefix for this path to `agent/owner-map.json`
-   Route: `Context/setup`/`fast`
-7. `medium` `HLT-003-OWNERLESS-PATH` `agent/owner-map.json` - tighten owner/test maps and root routing until agents can localize ownership without inference
-   Route: `Context/setup`/`fast`
-8. `high` `HLT-034-CI-BAD-BEHAVIOR` `.github/workflows/ci.yml` - remove the non-blocking override so scan failures stop the pipeline
+5. `high` `HLT-034-CI-BAD-BEHAVIOR` `.github/workflows/ci.yml` - remove the non-blocking override so scan failures stop the pipeline
    Route: `Security, secrets, agency`/`security`
-9. `high` `HLT-001-DEAD-MARKER` `apps/dashboard/src/App.tsx` - collapse fallback chains into explicit typed states with bounded retry policy, telemetry, and documented repair guidance
+6. `high` `HLT-001-DEAD-MARKER` `apps/dashboard/src/App.tsx` - collapse fallback chains into explicit typed states with bounded retry policy, telemetry, and documented repair guidance
    Route: `Entropy`/`fast`
-10. `medium` `HLT-001-DEAD-MARKER` `.` - split large or ambiguous authored code into smaller semantic modules with focused tests
+7. `medium` `HLT-001-DEAD-MARKER` `.` - split large or ambiguous authored code into smaller semantic modules with focused tests
    Route: `Entropy`/`fast`

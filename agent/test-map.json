@@ -21,6 +21,11 @@
       "purpose": "verify example environment values contain no secrets or private defaults",
       "lane": "security"
     },
+    ".env.live-7tab.example": {
+      "command": "bash ops/ci/scan.sh",
+      "purpose": "verify live-7tab example environment values contain no secrets or private host literals",
+      "lane": "security"
+    },
     ".gitignore": {
       "command": "bash ops/ci/scan.sh && bash ops/ci/jankurai.sh",
       "purpose": "verify ignored runtime state remains outside committed surfaces",
