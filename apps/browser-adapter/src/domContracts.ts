@@ -50,6 +50,19 @@ export interface DismissablePopupOutcome extends DismissablePopupCandidate {
   reason?: string;
 }
 
+export interface ABFeedbackResponse {
+  index: number;
+  textLength: number;
+  hasTarCandidate: boolean;
+}
+
+export interface ABFeedbackState {
+  detected: boolean;
+  responseCount: number;
+  responses: ABFeedbackResponse[];
+  longestIndex: number | null;
+}
+
 const TAR_DOWNLOAD_CONTROL_SELECTOR = 'a,button,[role="button"],[download],[href]';
 const GITHUB_TOOL_CONTROL_SELECTOR = 'button,[role="button"],a';
 const RATE_LIMIT_DIALOG_SELECTOR = '[role="dialog"],[aria-modal="true"]';
@@ -70,13 +83,17 @@ export function collectTarDownloadCandidatesFromDom(
 ): DomTarCandidate[] {
   const controls = queryAll<HTMLElement>(root, TAR_DOWNLOAD_CONTROL_SELECTOR);
   const assistantRoots = queryAll<HTMLElement>(root, '[data-message-author-role="assistant"]');
+  // Also include A/B feedback response containers
+  const abResponseRoots = collectABResponseRoots(root);
+  const allAssistantLikeRoots = [...assistantRoots, ...abResponseRoots];
   const controlIndex = new Map(controls.map((element, index) => [element, index]));
   const normalizedTarget = typeof targetName === 'string' ? targetName.trim() : '';
   const targetBasename = normalizedTarget.replace(/\.tar\.gz$/i, '').toLowerCase();
   const candidates: DomTarCandidate[] = [];
   for (const element of controls) {
     const assistant = closestElement(element, '[data-message-author-role="assistant"]');
-    if ((assistantRoots.length > 0 && !assistant) || closestElement(element, '[data-message-author-role="user"]')) {
+    const inABResponse = abResponseRoots.length > 0 && abResponseRoots.some((abRoot) => abRoot.contains(element));
+    if ((assistantRoots.length > 0 && !assistant && !inABResponse) || closestElement(element, '[data-message-author-role="user"]')) {
       continue;
     }
 
@@ -564,6 +581,101 @@ function normalizedText(element: Element): string {
 
 function bestLabel(element: HTMLElement): string {
   return normalizedText(element) || getAttr(element, 'aria-label') || getAttr(element, 'title');
+}
+
+export function detectABFeedbackFromDom(root: ParentNode = document): ABFeedbackState {
+  const textRoot = 'body' in root ? (root as Document).body : root;
+  const pageText = (textRoot as HTMLElement)?.textContent ?? '';
+  const feedbackDetected =
+    /giving feedback on a new version/i.test(pageText) ||
+    /which response do you prefer/i.test(pageText);
+  if (!feedbackDetected) {
+    return { detected: false, responseCount: 0, responses: [], longestIndex: null };
+  }
+
+  // ChatGPT A/B response containers — try multiple selectors
+  const responseSelectors = [
+    '[data-testid*="response-turn"]',
+    '[data-testid*="response-option"]',
+    '[class*="response-turn"]',
+    '[class*="comparison"]',
+  ];
+  let responseRoots: HTMLElement[] = [];
+  for (const selector of responseSelectors) {
+    responseRoots = queryAll<HTMLElement>(root, selector);
+    if (responseRoots.length >= 2) break;
+  }
+
+  if (responseRoots.length < 2) {
+    const allElements = queryAll<HTMLElement>(root, '*');
+    const responseHeaders = allElements.filter((el) => {
+      const text = normalizedText(el);
+      return /^Response \d$/i.test(text);
+    });
+    if (responseHeaders.length >= 2) {
+      responseRoots = responseHeaders.map((header) => {
+        let container: HTMLElement | null = header.parentElement;
+        for (let depth = 0; container && depth < 8; depth += 1) {
+          if (container.querySelector('a[href],button,[role="button"],[download]')) {
+            return container;
+          }
+          container = container.parentElement;
+        }
+        return header.parentElement ?? header;
+      });
+    }
+  }
+
+  const responses: ABFeedbackResponse[] = responseRoots.map((responseRoot, index) => {
+    const text = normalizedText(responseRoot);
+    const controls = queryAll<HTMLElement>(responseRoot, TAR_DOWNLOAD_CONTROL_SELECTOR);
+    const hasTarCandidate = controls.some((el) => {
+      const haystack = [
+        normalizedText(el),
+        getHref(el),
+        getAttr(el, 'download'),
+        getAttr(el, 'aria-label'),
+        getAttr(el, 'title'),
+      ].join(' ');
+      return /\.tar\.gz/i.test(haystack);
+    });
+    return { index, textLength: text.length, hasTarCandidate };
+  });
+
+  let longestIndex: number | null = null;
+  let maxLength = 0;
+  for (const response of responses) {
+    if (response.textLength > maxLength) {
+      maxLength = response.textLength;
+      longestIndex = response.index;
+    }
+  }
+
+  return {
+    detected: true,
+    responseCount: responseRoots.length,
+    responses,
+    longestIndex,
+  };
+}
+
+function collectABResponseRoots(root: ParentNode): HTMLElement[] {
+  const textRoot = 'body' in root ? (root as Document).body : root;
+  const pageText = (textRoot as HTMLElement)?.textContent ?? '';
+  if (!/giving feedback on a new version|which response do you prefer/i.test(pageText)) {
+    return [];
+  }
+  const selectors = [
+    '[data-testid*="response-turn"]',
+    '[data-testid*="response-option"]',
+    '[class*="response-turn"]',
+    '[class*="comparison"]',
+  ];
+  for (const selector of selectors) {
+    const roots = queryAll<HTMLElement>(root, selector);
+    if (roots.length >= 2) return roots;
+  }
+  return [];
 }
 
 function surroundingContextText(element: HTMLElement): string {

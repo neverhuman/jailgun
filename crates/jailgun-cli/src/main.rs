@@ -103,6 +103,8 @@ enum Command {
         run_id: Option<String>,
         #[arg(long)]
         tabs: Option<u16>,
+        #[arg(long)]
+        initial_tab_burst: Option<u16>,
         #[arg(long, default_value_t = 0, env = "JAILGUN_LOOPS")]
         loops: u16,
         #[arg(long)]
@@ -466,6 +468,7 @@ async fn main() -> Result<()> {
             prompt_file,
             run_id,
             tabs,
+            initial_tab_burst,
             loops,
             source_repo_url,
             source_ref,
@@ -617,6 +620,7 @@ async fn main() -> Result<()> {
                 config,
                 prompt_text,
                 tabs_override: tabs,
+                initial_tab_burst,
                 loop_count: loops,
                 no_deploy,
                 dry_run,
@@ -1370,6 +1374,8 @@ mod tests {
             "0",
             "--submit-jitter-percent",
             "20",
+            "--initial-tab-burst",
+            "10",
             "--dashboard-keep-alive",
             "--fresh-source-clone",
         ])
@@ -1379,6 +1385,7 @@ mod tests {
                 submit_delay_seconds,
                 submit_jitter_seconds,
                 submit_jitter_percent,
+                initial_tab_burst,
                 dashboard_keep_alive,
                 fresh_source_clone,
                 ..
@@ -1386,6 +1393,7 @@ mod tests {
                 assert_eq!(submit_delay_seconds, Some(120));
                 assert_eq!(submit_jitter_seconds, Some(0));
                 assert_eq!(submit_jitter_percent, Some(20));
+                assert_eq!(initial_tab_burst, Some(10));
                 assert!(dashboard_keep_alive);
                 assert!(fresh_source_clone);
             }

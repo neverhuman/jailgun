@@ -1,0 +1,14 @@
+{
+  "run_id": "run-fixture",
+  "tab_id": 1,
+  "timestamp": "2026-05-31T12:00:20Z",
+  "kind": "archive-uploaded",
+  "severity": "info",
+  "message": "archive uploaded",
+  "fields": {
+    "sha256": "ff297136810aa7374c842e77f57f506dd631be7033975ce6d454bdc82086ded4",
+    "size_bytes": "4096",
+    "commit": "abc123",
+    "archive_filename": "source.tar.gz"
+  }
+}

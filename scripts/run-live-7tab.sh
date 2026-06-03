@@ -98,6 +98,7 @@ JAILGUN_MESSAGE_STREAM_RETRY_LIMIT="${JAILGUN_MESSAGE_STREAM_RETRY_LIMIT:-6}"
 JAILGUN_MESSAGE_STREAM_RETRY_DELAY_MS="${JAILGUN_MESSAGE_STREAM_RETRY_DELAY_MS:-10000}"
 JAILGUN_JMCP_INBOX_DIR="${JAILGUN_JMCP_INBOX_DIR:-$HOME/code/jmcp/inbox}"
 JAILGUN_JMCP_INBOX_DIR_RESOLVED=""
+JAILGUN_CHROME_PROFILE_POOL="${JAILGUN_CHROME_PROFILE_POOL:-}"
 
 run_dir="$repo_root/artifacts/live-runs/$RUN_ID"
 runtime_dir="$run_dir/runtime"
@@ -315,6 +316,20 @@ run_preflight() {
   validate_remote
   validate_ci
 
+  if [[ -n "$JAILGUN_CHROME_PROFILE_POOL" ]]; then
+    IFS=':' read -ra _pool_dirs <<< "$JAILGUN_CHROME_PROFILE_POOL"
+    for _pdir in "${_pool_dirs[@]}"; do
+      _pdir_expanded="$_pdir"
+      case "$_pdir_expanded" in
+        "~"|"~/"*) _pdir_expanded="${HOME}${_pdir_expanded#~}" ;;
+      esac
+      if [[ ! -d "$_pdir_expanded" ]]; then
+        fail "profile pool dir does not exist" "$_pdir_expanded" "create the profile dir or update JAILGUN_CHROME_PROFILE_POOL"
+      fi
+    done
+    log "profile pool: ${_pool_dirs[*]}"
+  fi
+
   log "building dashboard assets"
   npm --workspace apps/dashboard run build
 
@@ -372,6 +387,17 @@ jailgun_cmd=(
   --notify-jmcp
   --jmcp-inbox-dir "${JAILGUN_JMCP_INBOX_DIR_RESOLVED:-$JAILGUN_JMCP_INBOX_DIR}"
 )
+
+if [[ -n "$JAILGUN_CHROME_PROFILE_POOL" ]]; then
+  IFS=':' read -ra _pool_dirs <<< "$JAILGUN_CHROME_PROFILE_POOL"
+  for _pdir in "${_pool_dirs[@]}"; do
+    _pdir_expanded="$_pdir"
+    case "$_pdir_expanded" in
+      "~"|"~/"*) _pdir_expanded="${HOME}${_pdir_expanded#~}" ;;
+    esac
+    jailgun_cmd+=(--profile-pool "$_pdir_expanded")
+  done
+fi
 
 if [[ -n "$JAILGUN_SUBMIT_DELAY_SECONDS" ]]; then
   jailgun_cmd+=(--submit-delay-seconds "$JAILGUN_SUBMIT_DELAY_SECONDS")

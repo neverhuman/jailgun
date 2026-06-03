@@ -8,6 +8,7 @@ import {
   collectRateLimitModalFromDom,
   collectTarDownloadCandidatesFromDom,
   createPromptClickGuard,
+  detectABFeedbackFromDom,
   dismissPopups,
   dismissRateLimitModal
 } from './domContracts';
@@ -325,4 +326,59 @@ it('closes a tab only after receipt confirmation', async () => {
   expect(calls).toEqual([]);
   expect(await closeTabAfterReceipt(page, true)).toBe(true);
   expect(calls).toEqual(['stop', 'close']);
+});
+
+it('detectABFeedbackFromDom returns detected:false when no feedback text exists', () => {
+  document.body.innerHTML = `
+    <div data-message-author-role="assistant">
+      <p>Here is your source archive.</p>
+      <a href="https://example.invalid/source.tar.gz" download="source.tar.gz">Download source.tar.gz</a>
+    </div>
+  `;
+  const state = detectABFeedbackFromDom();
+  expect(state.detected).toBe(false);
+  expect(state.responseCount).toBe(0);
+  expect(state.responses).toEqual([]);
+  expect(state.longestIndex).toBeNull();
+});
+
+it('detectABFeedbackFromDom returns detected:true when feedback text exists', () => {
+  document.body.innerHTML = `
+    <div>
+      <p>You're giving feedback on a new version of ChatGPT.</p>
+      <p>Which response do you prefer?</p>
+      <div data-testid="response-turn-0">
+        <h3>Response 1</h3>
+        <p>Short answer.</p>
+      </div>
+      <div data-testid="response-turn-1">
+        <h3>Response 2</h3>
+        <p>This is a much longer answer with more detail and explanation about the topic at hand.</p>
+      </div>
+    </div>
+  `;
+  const state = detectABFeedbackFromDom();
+  expect(state.detected).toBe(true);
+  expect(state.responseCount).toBe(2);
+  expect(state.responses).toHaveLength(2);
+  expect(state.longestIndex).toBe(1);
+  expect(state.responses[1].textLength).toBeGreaterThan(state.responses[0].textLength);
+});
+
+it('collectTarDownloadCandidatesFromDom finds tar links inside A/B response containers', () => {
+  document.body.innerHTML = `
+    <div>
+      <p>You're giving feedback on a new version of ChatGPT.</p>
+      <div data-testid="response-turn-0">
+        <p>Response A content</p>
+      </div>
+      <div data-testid="response-turn-1">
+        <p>Response B content</p>
+        <a href="https://example.invalid/output.tar.gz" download="output.tar.gz">Download output.tar.gz</a>
+      </div>
+    </div>
+  `;
+  const candidates = collectTarDownloadCandidatesFromDom();
+  expect(candidates).toHaveLength(1);
+  expect(candidates[0].download).toBe('output.tar.gz');
 });

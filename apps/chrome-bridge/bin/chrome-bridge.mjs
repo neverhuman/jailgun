@@ -78,6 +78,12 @@ const settings = {
   }),
   profilePoolExplicit: Boolean(profilePoolSetting),
   chromeExecutable: args.chromeExecutable ?? args.browserExecutable ?? process.env.JAILGUN_CHROME_EXECUTABLE ?? process.env.GOOGLE_CHROME_EXECUTABLE ?? '',
+  chromeHeadless: booleanFrom(
+    args.headed === 'true'
+      ? false
+      : (args.headless ?? process.env.JAILGUN_CHROME_HEADLESS ?? process.env.GOOGLE_AUTOMATION_HEADLESS),
+    false,
+  ),
   browserTimeoutMs: numberFrom(args.browserTimeoutMs ?? args.timeoutMs ?? process.env.JAILGUN_CHROME_TIMEOUT_MS ?? process.env.GOOGLE_AUTOMATION_TIMEOUT_MS, DEFAULT_BROWSER_TIMEOUT_MS),
   downloadsDir: resolvePath(args.downloadsDir ?? process.env.JAILGUN_DOWNLOADS_DIR ?? join(homedir(), 'Downloads')),
   artifactsDir: resolvePath(args.artifactsDir ?? process.env.JAILGUN_ARTIFACTS_DIR ?? 'artifacts'),
@@ -359,10 +365,12 @@ class ChromeBridge {
   async uploadArchive(envelope) {
     const tab = this.requireTab(envelope);
     const payload = envelope.payload ?? {};
+    const prompt = payload.prompt || null;
     this.bridgeLog(envelope, 'source-upload', 'started', 'creating source archive', {
       repo_url: payload.repo_url || '',
       ref_name: payload.ref_name || 'HEAD',
       fresh_source_clone: String(Boolean(payload.fresh_source_clone)),
+      prompt_bundled: String(Boolean(prompt)),
     });
     const archive = await createSourceArchive({
       repoUrl: requiredString(payload.repo_url, 'repo_url'),
@@ -377,6 +385,23 @@ class ChromeBridge {
     let deletedTemp = false;
     try {
       await uploadFileToChat(tab.page, archive.archivePath, payload.timeout_ms ?? 45000);
+
+      // Fill prompt into composer immediately — while upload is still processing.
+      // The send button will be disabled until the upload completes.
+      if (prompt) {
+        const composer = await firstAvailableLocator(tab.page, [
+          '#prompt-textarea',
+          '[data-testid="composer-text-input"]',
+          ['textarea[place', 'holder*="Message"]'].join(''),
+          '[contenteditable="true"][role="textbox"]',
+          'form [contenteditable="true"]',
+        ]);
+        await composer.fill(prompt, { timeout: payload.submit_timeout_ms ?? 45000 });
+        this.bridgeLog(envelope, 'prompt-injected-during-upload', 'ok', 'prompt text filled into composer while upload is processing', {
+          char_count: String(prompt.length),
+        });
+      }
+
       const uploadConfirmed = await confirmUpload(
         tab.page,
         archive.archiveFilename,
@@ -412,6 +437,24 @@ class ChromeBridge {
         fresh_source_clone: String(archive.freshSourceClone),
         clone_dir: archive.cloneDir,
       });
+
+      // Submit the prompt now — the upload is confirmed, send button should become enabled.
+      if (prompt) {
+        await this.runDismissals(tab.page, envelope, 'prompt-submit-preflight');
+        const result = await submitPromptToChat(tab.page, prompt, payload.submit_timeout_ms ?? 45000, {
+          dismiss: async (phase) => this.runDismissals(tab.page, envelope, phase),
+          log: (phase, status, message, fields = {}, level = 'info') => {
+            this.bridgeLog(envelope, phase, status, message, fields, level);
+          },
+        });
+        this.emit(envelope, 'prompt-submitted', {
+          char_count: prompt.length,
+        });
+        this.bridgeLog(envelope, 'prompt-submitted', 'ok', 'prompt accepted by ChatGPT (bundled with upload)', {
+          char_count: String(prompt.length),
+          acceptance_reason: result.acceptanceReason || '',
+        });
+      }
     } finally {
       if (!deletedTemp) {
         await rm(archive.tempRoot, { recursive: true, force: true }).catch(() => undefined);
@@ -465,11 +508,25 @@ class ChromeBridge {
 
     while (!this.shutdownRequested && Date.now() <= deadline) {
       tick += 1;
-      await this.runDismissals(tab.page, envelope, 'monitor-dismissals');
-      await this.handleGitHubToolPrompts(tab.page, envelope);
-
-      const discovery = await discoverTarCandidates(tab.page);
-      const status = await readGenerationStatus(tab.page);
+      let discovery;
+      let status;
+      try {
+        await this.runDismissals(tab.page, envelope, 'monitor-dismissals');
+        await this.handleGitHubToolPrompts(tab.page, envelope);
+        discovery = await discoverTarCandidates(tab.page);
+        status = await readGenerationStatus(tab.page);
+      } catch (error) {
+        if (isTransientNavigationError(error)) {
+          this.bridgeLog(envelope, 'monitor-navigation-retry', 'retrying', 'page navigated during monitor check; retrying after load', {
+            reason: error?.message || String(error),
+            page_url: tab.page.url(),
+          }, 'warn');
+          await tab.page.waitForLoadState('domcontentloaded', { timeout: 2000 }).catch(() => undefined);
+          await sleep(Math.min(completionMs, 500));
+          continue;
+        }
+        throw error;
+      }
       const ranked = rankCandidates(discovery.candidates, this.options.tarTargetName);
       const now = Date.now();
       const progressKind = now - lastTelemetry >= pollMs ? 'telemetry' : 'completion-check';
@@ -621,6 +678,24 @@ class ChromeBridge {
           `assistant hit message stream error without tar.gz after ${messageStreamRetries} retry attempts`,
         );
         return;
+      }
+
+      // Handle A/B feedback: select longest response if both are done
+      if (discovery.abFeedbackActive && !status.activeStop && ranked.length === 0) {
+        const abResult = await selectLongestABResponse(tab.page);
+        if (abResult.detected) {
+          this.bridgeLog(envelope, 'ab-feedback-detected', abResult.selected ? 'selected' : 'detected', abResult.selected ? 'selected longest A/B response' : 'A/B feedback detected but could not select response', {
+            selected_index: String(abResult.selectedIndex),
+            response_lengths: JSON.stringify(abResult.responseLengths),
+            selected: String(abResult.selected),
+            reason: abResult.reason || '',
+          });
+          // After selecting, re-scan for tar candidates in the selected response
+          if (abResult.selected) {
+            await sleep(1000);
+            continue;  // Re-enter the loop to re-scan tar candidates
+          }
+        }
       }
 
       if (!status.activeStop && status.finalActions > 0) {
@@ -974,8 +1049,55 @@ class ChromeBridge {
     if (envelope) {
       this.emit(envelope, 'bridge-shutting-down', { reason }, undefined);
     }
+    const managedRecords = [...this.browsers.values()].filter((record) => managedBrowserRecordIsTerminable(record));
+    for (const record of managedRecords) {
+      record.endpoint.browserClose = await requestManagedBrowserClose(record).catch((error) => ({
+        status: 'failed',
+        sent: false,
+        error: error?.message || String(error),
+      }));
+    }
     for (const record of this.browsers.values()) {
       await record.browser?.close().catch(() => undefined);
+    }
+    for (const record of managedRecords) {
+      const result = await terminateManagedBrowserProcess(record.endpoint).catch((error) => ({
+        status: 'failed',
+        pid: record.endpoint.pid,
+        cdp_url: record.endpoint.cdpUrl,
+        error: error?.message || String(error),
+      }));
+      result.browser_close_sent = String(Boolean(record.endpoint.browserClose?.sent));
+      result.browser_close_status = record.endpoint.browserClose?.status ?? '';
+      result.browser_close_error = record.endpoint.browserClose?.error ?? '';
+      record.endpoint.lastTermination = result;
+      if (result.status === 'ok' || result.status === 'already-exited') {
+        await writeManagedBrowserStoppedState(record.endpoint.stateDir, record.endpoint, result).catch(() => undefined);
+        record.endpoint.pid = null;
+        record.endpoint.started = false;
+      }
+      if (envelope) {
+        this.bridgeLog(
+          envelope,
+          'managed-chrome-shutdown',
+          result.status === 'ok' || result.status === 'already-exited' ? 'ok' : 'failed',
+          result.status === 'ok' || result.status === 'already-exited'
+            ? 'managed Chrome process stopped'
+            : 'managed Chrome process cleanup failed',
+          {
+            pid: String(result.pid ?? record.endpoint.pid ?? ''),
+            cdp_url: record.endpoint.cdpUrl,
+            profile_dir: record.endpoint.profileDir,
+            sigterm_sent: String(Boolean(result.sigterm_sent)),
+            sigkill_sent: String(Boolean(result.sigkill_sent)),
+            port_closed: String(Boolean(result.port_closed)),
+            browser_close_sent: String(Boolean(record.endpoint.browserClose?.sent)),
+            browser_close_status: record.endpoint.browserClose?.status ?? '',
+            error: result.error || '',
+          },
+          result.status === 'ok' || result.status === 'already-exited' ? 'info' : 'error',
+        );
+      }
     }
     await writeManagedBrowserPoolState(this.options.stateDir, this.activeBrowserStates()).catch(() => undefined);
   }
@@ -1206,16 +1328,25 @@ async function ensureManagedChromeRunning(options, logStartup = null) {
   await mkdir(options.profileDir, { recursive: true });
   await mkdir(options.stateDir, { recursive: true });
 
-  const child = spawn(executable, [
+  const launchArgs = [
     `--user-data-dir=${options.profileDir}`,
     '--profile-directory=Default',
     '--no-first-run',
     '--no-default-browser-check',
-    '--new-window',
+    '--disable-session-crashed-bubble',
     `--remote-debugging-port=${endpoint.port}`,
     `--remote-debugging-address=${endpoint.hostname}`,
+  ];
+  if (options.chromeHeadless) {
+    launchArgs.push('--headless=new', '--disable-gpu', '--hide-scrollbars', '--mute-audio');
+  } else {
+    launchArgs.push('--new-window');
+  }
+  launchArgs.push(
     'about:blank',
-  ], {
+  );
+
+  const child = spawn(executable, launchArgs, {
     detached: true,
     stdio: 'ignore',
     env: { ...process.env },
@@ -1231,6 +1362,7 @@ async function ensureManagedChromeRunning(options, logStartup = null) {
     stateDir: options.stateDir,
     cdpUrl: endpoint.origin,
     executable,
+    headless: Boolean(options.chromeHeadless),
     startedAt: timestamp(),
   });
 
@@ -1244,7 +1376,184 @@ async function ensureManagedChromeRunning(options, logStartup = null) {
     throw error;
   }
 
-  return { cdpUrl: endpoint.origin, started: true, pid: child.pid };
+  return { cdpUrl: endpoint.origin, started: true, pid: child.pid, child };
+}
+
+function managedBrowserRecordIsTerminable(record) {
+  const pid = Number(record?.endpoint?.pid);
+  return Boolean(record?.endpoint?.started) && Number.isInteger(pid) && pid > 0;
+}
+
+async function requestManagedBrowserClose(record, timeoutMs = 1500) {
+  const browser = record?.browser;
+  if (!browser || typeof browser.newBrowserCDPSession !== 'function') {
+    return {
+      status: 'skipped',
+      sent: false,
+      error: 'missing browser CDP session',
+    };
+  }
+  try {
+    await Promise.race([
+      (async () => {
+        const session = await browser.newBrowserCDPSession();
+        await session.send('Browser.close');
+      })(),
+      sleep(timeoutMs).then(() => {
+        throw new Error(`Browser.close timed out after ${timeoutMs}ms`);
+      }),
+    ]);
+    return {
+      status: 'sent',
+      sent: true,
+      error: '',
+    };
+  } catch (error) {
+    const message = error?.message || String(error);
+    if (/Target closed|has been closed|disconnected|WebSocket is not open/i.test(message)) {
+      return {
+        status: 'sent-close-observed',
+        sent: true,
+        error: message,
+      };
+    }
+    return {
+      status: 'failed',
+      sent: false,
+      error: message,
+    };
+  }
+}
+
+async function terminateManagedBrowserProcess(endpoint, hooks = {}) {
+  const pid = Number(endpoint?.pid);
+  const cdpUrl = endpoint?.cdpUrl || '';
+  if (!Number.isInteger(pid) || pid <= 0) {
+    return {
+      status: 'skipped',
+      pid: endpoint?.pid ?? null,
+      cdp_url: cdpUrl,
+      sigterm_sent: false,
+      sigkill_sent: false,
+      port_closed: false,
+      error: 'missing managed browser pid',
+    };
+  }
+  const parsedEndpoint = cdpUrl ? parseCdpEndpoint(cdpUrl) : null;
+  const killProcess = hooks.killProcess ?? ((targetPid, signal) => process.kill(targetPid, signal));
+  const isProcessAliveFn = hooks.isProcessAlive ?? ((targetPid) => isProcessAlive(targetPid, killProcess));
+  const isPortOpenFn = hooks.isPortOpen ?? ((host, port, timeoutMs) => isPortOpen(host, port, timeoutMs));
+  const sleepFn = hooks.sleep ?? sleep;
+  const timeoutMs = Math.max(0, hooks.timeoutMs ?? 3000);
+  const intervalMs = Math.max(25, hooks.intervalMs ?? 100);
+  const result = {
+    status: 'ok',
+    pid,
+    cdp_url: cdpUrl,
+    sigterm_sent: false,
+    sigkill_sent: false,
+    port_closed: false,
+    error: '',
+  };
+
+  if (!isProcessAliveFn(pid)) {
+    result.status = 'already-exited';
+    result.port_closed = parsedEndpoint
+      ? !(await isPortOpenFn(parsedEndpoint.hostname, parsedEndpoint.port, 250).catch(() => true))
+      : false;
+    return result;
+  }
+
+  try {
+    killProcess(pid, 'SIGTERM');
+    result.sigterm_sent = true;
+  } catch (error) {
+    if (error?.code === 'ESRCH') {
+      result.status = 'already-exited';
+      return result;
+    }
+    result.status = 'failed';
+    result.error = error?.message || String(error);
+    return result;
+  }
+
+  const afterTerm = await waitForManagedBrowserToStop({
+    pid,
+    endpoint: parsedEndpoint,
+    timeoutMs,
+    intervalMs,
+    isProcessAlive: isProcessAliveFn,
+    isPortOpen: isPortOpenFn,
+    sleep: sleepFn,
+  });
+  result.port_closed = afterTerm.portClosed;
+  if (!afterTerm.alive) {
+    return result;
+  }
+
+  try {
+    killProcess(pid, 'SIGKILL');
+    result.sigkill_sent = true;
+  } catch (error) {
+    if (error?.code === 'ESRCH') {
+      result.port_closed = parsedEndpoint
+        ? !(await isPortOpenFn(parsedEndpoint.hostname, parsedEndpoint.port, 250).catch(() => true))
+        : result.port_closed;
+      return result;
+    }
+    result.status = 'failed';
+    result.error = error?.message || String(error);
+    return result;
+  }
+
+  const afterKill = await waitForManagedBrowserToStop({
+    pid,
+    endpoint: parsedEndpoint,
+    timeoutMs: Math.min(timeoutMs, 1500),
+    intervalMs,
+    isProcessAlive: isProcessAliveFn,
+    isPortOpen: isPortOpenFn,
+    sleep: sleepFn,
+  });
+  result.port_closed = afterKill.portClosed;
+  if (afterKill.alive) {
+    result.status = 'failed';
+    result.error = 'managed browser pid remained alive after SIGKILL';
+  }
+  return result;
+}
+
+async function waitForManagedBrowserToStop({
+  pid,
+  endpoint,
+  timeoutMs,
+  intervalMs,
+  isProcessAlive,
+  isPortOpen,
+  sleep: sleepFn,
+}) {
+  const deadline = Date.now() + timeoutMs;
+  let alive = isProcessAlive(pid);
+  let portClosed = endpoint
+    ? !(await isPortOpen(endpoint.hostname, endpoint.port, 250).catch(() => true))
+    : false;
+  while (alive && !portClosed && Date.now() < deadline) {
+    await sleepFn(Math.min(intervalMs, Math.max(0, deadline - Date.now())));
+    alive = isProcessAlive(pid);
+    portClosed = endpoint
+      ? !(await isPortOpen(endpoint.hostname, endpoint.port, 250).catch(() => true))
+      : false;
+  }
+  return { alive, portClosed };
+}
+
+function isProcessAlive(pid, killProcess = (targetPid, signal) => process.kill(targetPid, signal)) {
+  try {
+    killProcess(pid, 0);
+    return true;
+  } catch (error) {
+    return error?.code === 'EPERM';
+  }
 }
 
 function parseCdpEndpoint(value) {
@@ -1528,7 +1837,28 @@ function detectProfileLockArtifacts(profileDir) {
 async function writeManagedBrowserState(stateDir, state) {
   await mkdir(stateDir, { recursive: true });
   await writeFile(join(stateDir, 'managed-browser.pid'), `${state.pid ?? ''}\n`);
-  await writeFile(join(stateDir, 'managed-browser.json'), JSON.stringify(state, null, 2));
+  await writeFile(join(stateDir, 'managed-browser.json'), JSON.stringify({
+    status: 'running',
+    ...state,
+  }, null, 2));
+}
+
+async function writeManagedBrowserStoppedState(stateDir, endpoint, termination) {
+  await mkdir(stateDir, { recursive: true });
+  await writeFile(join(stateDir, 'managed-browser.pid'), '\n');
+  await writeFile(join(stateDir, 'managed-browser.json'), JSON.stringify({
+    status: 'stopped',
+    pid: null,
+    previousPid: endpoint.pid ?? termination.pid ?? null,
+    host: endpoint.cdpUrl ? parseCdpEndpoint(endpoint.cdpUrl).hostname : '',
+    port: endpoint.cdpUrl ? parseCdpEndpoint(endpoint.cdpUrl).port : null,
+    profileDir: endpoint.profileDir ?? '',
+    profileName: endpoint.profileName ?? '',
+    stateDir: endpoint.stateDir ?? stateDir,
+    cdpUrl: endpoint.cdpUrl ?? '',
+    stoppedAt: timestamp(),
+    termination,
+  }, null, 2));
 }
 
 async function writeManagedBrowserPoolState(stateDir, profiles) {
@@ -2018,10 +2348,30 @@ function textLooksInserted(text, expected) {
   return sharedPrefix >= Math.ceil(compactNeedle.length * 0.95);
 }
 
+function isTransientNavigationError(error) {
+  const message = error?.message || String(error);
+  return /Execution context was destroyed|most likely because of a navigation|Cannot find context with specified id/i.test(message);
+}
+
 async function discoverTarCandidates(page) {
   return page.evaluate(() => {
     const controls = Array.from(document.querySelectorAll('a,button,[role="button"],[download],[href]'));
     const assistantRoots = Array.from(document.querySelectorAll('[data-message-author-role="assistant"]'));
+    // Detect A/B feedback response containers
+    const abFeedbackActive = /giving feedback on a new version|which response do you prefer/i.test(document.body?.innerText || '');
+    let abResponseRoots = [];
+    if (abFeedbackActive) {
+      const abSelectors = [
+        '[data-testid*="response-turn"]',
+        '[data-testid*="response-option"]',
+        '[class*="response-turn"]',
+        '[class*="comparison"]',
+      ];
+      for (const sel of abSelectors) {
+        abResponseRoots = Array.from(document.querySelectorAll(sel));
+        if (abResponseRoots.length >= 2) break;
+      }
+    }
     const textOf = (el) => String(el?.innerText || el?.textContent || '').replace(/\s+/g, ' ').trim();
     const attr = (el, name) => el?.getAttribute?.(name) || '';
     const href = (el) => el?.href || attr(el, 'href');
@@ -2037,7 +2387,8 @@ async function discoverTarCandidates(page) {
     for (let index = 0; index < controls.length; index += 1) {
       const el = controls[index];
       const assistant = closestAssistant(el);
-      if (assistantRoots.length > 0 && !assistant) continue;
+      const inABResponse = abResponseRoots.length > 0 && abResponseRoots.some((root) => root.contains(el));
+      if (assistantRoots.length > 0 && !assistant && !inABResponse) continue;
       if (!visible(el) || disabled(el)) continue;
       const tag = String(el.tagName || '').toLowerCase();
       const role = attr(el, 'role').toLowerCase();
@@ -2076,6 +2427,8 @@ async function discoverTarCandidates(page) {
       candidates,
       lastTextLength,
       lastTextPreview: lastAssistantText.slice(0, 240),
+      abFeedbackActive,
+      abResponseCount: abResponseRoots.length,
     };
   });
 }
@@ -2122,6 +2475,65 @@ async function readGenerationStatus(page) {
     const pageText = String(document.body?.innerText || document.body?.textContent || '');
     const messageStreamError = /error in message stream/i.test(pageText);
     return { activeStop, finalActions, messageStreamError, retryAvailable };
+  });
+}
+
+async function selectLongestABResponse(page) {
+  return page.evaluate(() => {
+    const pageText = document.body?.innerText || '';
+    if (!/giving feedback on a new version|which response do you prefer/i.test(pageText)) {
+      return { detected: false, selected: false, selectedIndex: -1, responseLengths: [] };
+    }
+    // Find response containers
+    const abSelectors = [
+      '[data-testid*="response-turn"]',
+      '[data-testid*="response-option"]',
+      '[class*="response-turn"]',
+      '[class*="comparison"]',
+    ];
+    let responseRoots = [];
+    for (const sel of abSelectors) {
+      responseRoots = Array.from(document.querySelectorAll(sel));
+      if (responseRoots.length >= 2) break;
+    }
+    if (responseRoots.length < 2) {
+      return { detected: true, selected: false, selectedIndex: -1, responseLengths: [], reason: 'response-containers-not-found' };
+    }
+    const textOf = (el) => String(el?.innerText || el?.textContent || '').replace(/\s+/g, ' ').trim();
+    const responseLengths = responseRoots.map((root) => textOf(root).length);
+    // Find the longest response
+    let longestIndex = 0;
+    for (let i = 1; i < responseLengths.length; i++) {
+      if (responseLengths[i] > responseLengths[longestIndex]) {
+        longestIndex = i;
+      }
+    }
+    // Try to click the longest response to select it
+    const targetRoot = responseRoots[longestIndex];
+    const clickTargets = Array.from(targetRoot.querySelectorAll('button,[role="button"],a'));
+    const visible = (el) => {
+      const style = window.getComputedStyle(el);
+      const rect = el.getBoundingClientRect();
+      return style.visibility !== 'hidden' && style.display !== 'none' && rect.width > 0 && rect.height > 0;
+    };
+    // Click the response container itself or a selectable element within it
+    let selected = false;
+    try {
+      targetRoot.click();
+      selected = true;
+    } catch (e) {
+      // Try clicking a button within
+      for (const btn of clickTargets) {
+        if (visible(btn)) {
+          try {
+            btn.click();
+            selected = true;
+            break;
+          } catch (e2) { /* continue */ }
+        }
+      }
+    }
+    return { detected: true, selected, selectedIndex: longestIndex, responseLengths };
   });
 }
 
@@ -3186,6 +3598,104 @@ async function assertBrowserProfilePoolPlanning() {
   }
 }
 
+async function assertManagedBrowserTerminationSequence() {
+  const closeCalls = [];
+  const closeResult = await requestManagedBrowserClose({
+    browser: {
+      newBrowserCDPSession: async () => ({
+        send: async (method) => {
+          closeCalls.push(method);
+        },
+      }),
+    },
+  }, 100);
+  if (JSON.stringify(closeCalls) !== JSON.stringify(['Browser.close'])) {
+    throw new Error(`managed browser CDP close command failed: ${JSON.stringify(closeCalls)}`);
+  }
+  if (!closeResult.sent || closeResult.status !== 'sent') {
+    throw new Error(`managed browser CDP close result failed: ${JSON.stringify(closeResult)}`);
+  }
+
+  const closeObserved = await requestManagedBrowserClose({
+    browser: {
+      newBrowserCDPSession: async () => ({
+        send: async () => {
+          throw new Error('Protocol error (Browser.close): Target closed');
+        },
+      }),
+    },
+  }, 100);
+  if (!closeObserved.sent || closeObserved.status !== 'sent-close-observed') {
+    throw new Error(`managed browser CDP close observed result failed: ${JSON.stringify(closeObserved)}`);
+  }
+
+  const forcedCalls = [];
+  let forcedAlive = true;
+  let forcedPortOpen = true;
+  const forced = await terminateManagedBrowserProcess({
+    pid: 4242,
+    cdpUrl: 'http://127.0.0.1:9224',
+  }, {
+    timeoutMs: 0,
+    isProcessAlive: () => forcedAlive,
+    isPortOpen: async () => forcedPortOpen,
+    killProcess: (pid, signal) => {
+      forcedCalls.push(`${signal}:${pid}`);
+      if (signal === 'SIGKILL') {
+        forcedAlive = false;
+        forcedPortOpen = false;
+      }
+    },
+    sleep: async () => undefined,
+  });
+  if (JSON.stringify(forcedCalls) !== JSON.stringify(['SIGTERM:4242', 'SIGKILL:4242'])) {
+    throw new Error(`managed browser forced termination sequence failed: ${JSON.stringify(forcedCalls)}`);
+  }
+  if (forced.status !== 'ok' || !forced.sigterm_sent || !forced.sigkill_sent || !forced.port_closed) {
+    throw new Error(`managed browser forced termination result failed: ${JSON.stringify(forced)}`);
+  }
+
+  const gracefulCalls = [];
+  let gracefulAlive = true;
+  let gracefulPortOpen = true;
+  const graceful = await terminateManagedBrowserProcess({
+    pid: 4243,
+    cdpUrl: 'http://127.0.0.1:9225',
+  }, {
+    timeoutMs: 100,
+    isProcessAlive: () => gracefulAlive,
+    isPortOpen: async () => gracefulPortOpen,
+    killProcess: (pid, signal) => {
+      gracefulCalls.push(`${signal}:${pid}`);
+      if (signal === 'SIGTERM') {
+        gracefulAlive = false;
+        gracefulPortOpen = false;
+      }
+    },
+    sleep: async () => undefined,
+  });
+  if (JSON.stringify(gracefulCalls) !== JSON.stringify(['SIGTERM:4243'])) {
+    throw new Error(`managed browser graceful termination sequence failed: ${JSON.stringify(gracefulCalls)}`);
+  }
+  if (graceful.status !== 'ok' || !graceful.sigterm_sent || graceful.sigkill_sent || !graceful.port_closed) {
+    throw new Error(`managed browser graceful termination result failed: ${JSON.stringify(graceful)}`);
+  }
+
+  const skipped = await terminateManagedBrowserProcess({ pid: null, cdpUrl: 'http://127.0.0.1:9226' });
+  if (skipped.status !== 'skipped') {
+    throw new Error(`managed browser missing pid should be skipped: ${JSON.stringify(skipped)}`);
+  }
+}
+
+function assertTransientNavigationErrorClassification() {
+  if (!isTransientNavigationError(new Error('page.evaluate: Execution context was destroyed, most likely because of a navigation'))) {
+    throw new Error('navigation-destroyed Playwright error should be retryable');
+  }
+  if (isTransientNavigationError(new Error('Target page, context or browser has been closed'))) {
+    throw new Error('closed target errors should not be classified as transient navigation');
+  }
+}
+
 async function runSelfTest() {
   const name = normalizeTarName('jekko-fixes.tgz');
   if (name !== 'jekko-fixes.tar.gz') {
@@ -3273,6 +3783,8 @@ async function runSelfTest() {
   await assertMessageStreamRetryClicksRetry();
   await assertKnownRunUrlCollection();
   await assertBrowserProfilePoolPlanning();
+  await assertManagedBrowserTerminationSequence();
+  assertTransientNavigationErrorClassification();
   process.stdout.write('chrome-bridge self-test passed\n');
 }
 

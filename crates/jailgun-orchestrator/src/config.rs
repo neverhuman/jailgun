@@ -8,6 +8,7 @@ pub struct RunOptions {
     pub config: JailgunConfig,
     pub prompt_text: String,
     pub tabs_override: Option<u16>,
+    pub initial_tab_burst: Option<u16>,
     pub loop_count: u16,
     pub no_deploy: bool,
     pub dry_run: bool,

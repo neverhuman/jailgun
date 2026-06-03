@@ -8,6 +8,7 @@ use time::{format_description::well_known::Rfc3339, OffsetDateTime};
 pub enum EventKind {
     RunStarted,
     TabOpened,
+    ArchiveUploaded,
     PromptSubmitted,
     TarDiscovered,
     DownloadStarted,

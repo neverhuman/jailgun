@@ -146,7 +146,7 @@ async fn drive_run(
     let mut launcher = LaunchScheduler::new(planned_tabs);
     let (launch_tx, mut launch_rx) = mpsc::channel::<LaunchTrigger>(planned_tabs as usize + 1);
     if let Err(error) = launcher
-        .launch_next(&opts, &bridge.commands_tx, &events)
+        .launch_initial(&opts, &bridge.commands_tx, &events)
         .await
     {
         summary.failures.push((0, error.to_string()));
@@ -182,7 +182,7 @@ async fn drive_run(
             }
             Some(trigger) = launch_rx.recv() => {
                 if launcher.consume_scheduled_launch(trigger.tab_id) {
-                    if let Err(error) = launcher.launch_next(&opts, &bridge.commands_tx, &events).await {
+                    if let Err(error) = launcher.launch_tab(&opts, &bridge.commands_tx, &events, trigger.tab_id).await {
                         summary.failures.push((0, error.to_string()));
                         publish_error(&events, &opts.run_id, None, error.to_string());
                         break;
@@ -350,7 +350,16 @@ async fn send_tab_commands_for_tab(
         }),
     )
     .await?;
+    let prompt_text = prompt_for_tab(
+        &opts.prompt_text,
+        tab_id,
+        opts.planned_tabs().unwrap_or(opts.tabs()),
+    );
     if opts.config.source_archive.enabled {
+        // Bundle the prompt into the upload command so the bridge fills the
+        // composer while the file is still uploading.  The send button stays
+        // disabled during upload; the bridge clicks it the instant it becomes
+        // enabled — eliminating the serial upload→prompt round-trip.
         send_command(
             commands,
             &opts.run_id,
@@ -365,24 +374,24 @@ async fn send_tab_commands_for_tab(
                 delete_after_upload: opts.config.source_archive.delete_after_upload,
                 confirm_selectors: Vec::new(),
                 timeout_ms: 45_000,
+                prompt: Some(prompt_text),
+                submit_timeout_ms: Some(45_000),
+            }),
+        )
+        .await?;
+    } else {
+        // No archive upload — standalone prompt submission.
+        send_command(
+            commands,
+            &opts.run_id,
+            Some(tab_id),
+            BridgeCommand::SubmitPrompt(SubmitPromptPayload {
+                prompt: prompt_text,
+                submit_timeout_ms: 45_000,
             }),
         )
         .await?;
     }
-    send_command(
-        commands,
-        &opts.run_id,
-        Some(tab_id),
-        BridgeCommand::SubmitPrompt(SubmitPromptPayload {
-            prompt: prompt_for_tab(
-                &opts.prompt_text,
-                tab_id,
-                opts.planned_tabs().unwrap_or(opts.tabs()),
-            ),
-            submit_timeout_ms: 45_000,
-        }),
-    )
-    .await?;
     send_command(
         commands,
         &opts.run_id,
@@ -429,8 +438,8 @@ struct LaunchDelay {
 struct LaunchScheduler {
     total_tabs: u16,
     next_tab: u16,
-    waiting_for_acceptance: Option<u16>,
-    scheduled_launch: Option<u16>,
+    waiting_for_acceptance: BTreeSet<u16>,
+    scheduled_launches: BTreeSet<u16>,
 }
 
 impl LaunchScheduler {
@@ -438,23 +447,50 @@ impl LaunchScheduler {
         Self {
             total_tabs,
             next_tab: 1,
-            waiting_for_acceptance: None,
-            scheduled_launch: None,
+            waiting_for_acceptance: BTreeSet::new(),
+            scheduled_launches: BTreeSet::new(),
         }
     }
 
-    async fn launch_next(
+    async fn launch_initial(
         &mut self,
         opts: &RunOptions,
         commands: &mpsc::Sender<crate::bridge::Envelope<serde_json::Value>>,
         events: &broadcast::Sender<JailgunEvent>,
     ) -> Result<(), OrchestratorError> {
+        let profile_slots = opts.profile_pool.len().max(1);
+        let requested_initial_tabs = opts
+            .initial_tab_burst
+            .filter(|burst| *burst > 0)
+            .map(usize::from)
+            .unwrap_or(profile_slots);
+        let initial_tabs = usize::from(self.total_tabs).min(requested_initial_tabs);
+        for _ in 0..initial_tabs {
+            let Some(tab_id) = self.reserve_next_tab() else {
+                break;
+            };
+            self.launch_tab(opts, commands, events, tab_id).await?;
+        }
+        Ok(())
+    }
+
+    fn reserve_next_tab(&mut self) -> Option<u16> {
         if self.next_tab > self.total_tabs {
-            return Ok(());
+            return None;
         }
         let tab_id = self.next_tab;
         self.next_tab = self.next_tab.saturating_add(1);
-        self.waiting_for_acceptance = Some(tab_id);
+        Some(tab_id)
+    }
+
+    async fn launch_tab(
+        &mut self,
+        opts: &RunOptions,
+        commands: &mpsc::Sender<crate::bridge::Envelope<serde_json::Value>>,
+        events: &broadcast::Sender<JailgunEvent>,
+        tab_id: u16,
+    ) -> Result<(), OrchestratorError> {
+        self.waiting_for_acceptance.insert(tab_id);
         publish_browser_log(
             events,
             &opts.run_id,
@@ -475,27 +511,22 @@ impl LaunchScheduler {
     }
 
     fn prompt_accepted(&mut self, tab_id: u16, delay: Duration) -> Option<LaunchDelay> {
-        if self.waiting_for_acceptance != Some(tab_id) {
+        if !self.waiting_for_acceptance.remove(&tab_id) {
             return None;
         }
-        self.waiting_for_acceptance = None;
         self.schedule_next(delay, "prompt-accepted")
     }
 
     fn tab_terminal(&mut self, tab_id: u16, delay: Duration) -> Option<LaunchDelay> {
-        if self.waiting_for_acceptance != Some(tab_id) {
+        if !self.waiting_for_acceptance.remove(&tab_id) {
             return None;
         }
-        self.waiting_for_acceptance = None;
         self.schedule_next(delay, "tab-terminal-before-prompt-accepted")
     }
 
     fn schedule_next(&mut self, duration: Duration, reason: &'static str) -> Option<LaunchDelay> {
-        if self.next_tab > self.total_tabs || self.scheduled_launch.is_some() {
-            return None;
-        }
-        let tab_id = self.next_tab;
-        self.scheduled_launch = Some(tab_id);
+        let tab_id = self.reserve_next_tab()?;
+        self.scheduled_launches.insert(tab_id);
         Some(LaunchDelay {
             tab_id,
             duration,
@@ -504,12 +535,7 @@ impl LaunchScheduler {
     }
 
     fn consume_scheduled_launch(&mut self, tab_id: u16) -> bool {
-        if self.scheduled_launch == Some(tab_id) {
-            self.scheduled_launch = None;
-            true
-        } else {
-            false
-        }
+        self.scheduled_launches.remove(&tab_id)
     }
 }
 
@@ -1127,6 +1153,7 @@ mod tests {
             config: JailgunConfig::default(),
             prompt_text: "hello".into(),
             tabs_override: Some(7),
+            initial_tab_burst: None,
             loop_count: 3,
             no_deploy: false,
             dry_run: false,
@@ -1183,6 +1210,7 @@ mod tests {
             config: JailgunConfig::default(),
             prompt_text: "hello".into(),
             tabs_override: Some(7),
+            initial_tab_burst: None,
             loop_count: 3,
             no_deploy: false,
             dry_run: false,
@@ -1226,6 +1254,7 @@ mod tests {
             config: JailgunConfig::default(),
             prompt_text: "hello".into(),
             tabs_override: Some(7),
+            initial_tab_burst: None,
             loop_count: 3,
             no_deploy: false,
             dry_run: false,
@@ -1260,12 +1289,13 @@ mod tests {
     }
 
     #[test]
-    fn profile_dir_for_tab_round_robins_profile_pool() {
+    fn profile_dir_for_tab_round_robins_profile_pool_across_ten_tabs() {
         let opts = RunOptions {
             run_id: "run-1".into(),
             config: JailgunConfig::default(),
             prompt_text: "hello".into(),
-            tabs_override: Some(3),
+            tabs_override: Some(10),
+            initial_tab_burst: None,
             loop_count: 0,
             no_deploy: false,
             dry_run: false,
@@ -1294,27 +1324,140 @@ mod tests {
             deploy_concurrency: 1,
         };
 
-        assert_eq!(profile_dir_for_tab(&opts, 1), Path::new("/tmp/google-a"));
-        assert_eq!(profile_dir_for_tab(&opts, 2), Path::new("/tmp/google-b"));
-        assert_eq!(profile_dir_for_tab(&opts, 3), Path::new("/tmp/google-a"));
+        let observed: Vec<_> = (1..=10)
+            .map(|tab_id| profile_dir_for_tab(&opts, tab_id).to_path_buf())
+            .collect();
+        let expected = vec![
+            PathBuf::from("/tmp/google-a"),
+            PathBuf::from("/tmp/google-b"),
+            PathBuf::from("/tmp/google-a"),
+            PathBuf::from("/tmp/google-b"),
+            PathBuf::from("/tmp/google-a"),
+            PathBuf::from("/tmp/google-b"),
+            PathBuf::from("/tmp/google-a"),
+            PathBuf::from("/tmp/google-b"),
+            PathBuf::from("/tmp/google-a"),
+            PathBuf::from("/tmp/google-b"),
+        ];
+        assert_eq!(observed, expected);
+        assert_eq!(
+            observed
+                .iter()
+                .filter(|path| path.as_path() == Path::new("/tmp/google-a"))
+                .count(),
+            5
+        );
+        assert_eq!(
+            observed
+                .iter()
+                .filter(|path| path.as_path() == Path::new("/tmp/google-b"))
+                .count(),
+            5
+        );
     }
 
     #[test]
-    fn launch_scheduler_waits_for_prompt_acceptance_before_next_tab() {
-        let mut scheduler = LaunchScheduler::new(3);
+    fn launch_scheduler_allows_multiple_profile_slots_to_progress() {
+        let mut scheduler = LaunchScheduler::new(4);
         assert_eq!(scheduler.next_tab, 1);
-        scheduler.next_tab = 2;
-        scheduler.waiting_for_acceptance = Some(1);
+        scheduler.next_tab = 3;
+        scheduler.waiting_for_acceptance.insert(1);
+        scheduler.waiting_for_acceptance.insert(2);
 
         assert!(scheduler
-            .prompt_accepted(2, Duration::from_secs(60))
+            .prompt_accepted(3, Duration::from_secs(60))
             .is_none());
-        let delay = scheduler
+        let first_delay = scheduler
             .prompt_accepted(1, Duration::from_secs(60))
             .expect("tab 2 scheduled after tab 1 acceptance");
-        assert_eq!(delay.tab_id, 2);
-        assert_eq!(delay.duration, Duration::from_secs(60));
-        assert!(scheduler.consume_scheduled_launch(2));
+        assert_eq!(first_delay.tab_id, 3);
+        assert_eq!(first_delay.duration, Duration::from_secs(60));
+        let second_delay = scheduler
+            .prompt_accepted(2, Duration::from_secs(60))
+            .expect("tab 4 scheduled after tab 2 acceptance");
+        assert_eq!(second_delay.tab_id, 4);
+        assert_eq!(second_delay.duration, Duration::from_secs(60));
+        assert!(scheduler.consume_scheduled_launch(3));
+        assert!(scheduler.consume_scheduled_launch(4));
+    }
+
+    #[tokio::test]
+    async fn launch_scheduler_burst_launches_ten_tabs_across_two_profiles() {
+        let mut scheduler = LaunchScheduler::new(10);
+        let opts = RunOptions {
+            run_id: "run-1".into(),
+            config: JailgunConfig::default(),
+            prompt_text: "hello".into(),
+            tabs_override: Some(10),
+            initial_tab_burst: Some(10),
+            loop_count: 0,
+            no_deploy: false,
+            dry_run: false,
+            profile_dir: PathBuf::from("/tmp/default-profile"),
+            profile_pool: vec![
+                PathBuf::from("/tmp/google-a"),
+                PathBuf::from("/tmp/google-b"),
+            ],
+            downloads_dir: PathBuf::from("/tmp/downloads"),
+            artifacts_dir: PathBuf::from("/tmp/artifacts"),
+            bridge_cmd: vec!["bridge".into()],
+            bridge_env: Default::default(),
+            repo_url: "https://example.com/repo.git".into(),
+            fresh_source_clone: true,
+            deploy_remote_host: None,
+            deploy_remote_dir: None,
+            deploy_remote_command: None,
+            deploy_expected_top_level: None,
+            ci_tracker_enabled: false,
+            ci_repo: None,
+            ci_branch: "main".into(),
+            ci_max_attempts: 1,
+            ci_poll_seconds: 1,
+            status_max_minutes: 1,
+            event_buffer: 64,
+            deploy_concurrency: 1,
+        };
+        let (commands_tx, mut commands_rx) = mpsc::channel(64);
+        let (events_tx, _events_rx) = broadcast::channel(64);
+
+        scheduler
+            .launch_initial(&opts, &commands_tx, &events_tx)
+            .await
+            .expect("burst launch should queue commands");
+        drop(commands_tx);
+        assert_eq!(scheduler.next_tab, 11);
+        assert_eq!(
+            scheduler.waiting_for_acceptance,
+            (1..=10).collect::<BTreeSet<_>>()
+        );
+
+        let mut open_tab_profile_dirs = Vec::new();
+        while let Some(envelope) = commands_rx.recv().await {
+            if envelope.kind != "open-tab" {
+                continue;
+            }
+            let command = BridgeCommand::decode(&envelope.kind, envelope.payload)
+                .expect("open-tab command should decode");
+            let BridgeCommand::OpenTab(payload) = command else {
+                panic!("expected open-tab command");
+            };
+            open_tab_profile_dirs.push(PathBuf::from(payload.profile_dir));
+        }
+        assert_eq!(open_tab_profile_dirs.len(), 10);
+        assert_eq!(
+            open_tab_profile_dirs
+                .iter()
+                .filter(|path| path.as_path() == Path::new("/tmp/google-a"))
+                .count(),
+            5
+        );
+        assert_eq!(
+            open_tab_profile_dirs
+                .iter()
+                .filter(|path| path.as_path() == Path::new("/tmp/google-b"))
+                .count(),
+            5
+        );
     }
 
     #[test]

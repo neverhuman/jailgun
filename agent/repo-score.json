@@ -1,6 +1,6 @@
 {
-  "report_fingerprint": "sha256:bba0ec4945f401f43dbfcd889f5e85f5f8acb8da5eea3e404b03036e5bb56e44",
-  "input_fingerprint": "sha256:8f38b822dd6fc5d84d8e74905707c63f37250d98895793217ef61e1a52f074be",
+  "report_fingerprint": "sha256:339b3c5468ca8d983dffc8cc92b44df97622a104265224a4be52a4a30dff1ff8",
+  "input_fingerprint": "sha256:a6a6fca1157416a2c971babf222e7372d06fa6e63d3a80c82b36f2878bfc4eb7",
   "policy_fingerprint": "sha256:2e02fe1c1919de94a47a99164c962683a934c73ca5bb30bec62384f7b17fe742",
   "manifest_fingerprints": {
     "owner_map": "sha256:df0834474569b72ae63ca9845b7e8d25af3a84d1aec5e54872a617bf9570b7c5",
@@ -10,8 +10,8 @@
     "proof_lanes": "sha256:15ec3d011b63046bbc896e0de66f4c8ec26bc4b72e286200e2ece5f714024c73",
     "standard_version": "sha256:e89e3b08c1e1ab55b195b4041787100956f3888aaba37595bce4403606dcb996"
   },
-  "dirty_worktree": true,
-  "generated_at": "1780421410",
+  "dirty_worktree": false,
+  "generated_at": "1780499673",
   "schema_url": "schemas/repo-score.schema.json",
   "standard": "jankurai",
   "standard_version": "0.9.0",
@@ -24,6 +24,7 @@
   "observed_conformance_level": "HL2",
   "conformance_decision": "block",
   "conformance_blockers": [
+    "HLT-034-CI-BAD-BEHAVIOR on .github/workflows/ci.yml",
     "HLT-003-OWNERLESS-PATH on agent/owner-map.json",
     "HLT-003-OWNERLESS-PATH on agent/owner-map.json",
     "HLT-003-OWNERLESS-PATH on agent/owner-map.json",
@@ -34,21 +35,21 @@
     "HLT-022-AUTHZ-ISOLATION-GAP on crates/jailgun-cli/src/main.rs"
   ],
   "repo": ".",
-  "run_id": "1780421410",
-  "started_at": "1780421410",
-  "elapsed_ms": 26549,
+  "run_id": "1780499673",
+  "started_at": "1780499673",
+  "elapsed_ms": 27564,
   "scope": {
     "mode": "full",
     "paths": []
   },
   "score": 70,
-  "raw_score": 83,
+  "raw_score": 80,
   "decision": {
     "status": "advisory",
     "minimum_score": 85,
     "passed": true,
     "hard_findings": 0,
-    "soft_findings": 12,
+    "soft_findings": 13,
     "ratchet": {
       "baseline_score": 70,
       "allowed_drop": 0,
@@ -63,11 +64,11 @@
     }
   },
   "git": {
-    "head": "af76edc",
+    "head": "5c22ce8",
     "base": null,
     "changed_files": 0,
     "mode": "full",
-    "dirty_worktree": true
+    "dirty_worktree": false
   },
   "policy": {
     "path": "./agent/audit-policy.toml",
@@ -83,7 +84,8 @@
   },
   "caps_applied": [
     "fallback-soup-in-product-code",
-    "authz-or-data-isolation-gap"
+    "authz-or-data-isolation-gap",
+    "ci-bad-behavior"
   ],
   "hard_rules": [
     {
@@ -330,8 +332,8 @@
     {
       "name": "Security and supply-chain posture",
       "weight": 12,
-      "score": 100,
-      "weighted_points": 12.0,
+      "score": 94,
+      "weighted_points": 11.28,
       "evidence": [
         "lockfile present",
         "secret or dependency scan tooling found",
@@ -340,33 +342,31 @@
         "security lane present",
         "canonical security lane wrapper present",
         "agent-readiness audit gate found in CI",
-        "rust bad-behavior advisory signals: 396",
+        "rust bad-behavior advisory signals: 399",
         "typescript bad-behavior advisory signals: 2",
-        "ci bad-behavior advisory signals: 1",
+        "ci bad-behavior hard findings: 1",
         "gittools bad-behavior advisory signals: 2",
         "Rust and npm dependency audits are operational commands",
-        "secret scanning command is operational",
-        "complete operational security command posture with zero hard language findings"
+        "secret scanning command is operational"
       ],
       "notes": []
     },
     {
       "name": "Code shape and semantic surface",
       "weight": 12,
-      "score": 27,
-      "weighted_points": 3.24,
+      "score": 12,
+      "weighted_points": 1.44,
       "evidence": [
-        "largest authored code file: crates/jailgun-cli/src/main.rs (1473 LOC)",
+        "largest authored code file: crates/jailgun-orchestrator/src/run/mod.rs (1481 LOC)",
         "code file exceeds 500 LOC",
         "code file exceeds 1000 LOC",
         "most code files stay under 300 LOC",
         "copy-code advisory classes found: 4 (advisory only, no score impact)",
         "fallback soup marker found",
-        "rust bad-behavior advisory signals: 396",
+        "rust bad-behavior advisory signals: 399",
         "typescript bad-behavior advisory signals: 2",
-        "ci bad-behavior advisory signals: 1",
-        "gittools bad-behavior advisory signals: 2",
-        "no hard bad-behavior findings across detector-backed language families"
+        "ci bad-behavior hard findings: 1",
+        "gittools bad-behavior advisory signals: 2"
       ],
       "notes": []
     },
@@ -1098,7 +1098,7 @@
   "copy_code": {
     "schema_version": "1.1.0",
     "generated_by": "jankurai copy-code",
-    "generated_at": "2026-06-02T17:29:44.519981+00:00",
+    "generated_at": "2026-06-03T15:14:06.634563+00:00",
     "repo": ".",
     "auditor_version": "1.4.3",
     "status": "review",
@@ -1136,7 +1136,7 @@
       ]
     },
     "summary": {
-      "files_scanned": 224,
+      "files_scanned": 231,
       "files_considered": 71,
       "active_files": 71,
       "exact_file_classes": 0,
@@ -1144,45 +1144,45 @@
       "warning_classes": 4,
       "hard_instances": 0,
       "warning_instances": 10,
-      "duplicate_lines": 32,
-      "duplicate_tokens": 95,
-      "duplicate_bytes": 1242,
-      "total_redundant_lines": 34,
-      "total_redundant_tokens": 106,
-      "total_redundant_bytes": 1342
+      "duplicate_lines": 33,
+      "duplicate_tokens": 97,
+      "duplicate_bytes": 1279,
+      "total_redundant_lines": 35,
+      "total_redundant_tokens": 108,
+      "total_redundant_bytes": 1379
     },
     "classes": [
       {
-        "id": "copy-code-body-rust-7364fe5d77b4392c",
+        "id": "copy-code-body-rust-ef99c08197dcc9df",
         "kind": "exact_unit_different_name",
         "severity": "warning",
         "confidence": "medium",
         "language": "rust",
-        "duplicate_lines": 29,
-        "duplicate_tokens": 82,
-        "duplicate_bytes": 1123,
+        "duplicate_lines": 30,
+        "duplicate_tokens": 84,
+        "duplicate_bytes": 1160,
         "instance_count": 2,
-        "total_redundant_lines": 29,
-        "total_redundant_tokens": 82,
-        "total_redundant_bytes": 1123,
+        "total_redundant_lines": 30,
+        "total_redundant_tokens": 84,
+        "total_redundant_bytes": 1160,
         "effective_severity": "warning",
         "hard_fail": false,
-        "fingerprint": "fcf85baf4f176d5c",
+        "fingerprint": "2209908416897204",
         "reason": "same body appears under different names across files",
         "recommended_action": "choose one owner for the shared body or intentionally differentiate the behavior",
         "instances": [
           {
             "path": "crates/jailgun-orchestrator/src/run/mod.rs",
             "language": "rust",
-            "start_line": 1180,
-            "end_line": 1209,
+            "start_line": 1207,
+            "end_line": 1237,
             "unit_name": "submit_delay_window_uses_percent_when_configured"
           },
           {
             "path": "crates/jailgun-orchestrator/src/run/mod.rs",
             "language": "rust",
-            "start_line": 1223,
-            "end_line": 1252,
+            "start_line": 1251,
+            "end_line": 1281,
             "unit_name": "submit_delay_window_uses_additive_jitter_when_percent_is_unset"
           }
         ]
@@ -1209,22 +1209,22 @@
           {
             "path": "crates/jailgun-server/src/lib.rs",
             "language": "rust",
-            "start_line": 643,
-            "end_line": 644,
+            "start_line": 644,
+            "end_line": 645,
             "unit_name": "ingest_requires_matching_token"
           },
           {
             "path": "crates/jailgun-server/src/lib.rs",
             "language": "rust",
-            "start_line": 685,
-            "end_line": 686,
+            "start_line": 686,
+            "end_line": 687,
             "unit_name": "ingest_without_token_returns_503"
           },
           {
             "path": "crates/jailgun-server/src/lib.rs",
             "language": "rust",
-            "start_line": 705,
-            "end_line": 706,
+            "start_line": 706,
+            "end_line": 707,
             "unit_name": "run_started_loop_metadata_is_seeded_and_preserved"
           }
         ]
@@ -1300,8 +1300,8 @@
           {
             "path": "crates/jailgun-orchestrator/src/run/mod.rs",
             "language": "rust",
-            "start_line": 929,
-            "end_line": 930,
+            "start_line": 955,
+            "end_line": 956,
             "unit_name": "deploy_outcome_label"
           }
         ]
@@ -1538,10 +1538,10 @@
       "severity": "medium",
       "category": "shape",
       "path": ".",
-      "problem": "`Code shape and semantic surface` scored 27 below the standard floor of 85",
+      "problem": "`Code shape and semantic surface` scored 12 below the standard floor of 85",
       "agent_fix": "split large or ambiguous authored code into smaller semantic modules with focused tests",
       "evidence": [
-        "largest authored code file: crates/jailgun-cli/src/main.rs (1473 LOC)",
+        "largest authored code file: crates/jailgun-orchestrator/src/run/mod.rs (1481 LOC)",
         "code file exceeds 500 LOC",
         "code file exceeds 1000 LOC",
         "most code files stay under 300 LOC"
@@ -1551,12 +1551,40 @@
       "confidence": 0.76,
       "evidence_kind": "repository-scan",
       "rerun_command": "just fast",
-      "fingerprint": "sha256:a064df6ddca79b17e6a0446aa3dba3cc349d08fff65fee6df08c35ff708fead6",
+      "fingerprint": "sha256:bf2eeb762a6f9e230aa8d7e55e6a5af4c451961cd41e89375f8a3391ffb46681",
       "rule_id": "HLT-001-DEAD-MARKER",
       "tlr": "Entropy",
       "lane": "fast",
       "docs_url": "docs/audit-rubric.md#future-hostile-language-rule",
       "owner": "tools"
+    },
+    {
+      "severity": "high",
+      "category": "security",
+      "path": ".github/workflows/ci.yml",
+      "problem": "security-related job is configured to continue on error",
+      "agent_fix": "remove the non-blocking override so scan failures stop the pipeline",
+      "evidence": [
+        "detector=ci.security-scan.nonblocking",
+        "path=.github/workflows/ci.yml",
+        "line=56",
+        "proof_window=None",
+        "snippet=continue-on-error: true"
+      ],
+      "check_id": "HLT-034-CI-BAD-BEHAVIOR:security",
+      "hardness": "hard",
+      "confidence": 0.95,
+      "evidence_kind": "workflow-command",
+      "rerun_command": "just security",
+      "fingerprint": "sha256:7d26ddd6dae2319751c9e14d2598aca176a573d474dc8ce61b12ee962b676ab2",
+      "rule_id": "HLT-034-CI-BAD-BEHAVIOR",
+      "tlr": "Security, secrets, agency",
+      "lane": "security",
+      "docs_url": "docs/testing.md",
+      "owner": "ci-release",
+      "line": 56,
+      "matched_term": "ci.security-scan.nonblocking",
+      "reason": "security or proof job is explicitly non-blocking"
     },
     {
       "severity": "medium",
@@ -1799,7 +1827,7 @@
       "lane": "db",
       "docs_url": "docs/audit-rubric.md#top-level-risk-mapping",
       "owner": "rust-cli",
-      "line": 1458,
+      "line": 1466,
       "matched_term": "rls",
       "reason": "authz/data isolation requires negative proof evidence"
     }
@@ -1876,6 +1904,16 @@
       "why": "`Ownership and navigation surface` scored 83 below the standard floor of 85"
     },
     {
+      "path": ".github/workflows/ci.yml",
+      "priority": "high",
+      "rule_id": "HLT-034-CI-BAD-BEHAVIOR",
+      "tlr": "Security, secrets, agency",
+      "lane": "security",
+      "owner": "ci-release",
+      "task": "remove the non-blocking override so scan failures stop the pipeline",
+      "why": "security-related job is configured to continue on error"
+    },
+    {
       "path": "apps/dashboard/src/App.tsx",
       "priority": "high",
       "rule_id": "HLT-001-DEAD-MARKER",
@@ -1893,7 +1931,7 @@
       "lane": "fast",
       "owner": "tools",
       "task": "split large or ambiguous authored code into smaller semantic modules with focused tests",
-      "why": "`Code shape and semantic surface` scored 27 below the standard floor of 85"
+      "why": "`Code shape and semantic surface` scored 12 below the standard floor of 85"
     }
   ]
 }

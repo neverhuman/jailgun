@@ -1,8 +1,18 @@
 #!/usr/bin/env node
 import { existsSync, statSync } from 'node:fs';
 import { mkdir, writeFile } from 'node:fs/promises';
-import { join, resolve } from 'node:path';
+import { delimiter, join, resolve } from 'node:path';
 import { chromium } from 'playwright-core';
+
+if (process.argv.includes('--help') || process.argv.includes('-h')) {
+  printHelp();
+  process.exit(0);
+}
+
+if (process.argv.includes('--self-test-profile-distribution')) {
+  runProfileDistributionSelfTest();
+  process.exit(0);
+}
 
 const args = parseArgs(process.argv.slice(2));
 const runId = required(args.runId ?? process.env.JAILGUN_RUN_ID, '--run-id');
@@ -22,6 +32,25 @@ const maxDownloadStartLatencyMs = numberFrom(
 );
 const expectedRemoteHost = args.expectedRemoteHost ?? process.env.JAILGUN_REMOTE_HOST ?? '';
 const expectedRemoteCommand = args.expectedRemoteCommand ?? process.env.JAILGUN_REMOTE_COMMAND ?? '';
+const expectedProfileDirs = pathListFrom(
+  args.expectedProfileDir ?? args.expectedProfileDirs ?? process.env.JAILGUN_EXPECTED_PROFILE_DIRS,
+);
+const expectedCdpUrls = urlListFrom(
+  args.expectedCdpUrl ?? args.expectedCdpUrls ?? process.env.JAILGUN_EXPECTED_CDP_URLS,
+);
+const expectedBrowserSlots = expectedBrowserSlotsFor(expectedProfileDirs, expectedCdpUrls);
+const expectDeploy = booleanFrom(
+  args.expectDeploy ?? process.env.JAILGUN_MONITOR_EXPECT_DEPLOY,
+  true,
+);
+
+if (
+  expectedProfileDirs.length > 0 &&
+  expectedCdpUrls.length > 0 &&
+  expectedProfileDirs.length !== expectedCdpUrls.length
+) {
+  throw new Error('--expected-profile-dir and --expected-cdp-url counts must match');
+}
 
 await mkdir(artifactDir, { recursive: true });
 
@@ -31,8 +60,23 @@ const proof = {
   dashboard_url: dashboardUrl,
   expected_tabs: expectedTabs,
   expected_loops: expectedLoops,
+  expect_deploy: expectDeploy,
+  expected_profile_dirs: expectedProfileDirs,
+  expected_browser_slots: expectedBrowserSlots,
+  expected_cdp_urls: expectedCdpUrls,
   observed_tabs: 0,
   tab_ids: [],
+  tab_opened_count: 0,
+  tab_opened_ids: [],
+  browser_profile_dirs: {},
+  browser_profile_expected_counts: {},
+  browser_profile_distribution_ok: expectedProfileDirs.length === 0,
+  browser_slots: {},
+  browser_slot_expected_counts: {},
+  browser_slot_distribution_ok: expectedBrowserSlots.length === 0,
+  browser_cdp_urls: {},
+  browser_cdp_expected_counts: {},
+  browser_cdp_distribution_ok: expectedCdpUrls.length === 0,
   batch_tabs: 0,
   loop_count: 0,
   planned_tabs: 0,
@@ -64,10 +108,12 @@ const proof = {
   error_events: 0,
   fresh_downloads: 0,
   local_download_paths_unique: false,
+  receipt_count: 0,
   max_download_start_latency_ms: null,
   websocket_open: false,
   api_runs_open: false,
   receipts_open: false,
+  api_receipt_count: 0,
   dashboard_visible: false,
   screenshots: {
     ready: join(artifactDir, 'dashboard-ready.png'),
@@ -152,6 +198,13 @@ try {
 
 async function sampleRunState() {
   const events = wsEvents.slice();
+  const browserDistribution = analyzeBrowserDistribution(events, {
+    runId,
+    expectedTabs,
+    expectedProfileDirs,
+    expectedBrowserSlots,
+    expectedCdpUrls,
+  });
   let runs = [];
   let receipts = [];
   let apiRunsOpen = false;
@@ -284,6 +337,7 @@ async function sampleRunState() {
     receipts_open: receiptsOpen,
     websocket_open: events.length > 0,
     dashboard_visible: dashboardVisible,
+    ...browserDistribution,
     batch_tabs: batchTabs,
     loop_count: loopCount,
     planned_tabs: plannedTabs,
@@ -345,7 +399,8 @@ async function sampleRunState() {
       message: event.message,
       fields: event.fields,
     })),
-    receipt_count: receipts.length,
+    api_receipt_count: receipts.length,
+    receipt_count: receipts.length + downloadTabs.length,
   };
 }
 
@@ -392,13 +447,27 @@ function meetsSuccess(value) {
   const loopsOk = expectedLoops === 0
     ? !value.loop_banner_visible
     : value.loop_banner_visible && value.loop_banner_text?.includes(`${value.loops_remaining} left`) && value.loops_remaining === 0;
+  const deployOk = expectDeploy
+    ? value.deploy_successes === expectedTabs &&
+      value.remote_host_matches === expectedTabs &&
+      value.remote_command_matches === expectedTabs &&
+      value.remote_local_ci_passed === expectedTabs
+    : value.deploy_successes === 0 &&
+      value.remote_host_matches === 0 &&
+      value.remote_command_matches === 0 &&
+      value.remote_local_ci_passed === 0;
   return value.api_runs_open &&
     value.receipts_open &&
+    value.receipt_count > 0 &&
     value.websocket_open &&
     value.dashboard_visible &&
     value.observed_tabs === expectedTabs &&
     value.planned_tabs === expectedTabs &&
     hasExpectedIds(value.tab_ids) &&
+    value.tab_opened_count === expectedTabs &&
+    value.browser_profile_distribution_ok &&
+    value.browser_slot_distribution_ok &&
+    value.browser_cdp_distribution_ok &&
     value.download_started === expectedTabs &&
     value.download_start_within_10s === expectedTabs &&
     value.download_receipts === expectedTabs &&
@@ -406,10 +475,7 @@ function meetsSuccess(value) {
     value.tabs_closed === expectedTabs &&
     value.fresh_downloads === expectedTabs &&
     value.local_download_paths_unique &&
-    value.deploy_successes === expectedTabs &&
-    value.remote_host_matches === expectedTabs &&
-    value.remote_command_matches === expectedTabs &&
-    value.remote_local_ci_passed === expectedTabs &&
+    deployOk &&
     value.rate_limit_undismissed === 0 &&
     value.error_events === 0 &&
     loopsOk &&
@@ -436,6 +502,10 @@ function printSuccess(value) {
     `run id: ${value.run_id}`,
     `dashboard URL: ${value.dashboard_url}`,
     `observed tabs: ${value.observed_tabs}`,
+    `tab-opened events: ${value.tab_opened_count}`,
+    `profile dirs: ${JSON.stringify(value.browser_profile_dirs)}`,
+    `browser slots: ${JSON.stringify(value.browser_slots)}`,
+    `CDP URLs: ${JSON.stringify(value.browser_cdp_urls)}`,
     `batch tabs: ${value.batch_tabs}`,
     `loop count: ${value.loop_count}`,
     `planned tabs: ${value.planned_tabs}`,
@@ -446,6 +516,9 @@ function printSuccess(value) {
     `generation stopped: ${value.generation_stopped}`,
     `tabs closed: ${value.tabs_closed}`,
     `fresh downloads: ${value.fresh_downloads}`,
+    `receipt count: ${value.receipt_count}`,
+    `API receipt count: ${value.api_receipt_count}`,
+    `expect deploy: ${value.expect_deploy}`,
     `deploy successes: ${value.deploy_successes}`,
     `fresh source clones: ${value.fresh_source_clones}`,
     `files changed: ${value.files_changed}`,
@@ -479,6 +552,89 @@ function distinctTabs(events) {
   return sortedUnique(events
     .filter((event) => event.run_id === runId && event.tab_id !== null && event.tab_id !== undefined)
     .map((event) => Number(event.tab_id)));
+}
+
+function analyzeBrowserDistribution(events, {
+  runId: expectedRunId,
+  expectedTabs: plannedTabCount,
+  expectedProfileDirs: profileDirs,
+  expectedBrowserSlots: browserSlots,
+  expectedCdpUrls: cdpUrls,
+}) {
+  const tabOpenedEvents = events.filter((event) =>
+    event.run_id === expectedRunId &&
+    event.kind === 'tab-opened' &&
+    event.tab_id !== null &&
+    event.tab_id !== undefined);
+  const tabOpenedIds = sortedUnique(tabOpenedEvents.map((event) => Number(event.tab_id)));
+  const profileCounts = countEventField(tabOpenedEvents, (event) => event.fields?.browser_profile_dir);
+  const slotCounts = countEventField(tabOpenedEvents, (event) => {
+    const value = event.fields?.browser_slot;
+    return value === undefined || value === null || value === '' ? '' : String(value);
+  });
+  const cdpCounts = countEventField(tabOpenedEvents, (event) => {
+    const value = event.fields?.cdp_url;
+    return value ? trimTrailingSlash(value) : '';
+  });
+  const expectedProfileCounts = expectedRoundRobinCounts(plannedTabCount, profileDirs);
+  const expectedSlotCounts = expectedRoundRobinCounts(plannedTabCount, browserSlots);
+  const expectedCdpCounts = expectedRoundRobinCounts(plannedTabCount, cdpUrls);
+  return {
+    tab_opened_count: tabOpenedIds.length,
+    tab_opened_ids: tabOpenedIds,
+    browser_profile_dirs: profileCounts,
+    browser_profile_expected_counts: expectedProfileCounts,
+    browser_profile_distribution_ok: profileDirs.length === 0 ||
+      distributionMatches(profileCounts, expectedProfileCounts),
+    browser_slots: slotCounts,
+    browser_slot_expected_counts: expectedSlotCounts,
+    browser_slot_distribution_ok: browserSlots.length === 0 ||
+      distributionMatches(slotCounts, expectedSlotCounts),
+    browser_cdp_urls: cdpCounts,
+    browser_cdp_expected_counts: expectedCdpCounts,
+    browser_cdp_distribution_ok: cdpUrls.length === 0 ||
+      distributionMatches(cdpCounts, expectedCdpCounts),
+  };
+}
+
+function countEventField(events, fieldFn) {
+  const counts = {};
+  for (const event of events) {
+    const value = fieldFn(event);
+    if (!value) {
+      continue;
+    }
+    counts[value] = (counts[value] ?? 0) + 1;
+  }
+  return counts;
+}
+
+function expectedRoundRobinCounts(total, values) {
+  const counts = {};
+  for (const value of values) {
+    counts[value] = 0;
+  }
+  if (values.length === 0) {
+    return counts;
+  }
+  for (let index = 0; index < total; index += 1) {
+    counts[values[index % values.length]] += 1;
+  }
+  return counts;
+}
+
+function distributionMatches(observed, expected) {
+  const observedKeys = Object.keys(observed).sort();
+  const expectedKeys = Object.keys(expected).sort();
+  if (observedKeys.length !== expectedKeys.length) {
+    return false;
+  }
+  for (let index = 0; index < expectedKeys.length; index += 1) {
+    if (observedKeys[index] !== expectedKeys[index]) {
+      return false;
+    }
+  }
+  return expectedKeys.every((key) => observed[key] === expected[key]);
 }
 
 function earlyStopMethodIsSuccess(method) {
@@ -659,7 +815,13 @@ function parseArgs(values) {
     if (value === undefined || value.startsWith('--')) {
       throw new Error(`${key} requires a value`);
     }
-    parsed[name] = value;
+    if (parsed[name] === undefined) {
+      parsed[name] = value;
+    } else if (Array.isArray(parsed[name])) {
+      parsed[name].push(value);
+    } else {
+      parsed[name] = [parsed[name], value];
+    }
     index += 1;
   }
   return parsed;
@@ -668,6 +830,20 @@ function parseArgs(values) {
 function numberFrom(value, fallback) {
   const parsed = Number(value);
   return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
+}
+
+function booleanFrom(value, fallback) {
+  if (value === undefined || value === null || value === '') {
+    return fallback;
+  }
+  const text = String(value).trim().toLowerCase();
+  if (['1', 'true', 'yes', 'y'].includes(text)) {
+    return true;
+  }
+  if (['0', 'false', 'no', 'n'].includes(text)) {
+    return false;
+  }
+  throw new Error(`expected boolean value, got ${value}`);
 }
 
 function required(value, label) {
@@ -679,6 +855,46 @@ function required(value, label) {
 
 function trimTrailingSlash(value) {
   return String(value).replace(/\/+$/, '');
+}
+
+function pathListFrom(value) {
+  return listFrom(value, { splitOnDelimiter: true })
+    .map((item) => resolveTildePath(item));
+}
+
+function urlListFrom(value) {
+  return listFrom(value, { splitOnComma: true })
+    .map((item) => trimTrailingSlash(item));
+}
+
+function listFrom(value, { splitOnDelimiter = false, splitOnComma = false } = {}) {
+  if (value === undefined || value === null || value === '') {
+    return [];
+  }
+  const rawValues = Array.isArray(value) ? value : [value];
+  const splitPattern = splitOnDelimiter
+    ? delimiter
+    : (splitOnComma ? ',' : null);
+  return rawValues
+    .flatMap((item) => splitPattern ? String(item).split(splitPattern) : [String(item)])
+    .map((item) => item.trim())
+    .filter(Boolean);
+}
+
+function resolveTildePath(value) {
+  const text = String(value);
+  if (text === '~') {
+    return resolve(process.env.HOME ?? '.');
+  }
+  if (text.startsWith('~/')) {
+    return resolve(process.env.HOME ?? '.', text.slice(2));
+  }
+  return resolve(text);
+}
+
+function expectedBrowserSlotsFor(profileDirs, cdpUrls) {
+  const count = Math.max(profileDirs.length, cdpUrls.length);
+  return Array.from({ length: count }, (_, index) => String(index + 1));
 }
 
 function firstExisting(paths) {
@@ -699,4 +915,95 @@ function delay(ms) {
 
 function messageOf(error) {
   return error instanceof Error ? error.message : String(error);
+}
+
+function printHelp() {
+  process.stdout.write(`Usage: node scripts/monitor-live-run.mjs --run-id ID [options]
+
+Required:
+  --run-id ID
+
+Common options:
+  --dashboard-url URL
+  --artifact-dir DIR
+  --expected-tabs N
+  --expected-loops N
+  --expect-deploy true|false
+  --expected-remote-host HOST
+  --expected-remote-command COMMAND
+  --expected-profile-dir DIR       repeat for each managed browser profile
+  --expected-cdp-url URL           repeat for each managed browser CDP URL
+  --max-download-start-latency-ms N
+  --timeout-ms N
+  --poll-ms N
+
+Self-test:
+  --self-test-profile-distribution
+`);
+}
+
+function runProfileDistributionSelfTest() {
+  const testRunId = 'monitor-profile-distribution-self-test';
+  const profileDirs = ['/tmp/jailgun-profile-a', '/tmp/jailgun-profile-b'].map((item) => resolve(item));
+  const cdpUrls = ['http://127.0.0.1:9224', 'http://127.0.0.1:9225'];
+  for (const expectedTabs of [2, 7, 30, 40]) {
+    const events = profileDistributionFixture(testRunId, expectedTabs, profileDirs, cdpUrls);
+    const result = analyzeBrowserDistribution(events, {
+      runId: testRunId,
+      expectedTabs,
+      expectedProfileDirs: profileDirs,
+      expectedBrowserSlots: ['1', '2'],
+      expectedCdpUrls: cdpUrls,
+    });
+    assertSelfTest(result.tab_opened_count === expectedTabs, `tab-opened count failed for ${expectedTabs}`);
+    assertSelfTest(result.browser_profile_distribution_ok, `profile distribution failed for ${expectedTabs}`);
+    assertSelfTest(result.browser_slot_distribution_ok, `slot distribution failed for ${expectedTabs}`);
+    assertSelfTest(result.browser_cdp_distribution_ok, `CDP distribution failed for ${expectedTabs}`);
+  }
+
+  const wrongCdp = profileDistributionFixture(testRunId, 2, profileDirs, cdpUrls);
+  wrongCdp[1].fields.cdp_url = 'http://127.0.0.1:9333';
+  const wrongCdpResult = analyzeBrowserDistribution(wrongCdp, {
+    runId: testRunId,
+    expectedTabs: 2,
+    expectedProfileDirs: profileDirs,
+    expectedBrowserSlots: ['1', '2'],
+    expectedCdpUrls: cdpUrls,
+  });
+  assertSelfTest(!wrongCdpResult.browser_cdp_distribution_ok, 'wrong CDP URL should fail distribution');
+
+  const missingProfile = profileDistributionFixture(testRunId, 2, profileDirs, cdpUrls);
+  delete missingProfile[0].fields.browser_profile_dir;
+  const missingProfileResult = analyzeBrowserDistribution(missingProfile, {
+    runId: testRunId,
+    expectedTabs: 2,
+    expectedProfileDirs: profileDirs,
+    expectedBrowserSlots: ['1', '2'],
+    expectedCdpUrls: cdpUrls,
+  });
+  assertSelfTest(!missingProfileResult.browser_profile_distribution_ok, 'missing profile dir should fail distribution');
+
+  process.stdout.write('SUCCESS: monitor profile distribution self-test passed\n');
+}
+
+function profileDistributionFixture(runId, expectedTabs, profileDirs, cdpUrls) {
+  return Array.from({ length: expectedTabs }, (_, index) => {
+    const slotIndex = index % profileDirs.length;
+    return {
+      run_id: runId,
+      kind: 'tab-opened',
+      tab_id: index + 1,
+      fields: {
+        browser_profile_dir: profileDirs[slotIndex],
+        browser_slot: String(slotIndex + 1),
+        cdp_url: cdpUrls[slotIndex],
+      },
+    };
+  });
+}
+
+function assertSelfTest(value, message) {
+  if (!value) {
+    throw new Error(message);
+  }
 }
