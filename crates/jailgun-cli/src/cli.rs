@@ -72,6 +72,10 @@ pub enum Command {
         #[arg(long)]
         ci_repo: Option<String>,
     },
+    Auth {
+        #[command(subcommand)]
+        command: AuthCommand,
+    },
     Run {
         #[arg(long, default_value = "config/jailgun.example.toml")]
         config: PathBuf,
@@ -206,6 +210,36 @@ pub enum Command {
     Fixture {
         #[arg(value_enum)]
         kind: FixtureKind,
+    },
+}
+
+#[derive(Debug, Subcommand)]
+pub enum AuthCommand {
+    Setup {
+        #[arg(long = "email", required = true)]
+        emails: Vec<String>,
+        #[arg(long)]
+        id: Option<String>,
+        #[arg(long)]
+        registry: Option<PathBuf>,
+        #[arg(long)]
+        profile_root: Option<PathBuf>,
+        #[arg(long)]
+        state_root: Option<PathBuf>,
+        #[arg(long)]
+        downloads_root: Option<PathBuf>,
+        #[arg(long, default_value_t = 9224)]
+        cdp_port_start: u16,
+        #[arg(long, default_value_t = true)]
+        prefer_email_code: bool,
+        #[arg(long)]
+        code_stdin: bool,
+        #[arg(long)]
+        status_watch: bool,
+        #[arg(long, num_args = 1.., value_name = "ARG", allow_hyphen_values = true)]
+        bridge_cmd: Vec<String>,
+        #[arg(long = "bridge-env", value_name = "KEY=VALUE")]
+        bridge_env: Vec<String>,
     },
 }
 

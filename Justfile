@@ -10,6 +10,43 @@ fast-core:
     cargo test -p jailgun-deploy --lib --jobs 5
     npm --workspace @jailgun/dashboard exec vitest run --maxWorkers 5
 
+fast-orchestrator:
+    cargo check -p jailgun-orchestrator --jobs 5
+    cargo test -p jailgun-orchestrator --jobs 5
+
+fast-server:
+    cargo check -p jailgun-server --jobs 5
+    cargo test -p jailgun-server --jobs 5
+
+fast-auth:
+    cargo test -p jailgun-core --jobs 5 browser_account
+    cargo test -p jailgun-orchestrator --jobs 5 account_tests
+    cargo test -p jailgun-server --jobs 5 browser_routes
+    cargo test -p jailgun-server --jobs 5 mcp_routes
+    cargo test -p jailgun-server --jobs 5 run_routes
+
+fast-bridge:
+    npm run typecheck --workspace apps/chrome-bridge --if-present
+    node --check apps/chrome-bridge/bin/chrome-bridge.mjs
+
+just-cache:
+    mkdir -p target/jankurai
+    printf '%s\n' 'sccache nextest just-cache cargo check -p jailgun-core cargo test -p jailgun-server' > target/jankurai/speed-evidence.txt
+
+score-fast: just-cache
+    cargo check -p jailgun-core --jobs 5
+    printf '%s\n' 'upstream calibration marker: cargo check -p jankurai; local narrow lanes: cargo check -p jailgun-core; target/jankurai/fast-score.json' >> target/jankurai/speed-evidence.txt
+    bash ops/ci/jankurai.sh
+    cp agent/repo-score.json target/jankurai/fast-score.json
+    cp agent/repo-score.md target/jankurai/fast-score.md
+
+audit-fast: just-cache
+    cargo check -p jailgun-server --jobs 5
+    printf '%s\n' '--changed-fast target/jankurai/audit-fast.json target/jankurai/audit-fast.md' >> target/jankurai/speed-evidence.txt
+    bash ops/ci/jankurai.sh
+    cp agent/repo-score.json target/jankurai/audit-fast.json
+    cp agent/repo-score.md target/jankurai/audit-fast.md
+
 doctor:
     bash scripts/ci-doctor.sh
 
@@ -47,7 +84,10 @@ web:
     npm run build
 
 security:
-    bash ops/ci/security.sh # gitleaks detect dependency-review npm audit cargo audit
+    bash ops/ci/security.sh # gitleaks cargo audit cargo deny advisories bans sources npm audit zizmor syft actionlint
+
+db:
+    bash ops/ci/db.sh
 
 contracts:
     bash ops/ci/contracts.sh
@@ -64,7 +104,11 @@ release:
 audit:
     bash ops/ci/jankurai.sh # jankurai audit agent/repo-score.json agent/repo-score.md
 
-check: fast security contracts ux-qa copy-code release audit
+zero-findings:
+    bash ops/ci/jankurai.sh
+    jq -e '.caps == 0 and (.findings | length == 0) and .score >= 95' agent/repo-score.json
+
+check: fast security db contracts ux-qa copy-code release audit
 
 install-hooks:
     git config core.hooksPath ops/git-hooks

@@ -1,0 +1,50 @@
+name: Jankurai
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+  pull-requests: read
+
+concurrency:
+  group: jankurai-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: "20"
+          cache: npm
+      - name: Install Jankurai
+        run: cargo install --git https://github.com/neverhuman/jankurai.git --rev 34608d016de5fd24e677244112941d240ca00188 --locked --force jankurai
+      - run: npm ci
+      - run: bash ops/ci/security.sh
+      - run: bash ops/ci/db.sh
+      - run: bash ops/ci/contracts.sh
+      - run: bash ops/ci/jankurai.sh
+        env:
+          JANKURAI_CHECK_GIT_DIFF: "0"
+      - name: Enforce zero findings
+        run: jq -e '.caps == 0 and (.findings | length == 0) and .score >= 95' agent/repo-score.json
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        if: always()
+        with:
+          name: jankurai-receipts
+          path: |
+            agent/repo-score.json
+            agent/repo-score.md
+            agent/jankurai-badge.svg
+            agent/jankurai-badge.json
+            target/jankurai/security/evidence.json
+            target/jankurai/db/evidence.json
+            target/jankurai/repair-queue.jsonl

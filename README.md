@@ -1,7 +1,7 @@
 <img src="assets/jailgun.png" alt="Jailgun" width="100%">
 
 <!-- jankurai-badge:start -->
-[![Jankurai score: 87/100 advisory](agent/jankurai-badge.svg)](agent/repo-score.md)
+[![Jankurai score: 96/100 advisory](agent/jankurai-badge.svg)](agent/repo-score.md)
 <!-- jankurai-badge:end -->
 
 # Jailgun
@@ -12,6 +12,19 @@ archives, validates receipts, and deploys through a Rust-owned safety layer.
 The repository is intentionally example-first. Real credentials, browser
 profiles, local paths, remotes, prompts, archives, logs, and receipts are local
 runtime state and are ignored by Git.
+
+Agent entrypoint: [AGENTS.md](AGENTS.md).
+
+## Quick Start
+
+```bash
+cargo build --workspace
+bash ops/ci/rust.sh
+bash ops/ci/jankurai.sh
+```
+
+Start from `config/jailgun.example.toml` for local configuration, then keep
+operator secrets in ignored local files or environment variables.
 
 ## Layout
 
@@ -71,6 +84,24 @@ Remote cleanup policy defaults to `preserve-reset`. Clean divergent remote
 checkouts are preserved under a timestamped ref and receipt before reset.
 Dirty checkouts, missing `origin/main`, failed ref creation, and failed receipt
 writes stop the deploy.
+
+## Headless server with two authenticated accounts
+
+Jailgun can run as a **headless server** that drives **two persistent ChatGPT
+(Google) accounts** — each its own Chrome process, profile, and CDP port — so
+you log in **once per account** and the sessions persist across restarts. Auth
+is operator-driven (no passwords stored, codes never logged): the browser runs
+**headed under Xvfb** on the server, you complete the one-time Google login over
+a noVNC view, and you paste the verification code via the CLI or the
+`POST /api/browser/accounts/{id}/auth/code` endpoint. The server exposes `/mcp`
+for discovery, auth status, run status, and run summaries
+(`jailgun.run` / `jailgun.auth_status` / `jailgun.submit_code` /
+`jailgun.run_status` / `jailgun.run_summary`). JMCP submits compatible runs
+through `/api/runs` using canonical `browser.account_ids` routing, then tracks
+progress through `/mcp`.
+
+**Full step-by-step walkthrough (with placeholder accounts + commands):**
+[`docs/HEADLESS_TWO_ACCOUNT_SETUP.md`](docs/HEADLESS_TWO_ACCOUNT_SETUP.md).
 
 ## Telegram notifications (optional)
 

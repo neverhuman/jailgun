@@ -29,6 +29,14 @@ The expected release artifacts are:
 - `target/jankurai/copy-code.json`
 - `target/jankurai/ux-qa.json`
 
+## Release Process
+
+1. Start from a clean worktree except for intentional release artifacts.
+2. Regenerate contracts and audit artifacts through the documented CI scripts;
+   do not hand-edit generated outputs.
+3. Run the required evidence commands above and inspect failures before tagging.
+4. Tag only after release evidence, provenance, and rollback notes are current.
+
 ## Integrity and Provenance
 
 Release CI must pin external GitHub Actions by full commit SHA, set job

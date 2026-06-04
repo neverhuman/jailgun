@@ -3,10 +3,10 @@ import { createHash } from 'node:crypto';
 import http from 'node:http';
 import net from 'node:net';
 import { createWriteStream, existsSync } from 'node:fs';
-import { mkdir, mkdtemp, readFile, rm, stat, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, readFile, readdir, rm, stat, writeFile } from 'node:fs/promises';
 import { createRequire } from 'node:module';
 import { homedir, tmpdir } from 'node:os';
-import { basename, extname, isAbsolute, join, resolve } from 'node:path';
+import { basename, delimiter, dirname, extname, isAbsolute, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { spawn, spawnSync } from 'node:child_process';
 import readline from 'node:readline';
@@ -18,28 +18,74 @@ const PLAYWRIGHT_VERSION = require('playwright-core/package.json').version;
 const PROTOCOL_VERSION = 1;
 const DEFAULT_CDP_HOST = '127.0.0.1';
 const DEFAULT_CDP_PORT = 9224;
+const MANAGED_CDP_MAX_PORT = 9234;
+const LEGACY_LOCAL_CDP_PORT = 922;
 const DEFAULT_PROFILE_DIR = join(homedir(), '.google-profile-automation-profile');
 const DEFAULT_STATE_DIR = join(homedir(), '.google-profile-automation-state');
 const DEFAULT_SOURCE_ARCHIVE_MODE = 'ai-source';
 const DEFAULT_MAX_MINUTES = 30;
 const DEFAULT_BROWSER_TIMEOUT_MS = 45000;
+const DEFAULT_GLOBAL_MODAL_SWEEP_MS = 2500;
+const DEFAULT_MESSAGE_STREAM_RETRY_LIMIT = 6;
+const DEFAULT_MESSAGE_STREAM_RETRY_DELAY_MS = 10000;
 
 const args = parseArgs(process.argv.slice(2));
-if (args.selfTest === 'true') {
-  await runSelfTest();
-  process.exit(0);
-}
+const shouldSelfTest = args.selfTest === 'true';
 
-const cdpUrlOverride = args.cdpUrl ?? process.env.JAILGUN_CDP_URL ?? null;
-const cdpHost = args.cdpHost ?? args.host ?? process.env.JAILGUN_CDP_HOST ?? process.env.GOOGLE_AUTOMATION_REMOTE_DEBUG_HOST ?? DEFAULT_CDP_HOST;
-const cdpPort = numberFrom(args.cdpPort ?? args.port ?? process.env.JAILGUN_CDP_PORT ?? process.env.GOOGLE_AUTOMATION_REMOTE_DEBUG_PORT, DEFAULT_CDP_PORT);
+const cdpUrlSetting = firstSetting([
+  ['--cdp-url', args.cdpUrl],
+  ['JAILGUN_CDP_URL', process.env.JAILGUN_CDP_URL],
+]);
+const cdpHostSetting = firstSetting([
+  ['--cdp-host', args.cdpHost],
+  ['--host', args.host],
+  ['JAILGUN_CDP_HOST', process.env.JAILGUN_CDP_HOST],
+  ['GOOGLE_AUTOMATION_REMOTE_DEBUG_HOST', process.env.GOOGLE_AUTOMATION_REMOTE_DEBUG_HOST],
+]);
+const cdpPortSetting = firstSetting([
+  ['--cdp-port', args.cdpPort],
+  ['--port', args.port],
+  ['JAILGUN_CDP_PORT', process.env.JAILGUN_CDP_PORT],
+  ['GOOGLE_AUTOMATION_REMOTE_DEBUG_PORT', process.env.GOOGLE_AUTOMATION_REMOTE_DEBUG_PORT],
+]);
+const cdpUrlOverride = cdpUrlSetting?.value ?? null;
+const cdpHost = cdpHostSetting?.value ?? DEFAULT_CDP_HOST;
+const cdpPort = numberFrom(cdpPortSetting?.value, DEFAULT_CDP_PORT);
+const profileDir = resolvePath(args.profileDir ?? process.env.JAILGUN_CHROME_PROFILE_DIR ?? process.env.GOOGLE_AUTOMATION_PROFILE_DIR ?? DEFAULT_PROFILE_DIR);
+const stateDir = resolvePath(args.stateDir ?? process.env.JAILGUN_CHROME_STATE_DIR ?? process.env.GOOGLE_AUTOMATION_STATE_DIR ?? DEFAULT_STATE_DIR);
+const profilePoolSetting = firstSetting([
+  ['--profile-pool', args.profilePool],
+  ['JAILGUN_CHROME_PROFILE_POOL', process.env.JAILGUN_CHROME_PROFILE_POOL],
+  ['JAILGUN_CHROME_PROFILE_DIRS', process.env.JAILGUN_CHROME_PROFILE_DIRS],
+]);
+const profilePortsSetting = firstSetting([
+  ['--profile-ports', args.profilePorts],
+  ['JAILGUN_CHROME_PROFILE_PORTS', process.env.JAILGUN_CHROME_PROFILE_PORTS],
+]);
 
 const settings = {
   cdpUrl: cdpUrlOverride ?? `http://${cdpHost}:${cdpPort}`,
-  cdpUrlExplicit: Boolean(cdpUrlOverride),
-  profileDir: resolvePath(args.profileDir ?? process.env.JAILGUN_CHROME_PROFILE_DIR ?? process.env.GOOGLE_AUTOMATION_PROFILE_DIR ?? DEFAULT_PROFILE_DIR),
-  stateDir: resolvePath(args.stateDir ?? process.env.JAILGUN_CHROME_STATE_DIR ?? process.env.GOOGLE_AUTOMATION_STATE_DIR ?? DEFAULT_STATE_DIR),
+  cdpEndpointSource: cdpUrlSetting?.source ?? cdpPortSetting?.source ?? cdpHostSetting?.source ?? 'default',
+  cdpEndpointConfigured: Boolean(cdpUrlSetting || cdpPortSetting || cdpHostSetting),
+  profileDir,
+  stateDir,
+  profilePool: buildBrowserProfilePool({
+    profilePoolValue: profilePoolSetting?.value,
+    profilePoolSource: profilePoolSetting?.source,
+    profilePortsValue: profilePortsSetting?.value,
+    defaultProfileDir: profileDir,
+    defaultStateDir: stateDir,
+    baseCdpUrl: cdpUrlOverride ?? `http://${cdpHost}:${cdpPort}`,
+    cdpEndpointSource: cdpUrlSetting?.source ?? cdpPortSetting?.source ?? cdpHostSetting?.source ?? 'default',
+  }),
+  profilePoolExplicit: Boolean(profilePoolSetting),
   chromeExecutable: args.chromeExecutable ?? args.browserExecutable ?? process.env.JAILGUN_CHROME_EXECUTABLE ?? process.env.GOOGLE_CHROME_EXECUTABLE ?? '',
+  chromeHeadless: booleanFrom(
+    args.headed === 'true'
+      ? false
+      : (args.headless ?? process.env.JAILGUN_CHROME_HEADLESS ?? process.env.GOOGLE_AUTOMATION_HEADLESS),
+    false,
+  ),
   browserTimeoutMs: numberFrom(args.browserTimeoutMs ?? args.timeoutMs ?? process.env.JAILGUN_CHROME_TIMEOUT_MS ?? process.env.GOOGLE_AUTOMATION_TIMEOUT_MS, DEFAULT_BROWSER_TIMEOUT_MS),
   downloadsDir: resolvePath(args.downloadsDir ?? process.env.JAILGUN_DOWNLOADS_DIR ?? join(homedir(), 'Downloads')),
   artifactsDir: resolvePath(args.artifactsDir ?? process.env.JAILGUN_ARTIFACTS_DIR ?? 'artifacts'),
@@ -48,15 +94,32 @@ const settings = {
   submitDelaySeconds: numberFrom(args.submitDelaySeconds ?? process.env.JAILGUN_SUBMIT_DELAY_SECONDS, 0),
   submitJitterSeconds: numberFrom(args.submitJitterSeconds ?? process.env.JAILGUN_SUBMIT_JITTER_SECONDS, 0),
   tarWaitMinutes: numberFrom(args.tarWaitMinutes ?? process.env.JAILGUN_TAR_WAIT_MINUTES, DEFAULT_MAX_MINUTES),
+  globalModalSweepMs: numberFrom(args.globalModalSweepMs ?? process.env.JAILGUN_GLOBAL_MODAL_SWEEP_MS, DEFAULT_GLOBAL_MODAL_SWEEP_MS),
+  messageStreamRetryLimit: numberFrom(args.messageStreamRetryLimit ?? process.env.JAILGUN_MESSAGE_STREAM_RETRY_LIMIT, DEFAULT_MESSAGE_STREAM_RETRY_LIMIT),
+  messageStreamRetryDelayMs: numberFrom(
+    args.messageStreamRetryDelayMs ?? process.env.JAILGUN_MESSAGE_STREAM_RETRY_DELAY_MS,
+    DEFAULT_MESSAGE_STREAM_RETRY_DELAY_MS,
+  ),
+  recoverKnownRunTabs: booleanFrom(args.recoverKnownRunTabs ?? process.env.JAILGUN_RECOVER_KNOWN_RUN_TABS, true),
+  knownRunArtifactsDir: resolvePath(args.knownRunArtifactsDir ?? process.env.JAILGUN_KNOWN_RUN_ARTIFACTS_DIR ?? join('artifacts', 'live-runs')),
 };
 
 class ChromeBridge {
   constructor(options) {
     this.options = options;
-    this.browser = null;
-    this.context = null;
+    this.browsers = new Map();
+    this.profileSlots = new Map();
+    for (const slot of options.profilePool) {
+      this.profileSlots.set(slot.profileDir, slot);
+    }
+    this.dynamicProfileSlots = [];
+    this.authPages = new Map();
     this.tabs = new Map();
+    this.keepAliveTimers = new Map();
     this.shutdownRequested = false;
+    this.globalDismissalTimer = null;
+    this.globalDismissalRunning = false;
+    this.lastEnvelope = null;
   }
 
   async run() {
@@ -78,7 +141,7 @@ class ChromeBridge {
       rl.once('close', resolvePromise);
     });
 
-    await this.shutdown('stdin-closed', 0);
+    await this.shutdown('stdin-closed', 0, this.lastEnvelope);
   }
 
   async handleLine(line) {
@@ -89,6 +152,7 @@ class ChromeBridge {
     try {
       envelope = JSON.parse(line);
       validateEnvelope(envelope);
+      this.lastEnvelope = envelope;
     } catch (error) {
       this.emitRaw({
         v: PROTOCOL_VERSION,
@@ -111,6 +175,10 @@ class ChromeBridge {
     }
     if (type === 'shutdown') {
       await this.shutdown('orchestrator-requested', envelope.payload?.drain_timeout_ms ?? 5000, envelope);
+      return;
+    }
+    if (type.startsWith('auth-')) {
+      await this.handleAuthCommand(envelope);
       return;
     }
 
@@ -144,6 +212,41 @@ class ChromeBridge {
     }, envelope);
   }
 
+  async handleAuthCommand(envelope) {
+    try {
+      switch (envelope.type) {
+        case 'auth-status':
+          await this.authStatus(envelope);
+          break;
+        case 'auth-begin':
+          await this.authBegin(envelope);
+          break;
+        case 'auth-select-email-code':
+          await this.authSelectEmailCode(envelope);
+          break;
+        case 'auth-submit-code':
+          await this.authSubmitCode(envelope);
+          break;
+        case 'auth-screenshot':
+          await this.authScreenshot(envelope);
+          break;
+        case 'auth-cancel':
+          await this.authCancel(envelope);
+          break;
+        default:
+          throw new Error(`unknown auth command type: ${envelope.type}`);
+      }
+    } catch (error) {
+      this.emit(envelope, 'auth-failed', {
+        reason: redactSensitiveText(error?.message || String(error)),
+        manual_browser_required: isManualBrowserRequiredError(error),
+      }, undefined);
+      if (!isManualBrowserRequiredError(error)) {
+        this.emit(envelope, 'error', errorPayload('auth-command-failed', error), undefined);
+      }
+    }
+  }
+
   enqueue(tabId, work, envelope) {
     const current = this.tabs.get(tabId) ?? { page: null, queue: Promise.resolve(), monitoring: false, failed: false };
     current.queue = current.queue
@@ -168,20 +271,34 @@ class ChromeBridge {
 
   async handleHello(envelope) {
     try {
-      await this.ensureBrowser();
+      const records = await this.ensureInitialBrowsers(envelope);
+      const primary = records[0];
       this.emit(envelope, 'bridge-ready', {
         node_version: process.version,
         playwright_version: PLAYWRIGHT_VERSION,
         browser: 'chromium-cdp',
-        browser_version: await this.browser.version(),
+        browser_version: primary.browserVersion,
+        cdp_url: primary.endpoint.cdpUrl,
+        managed_chrome_started: records.some((record) => record.endpoint.started),
+        profile_count: this.options.profilePool.length,
+        profiles: records.map((record) => browserProfileState(record)),
         capabilities: [
           'managed-chrome',
+          'managed-profile-pool',
+          'auth-status',
+          'auth-email-code',
           'source-upload',
           'prompt-submit-readiness',
           'tar-capture',
           'rate-limit-detection',
+          'global-modal-sweeper',
+          'known-run-tab-recovery',
+          'message-stream-retry',
         ],
       });
+      await this.recoverKnownRunChatGptTabs(envelope, 'startup-known-run-tab-recovery');
+      await this.sweepAllChatGptModals(envelope, 'startup-global-modal-sweep');
+      this.startGlobalDismissalSweep(envelope);
     } catch (error) {
       this.logError('startup-failed', error);
       this.emit(envelope, 'error', errorPayload('bridge-startup-failed', error));
@@ -191,23 +308,62 @@ class ChromeBridge {
     }
   }
 
-  async ensureBrowser() {
-    if (this.browser && this.context) {
-      return;
+  async ensureInitialBrowsers(envelope = null) {
+    const slots = this.options.profilePoolExplicit ? this.options.profilePool : [this.options.profilePool[0]];
+    const records = [];
+    for (const slot of slots) {
+      records.push(await this.ensureBrowser(envelope, slot));
     }
-    const chrome = await ensureManagedChromeRunning(this.options);
-    this.browser = await chromium.connectOverCDP(chrome.cdpUrl, { timeout: this.options.browserTimeoutMs });
-    this.context = this.browser.contexts()[0];
-    if (!this.context) {
+    return records;
+  }
+
+  async ensureBrowser(envelope = null, slot = this.options.profilePool[0]) {
+    const existing = this.browsers.get(slot.key);
+    if (existing?.browser && existing?.context) {
+      return existing;
+    }
+    const logStartup = envelope
+      ? (phase, status, message, fields, level) => this.bridgeLog(envelope, phase, status, message, {
+        ...browserSlotLogFields(slot),
+        ...fields,
+      }, level)
+      : null;
+    const chrome = await ensureManagedChromeRunning({
+      ...this.options,
+      cdpUrl: slot.cdpUrl,
+      cdpEndpointSource: slot.cdpEndpointSource,
+      profileDir: slot.profileDir,
+      profileName: slot.profileName,
+      stateDir: slot.stateDir,
+    }, logStartup);
+    const browser = await chromium.connectOverCDP(chrome.cdpUrl, { timeout: this.options.browserTimeoutMs });
+    const context = browser.contexts()[0];
+    if (!context) {
       throw new Error(`no browser context found at ${chrome.cdpUrl}`);
     }
+    const record = {
+      slot,
+      browser,
+      context,
+      endpoint: {
+        ...chrome,
+        profileName: slot.profileName,
+        profileDir: slot.profileDir,
+        stateDir: slot.stateDir,
+      },
+      browserVersion: await browser.version(),
+    };
+    this.browsers.set(slot.key, record);
+    await writeManagedBrowserPoolState(this.options.stateDir, this.activeBrowserStates());
+    return record;
   }
 
   async openTab(envelope) {
-    await this.ensureBrowser();
+    const slot = this.selectBrowserSlot(envelope);
+    const record = await this.ensureBrowser(envelope, slot);
     const tabId = requiredTabId(envelope);
     const payload = envelope.payload ?? {};
-    const page = await this.context.newPage();
+    const page = await record.context.newPage();
     page.on('dialog', async (dialog) => {
       const message = dialog.message();
       this.bridgeLog(envelope, 'native-dialog', 'detected', 'browser dialog detected', {
@@ -231,23 +387,36 @@ class ChromeBridge {
       page,
       monitoring: false,
       failed: false,
+      browserSlot: slot.slot,
+      browserProfile: slot.profileName,
+      browserProfileDir: slot.profileDir,
+      browserCdpUrl: record.endpoint.cdpUrl,
     });
+    this.startKeepAlive(`tab:${tabId}`, page, envelope, 'tab-keep-alive');
     this.bridgeLog(envelope, 'open-tab', 'ok', 'tab opened', {
       page_url: page.url(),
       model: payload.model || '',
+      ...browserSlotLogFields(slot, record.endpoint.cdpUrl),
     });
     this.emit(envelope, 'tab-opened', {
       page_url: page.url(),
       page_id: `tab-${String(tabId).padStart(2, '0')}`,
+      browser_profile: slot.profileName,
+      browser_profile_dir: slot.profileDir,
+      browser_slot: slot.slot,
+      cdp_url: record.endpoint.cdpUrl,
     }, tabId);
   }
 
   async uploadArchive(envelope) {
     const tab = this.requireTab(envelope);
     const payload = envelope.payload ?? {};
+    const prompt = payload.prompt || null;
     this.bridgeLog(envelope, 'source-upload', 'started', 'creating source archive', {
       repo_url: payload.repo_url || '',
       ref_name: payload.ref_name || 'HEAD',
+      fresh_source_clone: String(Boolean(payload.fresh_source_clone)),
+      prompt_bundled: String(Boolean(prompt)),
     });
     const archive = await createSourceArchive({
       repoUrl: requiredString(payload.repo_url, 'repo_url'),
@@ -256,12 +425,42 @@ class ChromeBridge {
       archiveFilename: payload.archive_filename || 'source.tar.gz',
       tmpParent: payload.tmp_parent || undefined,
       mode: this.options.sourceMode,
+      freshSourceClone: Boolean(payload.fresh_source_clone),
     });
 
     let deletedTemp = false;
     try {
       await uploadFileToChat(tab.page, archive.archivePath, payload.timeout_ms ?? 45000);
-      await confirmUpload(tab.page, archive.archiveFilename, payload.confirm_selectors ?? [], payload.timeout_ms ?? 45000);
+
+      // Fill prompt into composer immediately — while upload is still processing.
+      // The send button will be disabled until the upload completes.
+      if (prompt) {
+        const composer = await firstAvailableLocator(tab.page, [
+          '#prompt-textarea',
+          '[data-testid="composer-text-input"]',
+          ['textarea[place', 'holder*="Message"]'].join(''),
+          '[contenteditable="true"][role="textbox"]',
+          'form [contenteditable="true"]',
+        ]);
+        await composer.fill(prompt, { timeout: payload.submit_timeout_ms ?? 45000 });
+        this.bridgeLog(envelope, 'prompt-injected-during-upload', 'ok', 'prompt text filled into composer while upload is processing', {
+          char_count: String(prompt.length),
+        });
+      }
+
+      const uploadConfirmed = await confirmUpload(
+        tab.page,
+        archive.archiveFilename,
+        payload.confirm_selectors ?? [],
+        payload.timeout_ms ?? 45000,
+      );
+      if (!uploadConfirmed) {
+        this.bridgeLog(envelope, 'source-upload', 'warn', 'upload confirmation was not visible; continuing with prompt submission', {
+          archive_filename: archive.archiveFilename,
+          fresh_source_clone: String(archive.freshSourceClone),
+          clone_dir: archive.cloneDir,
+        }, 'warn');
+      }
       const fileStat = await stat(archive.archivePath);
       const sha256 = await sha256File(archive.archivePath);
       if (payload.delete_after_upload !== false) {
@@ -274,12 +473,34 @@ class ChromeBridge {
         commit: archive.commit,
         archive_filename: archive.archiveFilename,
         deleted_temp: deletedTemp,
+        fresh_source_clone: archive.freshSourceClone,
+        clone_dir: archive.cloneDir,
       });
       this.bridgeLog(envelope, 'source-upload', 'ok', 'source archive uploaded', {
         sha256,
         size_bytes: String(fileStat.size),
         archive_filename: archive.archiveFilename,
+        fresh_source_clone: String(archive.freshSourceClone),
+        clone_dir: archive.cloneDir,
       });
+
+      // Submit the prompt now — the upload is confirmed, send button should become enabled.
+      if (prompt) {
+        await this.runDismissals(tab.page, envelope, 'prompt-submit-preflight');
+        const result = await submitPromptToChat(tab.page, prompt, payload.submit_timeout_ms ?? 45000, {
+          dismiss: async (phase) => this.runDismissals(tab.page, envelope, phase),
+          log: (phase, status, message, fields = {}, level = 'info') => {
+            this.bridgeLog(envelope, phase, status, message, fields, level);
+          },
+        });
+        this.emit(envelope, 'prompt-submitted', {
+          char_count: prompt.length,
+        });
+        this.bridgeLog(envelope, 'prompt-submitted', 'ok', 'prompt accepted by ChatGPT (bundled with upload)', {
+          char_count: String(prompt.length),
+          acceptance_reason: result.acceptanceReason || '',
+        });
+      }
     } finally {
       if (!deletedTemp) {
         await rm(archive.tempRoot, { recursive: true, force: true }).catch(() => undefined);
@@ -323,6 +544,7 @@ class ChromeBridge {
     await mkdir(outputDir, { recursive: true });
     let lastTelemetry = 0;
     let tick = 0;
+    let messageStreamRetries = 0;
     this.bridgeLog(envelope, 'monitor-started', 'ok', 'tab monitor loop started', {
       completion_check_ms: String(completionMs),
       telemetry_tick_ms: String(pollMs),
@@ -332,11 +554,25 @@ class ChromeBridge {
 
     while (!this.shutdownRequested && Date.now() <= deadline) {
       tick += 1;
-      await this.runDismissals(tab.page, envelope, 'monitor-dismissals');
-      await this.handleGitHubToolPrompts(tab.page, envelope);
-
-      const discovery = await discoverTarCandidates(tab.page);
-      const status = await readGenerationStatus(tab.page);
+      let discovery;
+      let status;
+      try {
+        await this.runDismissals(tab.page, envelope, 'monitor-dismissals');
+        await this.handleGitHubToolPrompts(tab.page, envelope);
+        discovery = await discoverTarCandidates(tab.page);
+        status = await readGenerationStatus(tab.page);
+      } catch (error) {
+        if (isTransientNavigationError(error)) {
+          this.bridgeLog(envelope, 'monitor-navigation-retry', 'retrying', 'page navigated during monitor check; retrying after load', {
+            reason: error?.message || String(error),
+            page_url: tab.page.url(),
+          }, 'warn');
+          await tab.page.waitForLoadState('domcontentloaded', { timeout: 2000 }).catch(() => undefined);
+          await sleep(Math.min(completionMs, 500));
+          continue;
+        }
+        throw error;
+      }
       const ranked = rankCandidates(discovery.candidates, this.options.tarTargetName);
       const now = Date.now();
       const progressKind = now - lastTelemetry >= pollMs ? 'telemetry' : 'completion-check';
@@ -345,8 +581,8 @@ class ChromeBridge {
       }
       this.emit(envelope, 'tab-progress', {
         kind: progressKind,
-        phase: ranked.length > 0 ? 'tar-candidate-found' : status.activeStop ? 'generating' : 'checking',
-        busy_reason: status.activeStop ? 'active-stop-button' : null,
+        phase: ranked.length > 0 ? 'tar-candidate-found' : status.messageStreamError ? 'message-stream-error' : status.activeStop ? 'generating' : 'checking',
+        busy_reason: status.activeStop ? 'active-stop-button' : status.messageStreamError ? 'message-stream-error' : null,
         has_active_stop: Boolean(status.activeStop),
         has_final_actions: status.finalActions > 0,
         last_text_length: discovery.lastTextLength,
@@ -360,6 +596,9 @@ class ChromeBridge {
           assistant_roots: String(discovery.assistantRootCount ?? 0),
           has_active_stop: String(Boolean(status.activeStop)),
           has_final_actions: String(status.finalActions > 0),
+          message_stream_error: String(Boolean(status.messageStreamError)),
+          retry_available: String(Boolean(status.retryAvailable)),
+          message_stream_retries: String(messageStreamRetries),
           last_text_length: String(discovery.lastTextLength),
           preview: compact(discovery.lastTextPreview || '', 160),
           page_url: tab.page.url(),
@@ -372,6 +611,26 @@ class ChromeBridge {
           candidates: ranked.slice(0, 5),
           selected_index: candidate.index,
         });
+        const preStop = await stopIfGenerating(tab.page).catch((error) => ({
+          clicked: false,
+          reason: `error:${error?.message || String(error)}`,
+        }));
+        const preStopMethod = preStop.clicked
+          ? (preStop.label || 'button')
+          : `not-active:${preStop.reason || 'not-found'}`;
+        this.emit(envelope, 'generation-stopped', {
+          method: preStopMethod,
+          phase: 'pre-download',
+        });
+        this.bridgeLog(
+          envelope,
+          'generation-stopped',
+          preStop.clicked ? 'ok' : 'not-active',
+          preStop.clicked
+            ? 'stopped generation pre-download'
+            : 'generation not active pre-download',
+          { method: preStopMethod, phase: 'pre-download' },
+        );
         const startedDownloadAt = timestamp();
         const targetPath = join(outputDir, normalizeTarName(candidate.label || candidate.download || candidate.href || 'chatgpt-output.tar.gz'));
         this.emit(envelope, 'download-started', {
@@ -387,62 +646,125 @@ class ChromeBridge {
           target_path: targetPath,
           label: compact(candidate.label || candidate.download || candidate.href || '', 160),
         });
-        await this.runDismissals(tab.page, envelope, 'download-preflight');
-        const file = await downloadCandidate(tab.page, candidate, outputDir);
-        const receiptPath = join(this.options.artifactsDir, 'receipts', envelope.run_id, `tab-${String(tabId).padStart(2, '0')}-download.json`);
-        await mkdir(resolve(receiptPath, '..'), { recursive: true });
-        const completePayload = {
-          sha256: file.sha256,
-          size_bytes: file.sizeBytes,
-          local_path: file.path,
-          receipt_path: receiptPath,
-          original_name: file.suggested,
-          local_name: file.suggested,
-          download_url: candidate.href || null,
-          entry_count: file.entryCount,
-          started_at: startedDownloadAt,
-          finished_at: timestamp(),
-        };
-        await writeFile(receiptPath, JSON.stringify(completePayload, null, 2));
-        const stop = await stopIfGenerating(tab.page);
-        if (stop.clicked) {
-          this.emit(envelope, 'generation-stopped', { method: stop.label || 'button' });
-          this.bridgeLog(envelope, 'generation-stopped', 'ok', 'stopped generation after tar receipt', {
-            method: stop.label || 'button',
-          });
+        let completePayload = null;
+        let cleanup = null;
+        let cleanupReason = 'download-failed';
+        try {
+          await this.runDismissals(tab.page, envelope, 'download-preflight');
+          const file = await downloadCandidate(tab.page, candidate, outputDir);
+          const receiptPath = join(this.options.artifactsDir, 'receipts', envelope.run_id, `tab-${String(tabId).padStart(2, '0')}-download.json`);
+          await mkdir(resolve(receiptPath, '..'), { recursive: true });
+          const finishedDownloadAt = timestamp();
+          const downloadLatencyMs = Math.max(0, Date.parse(finishedDownloadAt) - Date.parse(startedDownloadAt)) || 0;
+          completePayload = {
+            sha256: file.sha256,
+            size_bytes: file.sizeBytes,
+            local_path: file.path,
+            receipt_path: receiptPath,
+            original_name: file.suggested,
+            local_name: file.suggested,
+            download_url: candidate.href || null,
+            entry_count: file.entryCount,
+            started_at: startedDownloadAt,
+            finished_at: finishedDownloadAt,
+            download_latency_ms: downloadLatencyMs,
+          };
+          await writeFile(receiptPath, JSON.stringify(completePayload, null, 2));
+          cleanupReason = 'download-complete';
+        } finally {
+          cleanup = await finalizeTabAfterDownload(this, tab, envelope, cleanupReason);
         }
-        const closed = await this.closeTabAfterReceipt(tab, envelope, 'download-complete');
         this.emit(envelope, 'download-complete', completePayload);
         this.bridgeLog(envelope, 'download-complete', 'ok', 'download receipt written and tab closed', {
-          sha256: file.sha256,
-          size_bytes: String(file.sizeBytes),
-          entry_count: String(file.entryCount),
-          receipt_path: receiptPath,
-          local_path: file.path,
-          tab_closed: String(closed),
+          sha256: completePayload.sha256,
+          size_bytes: String(completePayload.size_bytes),
+          entry_count: String(completePayload.entry_count),
+          receipt_path: completePayload.receipt_path,
+          local_path: completePayload.local_path,
+          generation_stop_method: cleanup?.stopMethod || '',
+          tab_closed: String(Boolean(cleanup?.closed)),
+          cleanup_errors: (cleanup?.errors || []).join(';'),
         });
+        if (!cleanup?.closed || cleanup.errors.length > 0) {
+          throw new Error(`download completed but tab cleanup failed for tab ${tabId}: ${(cleanup?.errors || ['tab-not-closed']).join('; ')}`);
+        }
         return;
       }
 
+      if (status.messageStreamError && messageStreamRetries < this.options.messageStreamRetryLimit) {
+        messageStreamRetries += 1;
+        const retry = await retryMessageStreamError(tab.page);
+        this.bridgeLog(
+          envelope,
+          'message-stream-retry',
+          retry.clicked ? 'clicked' : 'not-clicked',
+          retry.clicked ? 'clicked ChatGPT message stream Retry' : 'message stream error detected but Retry was not clicked',
+          {
+            attempt: String(messageStreamRetries),
+            max_attempts: String(this.options.messageStreamRetryLimit),
+            detected: String(Boolean(retry.detected)),
+            button_label: retry.buttonLabel || '',
+            reason: retry.reason || '',
+            excerpt: compact(retry.excerpt || '', 200),
+          },
+          retry.clicked ? 'warn' : 'error',
+        );
+        if (retry.clicked) {
+          await sleep(this.options.messageStreamRetryDelayMs);
+          continue;
+        }
+      }
+
+      if (status.messageStreamError) {
+        await emitNoTarErrorAndCleanup(
+          this,
+          tab,
+          envelope,
+          'message-stream-no-tar',
+          `assistant hit message stream error without tar.gz after ${messageStreamRetries} retry attempts`,
+        );
+        return;
+      }
+
+      // Handle A/B feedback: select longest response if both are done
+      if (discovery.abFeedbackActive && !status.activeStop && ranked.length === 0) {
+        const abResult = await selectLongestABResponse(tab.page);
+        if (abResult.detected) {
+          this.bridgeLog(envelope, 'ab-feedback-detected', abResult.selected ? 'selected' : 'detected', abResult.selected ? 'selected longest A/B response' : 'A/B feedback detected but could not select response', {
+            selected_index: String(abResult.selectedIndex),
+            response_lengths: JSON.stringify(abResult.responseLengths),
+            selected: String(abResult.selected),
+            reason: abResult.reason || '',
+          });
+          // After selecting, re-scan for tar candidates in the selected response
+          if (abResult.selected) {
+            await sleep(1000);
+            continue;  // Re-enter the loop to re-scan tar candidates
+          }
+        }
+      }
+
       if (!status.activeStop && status.finalActions > 0) {
-        this.emit(envelope, 'error', {
-          kind: 'done-no-tar',
-          message: 'assistant finished but no tar.gz download candidate was found',
-          recoverable: false,
-          stack: null,
-        });
+        await emitNoTarErrorAndCleanup(
+          this,
+          tab,
+          envelope,
+          'done-no-tar',
+          'assistant finished but no tar.gz download candidate was found',
+        );
         return;
       }
 
       await sleep(Math.min(completionMs, pollMs));
     }
 
-    this.emit(envelope, 'error', {
-      kind: 'timeout-no-tar',
-      message: `timed out after ${this.options.tarWaitMinutes} minutes waiting for tar.gz download candidate`,
-      recoverable: false,
-      stack: null,
-    });
+    await emitNoTarErrorAndCleanup(
+      this,
+      tab,
+      envelope,
+      'timeout-no-tar',
+      `timed out after ${this.options.tarWaitMinutes} minutes waiting for tar.gz download candidate`,
+    );
   }
 
   async runDismissals(page, envelope, phase) {
@@ -455,6 +777,14 @@ class ChromeBridge {
         reason: popup.reason || '',
         excerpt: compact(popup.excerpt || '', 200),
       }, popup.clicked ? 'info' : 'warn');
+      if (popup.kind === 'session-expired') {
+        const reason = popup.reason || 'session expired prompt detected';
+        this.emit(envelope, 'session-expired', {
+          page_url: page.url(),
+          reason,
+        });
+        throw new Error(reason);
+      }
     }
 
     const rateLimit = await dismissRateLimitModal(page);
@@ -470,6 +800,137 @@ class ChromeBridge {
         excerpt: compact(rateLimit.excerpt || '', 200),
       }, 'warn');
     }
+  }
+
+  startGlobalDismissalSweep(envelope) {
+    if (this.globalDismissalTimer || this.options.globalModalSweepMs <= 0) {
+      return;
+    }
+    this.globalDismissalTimer = setInterval(() => {
+      void this.sweepAllChatGptModals(envelope, 'global-modal-sweep').catch((error) => {
+        this.logError('global-modal-sweep', error);
+      });
+    }, this.options.globalModalSweepMs);
+    this.globalDismissalTimer.unref?.();
+    this.bridgeLog(envelope, 'global-modal-sweep', 'started', 'global ChatGPT modal sweeper started', {
+      interval_ms: String(this.options.globalModalSweepMs),
+      max_expected_latency_ms: String(this.options.globalModalSweepMs),
+    });
+  }
+
+  async sweepAllChatGptModals(envelope, phase) {
+    if (this.browsers.size === 0 || this.globalDismissalRunning) {
+      return { pages: 0, dismissed: 0 };
+    }
+    this.globalDismissalRunning = true;
+    let pages = 0;
+    let dismissed = 0;
+    try {
+      for (const record of this.activeBrowserRecords()) {
+        for (const page of record.context.pages()) {
+          if (!page || page.isClosed() || !isChatGptPageUrl(page.url())) {
+            continue;
+          }
+          pages += 1;
+          const tabId = this.tabIdForPage(page);
+          const rateLimit = await dismissRateLimitModal(page);
+          if (!rateLimit.detected) {
+            continue;
+          }
+          if (rateLimit.dismissed) {
+            dismissed += 1;
+          }
+          const orphan = tabId == null;
+          this.emit(envelope, 'rate-limit-detected', {
+            dismissed: Boolean(rateLimit.dismissed),
+            excerpt: rateLimit.excerpt || '',
+            page_url: page.url(),
+            source_phase: phase,
+            global_sweep: true,
+            orphan,
+            browser_profile: record.slot.profileName,
+            browser_profile_dir: record.slot.profileDir,
+            browser_slot: record.slot.slot,
+            cdp_url: record.endpoint.cdpUrl,
+          }, tabId ?? undefined);
+          this.bridgeLog(
+            envelope,
+            'global-rate-limit-sweep',
+            rateLimit.dismissed ? 'clicked' : 'detected',
+            rateLimit.dismissed ? 'dismissed rate-limit modal from global sweep' : 'rate-limit modal detected without safe click in global sweep',
+            {
+              source_phase: phase,
+              page_url: page.url(),
+              tab_id: tabId == null ? '' : String(tabId),
+              orphan: String(orphan),
+              button_label: rateLimit.buttonLabel || '',
+              reason: rateLimit.reason || '',
+              excerpt: compact(rateLimit.excerpt || '', 200),
+              ...browserSlotLogFields(record.slot, record.endpoint.cdpUrl),
+            },
+            'warn',
+          );
+        }
+      }
+      return { pages, dismissed };
+    } finally {
+      this.globalDismissalRunning = false;
+    }
+  }
+
+  tabIdForPage(page) {
+    for (const [tabId, tab] of this.tabs.entries()) {
+      if (tab.page === page) {
+        return tabId;
+      }
+    }
+    return null;
+  }
+
+  async recoverKnownRunChatGptTabs(envelope, phase) {
+    if (this.browsers.size === 0 || !this.options.recoverKnownRunTabs) {
+      return { scanned: 0, matched: 0, closed: 0, downloaded: 0 };
+    }
+    const known = await collectKnownRunChatGptUrls(this.options.knownRunArtifactsDir, envelope.run_id);
+    if (known.size === 0) {
+      this.bridgeLog(envelope, phase, 'skipped', 'no known prior run ChatGPT URLs found for recovery', {
+        artifacts_dir: this.options.knownRunArtifactsDir,
+      });
+      return { scanned: 0, matched: 0, closed: 0, downloaded: 0 };
+    }
+    let scanned = 0;
+    let matched = 0;
+    let closed = 0;
+    let downloaded = 0;
+    for (const record of this.activeBrowserRecords()) {
+      for (const page of record.context.pages()) {
+        if (!page || page.isClosed() || !isChatGptPageUrl(page.url())) {
+          continue;
+        }
+        scanned += 1;
+        const normalized = normalizeChatGptUrl(page.url());
+        const source = known.get(normalized);
+        if (!source) {
+          continue;
+        }
+        matched += 1;
+        const summary = await recoverKnownRunPage(this, page, envelope, source, phase);
+        if (summary.closed) {
+          closed += 1;
+        }
+        if (summary.downloaded) {
+          downloaded += 1;
+        }
+      }
+    }
+    this.bridgeLog(envelope, phase, 'done', 'known prior run ChatGPT tab recovery finished', {
+      artifacts_dir: this.options.knownRunArtifactsDir,
+      scanned: String(scanned),
+      matched: String(matched),
+      closed: String(closed),
+      downloaded: String(downloaded),
+    });
+    return { scanned, matched, closed, downloaded };
   }
 
   async handleGitHubToolPrompts(page, envelope) {
@@ -512,17 +973,199 @@ class ChromeBridge {
     }, result.clicked ? 'info' : 'warn');
   }
 
+  async authStatus(envelope) {
+    const page = await this.authPage(envelope, envelope.payload?.chat_url || 'https://chatgpt.com/');
+    const state = await detectChatAuthState(page);
+    this.emitAuthState(envelope, state);
+    if (state.state === 'ready') {
+      this.emit(envelope, 'auth-complete', {
+        page_url: state.pageUrl,
+        composer_detected: true,
+      }, undefined);
+    } else if (state.state === 'session-expired') {
+      this.emit(envelope, 'session-expired', {
+        page_url: state.pageUrl,
+        reason: state.reason || 'session expired',
+      }, undefined);
+    }
+  }
+
+  async authBegin(envelope) {
+    const payload = envelope.payload ?? {};
+    const page = await this.authPage(envelope, payload.chat_url || 'https://chatgpt.com/');
+    let state = await detectChatAuthState(page);
+    this.emitAuthState(envelope, state);
+    if (state.state === 'ready') {
+      this.emit(envelope, 'auth-complete', {
+        page_url: state.pageUrl,
+        composer_detected: true,
+      }, undefined);
+      return;
+    }
+    if (state.manualAction) {
+      this.emit(envelope, 'auth-action-needed', state.manualAction, undefined);
+      throw manualBrowserRequired(state.manualAction.reason);
+    }
+
+    const emailHint = String(payload.email_hint || '').trim();
+    if (emailHint) {
+      await fillKnownEmailIfPresent(page, emailHint);
+      state = await detectChatAuthState(page);
+      this.emitAuthState(envelope, state);
+      if (state.state === 'ready') {
+        this.emit(envelope, 'auth-complete', {
+          page_url: state.pageUrl,
+          composer_detected: true,
+        }, undefined);
+        return;
+      }
+      if (state.manualAction) {
+        this.emit(envelope, 'auth-action-needed', state.manualAction, undefined);
+        throw manualBrowserRequired(state.manualAction.reason);
+      }
+    }
+
+    if (payload.prefer_email_code) {
+      const selected = await selectEmailCodeControl(page);
+      if (selected.clicked) {
+        this.emit(envelope, 'auth-code-requested', {
+          channel: 'email',
+          destination_hint: selected.destinationHint || null,
+        }, undefined);
+        this.emitAuthState(envelope, await detectChatAuthState(page));
+        return;
+      }
+    }
+
+    this.emit(envelope, 'auth-action-needed', {
+      action: 'manual-browser-required',
+      reason: 'no safe email-code control was detected',
+    }, undefined);
+    throw manualBrowserRequired('no safe email-code control was detected');
+  }
+
+  async authSelectEmailCode(envelope) {
+    const page = await this.existingAuthPage(envelope);
+    const selected = await selectEmailCodeControl(page);
+    if (!selected.clicked) {
+      this.emit(envelope, 'auth-action-needed', {
+        action: 'manual-browser-required',
+        reason: selected.reason || 'no safe email-code control was detected',
+      }, undefined);
+      throw manualBrowserRequired(selected.reason || 'no safe email-code control was detected');
+    }
+    this.emit(envelope, 'auth-code-requested', {
+      channel: 'email',
+      destination_hint: selected.destinationHint || null,
+    }, undefined);
+  }
+
+  async authSubmitCode(envelope) {
+    const page = await this.existingAuthPage(envelope);
+    const code = String(envelope.payload?.code || '').trim();
+    if (!/^[0-9A-Za-z][0-9A-Za-z -]{3,31}$/.test(code)) {
+      throw new Error('verification code format was not accepted');
+    }
+    await submitVerificationCode(page, code);
+    this.emit(envelope, 'auth-code-submitted', { accepted: true }, undefined);
+    const state = await waitForAuthReadyOrAction(page, this.options.browserTimeoutMs);
+    this.emitAuthState(envelope, state);
+    if (state.state === 'ready') {
+      this.emit(envelope, 'auth-complete', {
+        page_url: state.pageUrl,
+        composer_detected: true,
+      }, undefined);
+      return;
+    }
+    if (state.manualAction) {
+      this.emit(envelope, 'auth-action-needed', state.manualAction, undefined);
+      throw manualBrowserRequired(state.manualAction.reason);
+    }
+    throw new Error(state.reason || 'auth code was submitted but ChatGPT composer was not verified');
+  }
+
+  async authScreenshot(envelope) {
+    const page = await this.existingAuthPage(envelope);
+    const target = resolvePath(requiredString(envelope.payload?.path, 'path'));
+    await mkdir(dirname(target), { recursive: true });
+    await page.screenshot({ path: target, fullPage: true });
+    this.bridgeLog(envelope, 'auth-screenshot', 'ok', 'auth screenshot written', {
+      path: target,
+    });
+  }
+
+  async authCancel(envelope) {
+    const slot = this.selectAuthSlot(envelope);
+    this.clearKeepAlive(`auth:${slot.key}`);
+    const page = this.authPages.get(slot.key);
+    if (page && !page.isClosed()) {
+      await page.close().catch(() => undefined);
+    }
+    this.authPages.delete(slot.key);
+    this.bridgeLog(envelope, 'auth-cancel', 'ok', 'auth flow cancelled', browserSlotLogFields(slot));
+  }
+
+  async authPage(envelope, chatUrl) {
+    const slot = this.selectAuthSlot(envelope);
+    const record = await this.ensureBrowser(envelope, slot);
+    let page = this.authPages.get(slot.key);
+    if (!page || page.isClosed()) {
+      page = await record.context.newPage();
+      this.authPages.set(slot.key, page);
+      this.startKeepAlive(`auth:${slot.key}`, page, envelope, 'auth-keep-alive');
+    }
+    await page.goto(chatUrl, { waitUntil: 'domcontentloaded', timeout: 60000 });
+    await page.bringToFront();
+    return page;
+  }
+
+  async existingAuthPage(envelope) {
+    const slot = this.selectAuthSlot(envelope);
+    const page = this.authPages.get(slot.key);
+    if (!page || page.isClosed()) {
+      throw new Error('auth flow has not been started for this browser profile');
+    }
+    await page.bringToFront().catch(() => undefined);
+    return page;
+  }
+
+  selectAuthSlot(envelope) {
+    const profileDir = envelope.payload?.profile_dir ? resolvePath(String(envelope.payload.profile_dir)) : '';
+    if (profileDir) {
+      const exact = findProfileSlotByDir([...this.profileSlots.values()], profileDir);
+      if (exact) {
+        return exact;
+      }
+      return this.dynamicSlotForProfileDir(profileDir);
+    }
+    if (this.options.profilePool.length !== 1) {
+      throw manualBrowserRequired('auth command requires profile_dir when multiple browser profiles are configured');
+    }
+    return this.options.profilePool[0];
+  }
+
+  emitAuthState(envelope, state) {
+    this.emit(envelope, 'auth-state', {
+      state: state.state,
+      page_url: state.pageUrl,
+      reason: state.reason || null,
+      composer_detected: Boolean(state.composerDetected),
+      code_requested: Boolean(state.codeRequested),
+    }, undefined);
+  }
+
   async stopGeneration(envelope) {
     const tab = this.requireTab(envelope);
     const result = await stopIfGenerating(tab.page);
     if (result.clicked) {
-      this.emit(envelope, 'generation-stopped', { method: result.label || 'button' });
+      this.emit(envelope, 'generation-stopped', { method: result.label || 'button', phase: 'commanded' });
     }
   }
 
   async closeTab(envelope, reason) {
     const tab = this.requireTab(envelope);
     const pageUrl = tab.page.url();
+    this.clearKeepAlive(`tab:${requiredTabId(envelope)}`);
     await tab.page.close({ runBeforeUnload: Boolean(envelope.payload?.run_before_unload) }).catch(() => undefined);
     this.emit(envelope, 'tab-closed', {
       page_url: pageUrl,
@@ -535,6 +1178,7 @@ class ChromeBridge {
       return false;
     }
     const pageUrl = tab.page.url();
+    this.clearKeepAlive(`tab:${requiredTabId(envelope)}`);
     await tab.page.close({ runBeforeUnload: false }).catch(() => undefined);
     this.emit(envelope, 'tab-closed', {
       page_url: pageUrl,
@@ -544,6 +1188,54 @@ class ChromeBridge {
     return true;
   }
 
+  startKeepAlive(key, page, envelope, phase, intervalMs = 60000) {
+    if (!key || !page) {
+      return;
+    }
+    this.clearKeepAlive(key);
+    const timer = setInterval(() => {
+      void this.pingKeepAlive(key, page, envelope, phase).catch((error) => {
+        this.bridgeLog(envelope, phase, 'failed', 'keep-alive ping failed', {
+          reason: error?.message || String(error),
+        }, 'warn');
+      });
+    }, intervalMs);
+    timer.unref?.();
+    this.keepAliveTimers.set(key, timer);
+  }
+
+  async pingKeepAlive(key, page, envelope, phase) {
+    if (!page || page.isClosed()) {
+      this.clearKeepAlive(key);
+      return;
+    }
+    try {
+      await page.evaluate(() => 0);
+    } catch (error) {
+      const message = error?.message || String(error);
+      if (/Target closed|has been closed|Session closed|browser has been closed/i.test(message)) {
+        this.clearKeepAlive(key);
+        return;
+      }
+      throw error;
+    }
+  }
+
+  clearKeepAlive(key) {
+    const timer = this.keepAliveTimers.get(key);
+    if (!timer) {
+      return;
+    }
+    clearInterval(timer);
+    this.keepAliveTimers.delete(key);
+  }
+
+  clearAllKeepAlives() {
+    for (const key of [...this.keepAliveTimers.keys()]) {
+      this.clearKeepAlive(key);
+    }
+  }
+
   requireTab(envelope) {
     const tabId = requiredTabId(envelope);
     const tab = this.tabs.get(tabId);
@@ -551,6 +1243,54 @@ class ChromeBridge {
       throw new Error(`tab ${tabId} is not open`);
     }
     return tab;
+  }
+
+  selectBrowserSlot(envelope) {
+    const tabId = requiredTabId(envelope);
+    const payloadProfileDir = envelope.payload?.profile_dir
+      ? resolvePath(String(envelope.payload.profile_dir))
+      : '';
+    if (payloadProfileDir) {
+      const exact = findProfileSlotByDir([...this.profileSlots.values()], payloadProfileDir);
+      if (exact) {
+        return exact;
+      }
+    }
+    if (this.options.profilePoolExplicit && this.options.profilePool.length > 1) {
+      return profilePoolSlotForTab(this.options.profilePool, tabId);
+    }
+    if (payloadProfileDir) {
+      return this.dynamicSlotForProfileDir(payloadProfileDir);
+    }
+    return this.options.profilePool[0];
+  }
+
+  dynamicSlotForProfileDir(profileDir) {
+    const existing = this.profileSlots.get(profileDir);
+    if (existing) {
+      return existing;
+    }
+    const index = this.options.profilePool.length + this.dynamicProfileSlots.length;
+    const slot = createBrowserProfileSlot({
+      index,
+      entry: profileDir,
+      defaultStateDir: this.options.stateDir,
+      baseEndpoint: parseCdpEndpoint(this.options.cdpUrl),
+      cdpEndpointSource: 'open-tab.profile_dir',
+      poolSize: index + 1,
+      explicit: false,
+    });
+    this.dynamicProfileSlots.push(slot);
+    this.profileSlots.set(slot.profileDir, slot);
+    return slot;
+  }
+
+  activeBrowserStates() {
+    return [...this.browsers.values()].map((record) => browserProfileState(record));
+  }
+
+  activeBrowserRecords() {
+    return [...this.browsers.values()];
   }
 
   async shutdown(reason, drainTimeoutMs, envelope = null) {
@@ -564,15 +1304,88 @@ class ChromeBridge {
         sleep(drainTimeoutMs),
       ]).catch(() => undefined);
     }
-    for (const tab of this.tabs.values()) {
+    if (this.globalDismissalTimer) {
+      clearInterval(this.globalDismissalTimer);
+      this.globalDismissalTimer = null;
+    }
+    this.clearAllKeepAlives();
+    await this.sweepAllChatGptModals(envelope ?? systemEnvelope(reason), 'shutdown-global-modal-sweep').catch(() => undefined);
+    for (const [tabId, tab] of this.tabs.entries()) {
       if (tab.page && !tab.page.isClosed()) {
+        const pageUrl = tab.page.url();
+        if (envelope) {
+          const stop = await stopIfGenerating(tab.page).catch((error) => ({
+            clicked: false,
+            reason: `shutdown-stop-failed:${error?.message || String(error)}`,
+          }));
+          this.emit(envelope, 'generation-stopped', {
+            method: stop.clicked ? (stop.label || 'button') : `shutdown-not-active:${stop.reason || 'not-found'}`,
+            phase: 'shutdown',
+          }, tabId);
+        }
         await tab.page.close().catch(() => undefined);
+        if (envelope) {
+          this.emit(envelope, 'tab-closed', {
+            page_url: pageUrl,
+            reason,
+          }, tabId);
+        }
       }
     }
     if (envelope) {
-      this.emit(envelope, 'bridge-shutting-down', { reason });
+      this.emit(envelope, 'bridge-shutting-down', { reason }, undefined);
     }
-    await this.browser?.close().catch(() => undefined);
+    const managedRecords = [...this.browsers.values()].filter((record) => managedBrowserRecordIsTerminable(record));
+    for (const record of managedRecords) {
+      record.endpoint.browserClose = await requestManagedBrowserClose(record).catch((error) => ({
+        status: 'failed',
+        sent: false,
+        error: error?.message || String(error),
+      }));
+    }
+    for (const record of this.browsers.values()) {
+      await record.browser?.close().catch(() => undefined);
+    }
+    for (const record of managedRecords) {
+      const result = await terminateManagedBrowserProcess(record.endpoint).catch((error) => ({
+        status: 'failed',
+        pid: record.endpoint.pid,
+        cdp_url: record.endpoint.cdpUrl,
+        error: error?.message || String(error),
+      }));
+      result.browser_close_sent = String(Boolean(record.endpoint.browserClose?.sent));
+      result.browser_close_status = record.endpoint.browserClose?.status ?? '';
+      result.browser_close_error = record.endpoint.browserClose?.error ?? '';
+      record.endpoint.lastTermination = result;
+      if (result.status === 'ok' || result.status === 'already-exited') {
+        await writeManagedBrowserStoppedState(record.endpoint.stateDir, record.endpoint, result).catch(() => undefined);
+        record.endpoint.pid = null;
+        record.endpoint.started = false;
+      }
+      if (envelope) {
+        this.bridgeLog(
+          envelope,
+          'managed-chrome-shutdown',
+          result.status === 'ok' || result.status === 'already-exited' ? 'ok' : 'failed',
+          result.status === 'ok' || result.status === 'already-exited'
+            ? 'managed Chrome process stopped'
+            : 'managed Chrome process cleanup failed',
+          {
+            pid: String(result.pid ?? record.endpoint.pid ?? ''),
+            cdp_url: record.endpoint.cdpUrl,
+            profile_dir: record.endpoint.profileDir,
+            sigterm_sent: String(Boolean(result.sigterm_sent)),
+            sigkill_sent: String(Boolean(result.sigkill_sent)),
+            port_closed: String(Boolean(result.port_closed)),
+            browser_close_sent: String(Boolean(record.endpoint.browserClose?.sent)),
+            browser_close_status: record.endpoint.browserClose?.status ?? '',
+            error: result.error || '',
+          },
+          result.status === 'ok' || result.status === 'already-exited' ? 'info' : 'error',
+        );
+      }
+    }
+    await writeManagedBrowserPoolState(this.options.stateDir, this.activeBrowserStates()).catch(() => undefined);
   }
 
   emit(envelope, type, payload, tabId = envelope?.tab_id) {
@@ -592,36 +1405,227 @@ class ChromeBridge {
   }
 
   bridgeLog(envelope, phase, status, message, fields = {}, level = 'info') {
-    const normalizedFields = {};
-    for (const [key, value] of Object.entries(fields || {})) {
-      if (value !== undefined && value !== null) {
-        normalizedFields[key] = String(value);
-      }
-    }
-    normalizedFields.status = status;
+    const { redactedMessage, normalizedFields } = normalizeBridgeLogPayload(
+      this.profileFieldsForEnvelope(envelope),
+      fields,
+      message,
+      status,
+    );
     this.emit(envelope, 'bridge-log', {
       level,
       phase,
-      message,
+      message: redactedMessage,
       fields: normalizedFields,
     });
-    process.stderr.write(formatBridgeStderr(envelope, phase, status, message, normalizedFields, level));
+    process.stderr.write(formatBridgeStderr(envelope, phase, status, redactedMessage, normalizedFields, level));
+  }
+
+  profileFieldsForEnvelope(envelope) {
+    const tabId = envelope?.tab_id;
+    if (!Number.isInteger(tabId)) {
+      return {};
+    }
+    const tab = this.tabs.get(tabId);
+    if (!tab?.browserProfile) {
+      return {};
+    }
+    return {
+      browser_slot: tab.browserSlot,
+      browser_profile: tab.browserProfile,
+      browser_profile_dir: tab.browserProfileDir,
+      cdp_url: tab.browserCdpUrl,
+    };
   }
 
   logError(phase, error) {
-    process.stderr.write(`[chrome-bridge] ${phase}: ${error?.stack || error?.message || String(error)}\n`);
+    process.stderr.write(`[chrome-bridge] ${phase}: ${redactSensitiveText(error?.stack || error?.message || String(error))}\n`);
   }
 }
 
-async function ensureManagedChromeRunning(options) {
-  const endpoint = parseCdpEndpoint(options.cdpUrl);
-  rejectKnownBadCdpEndpoint(endpoint, options.cdpUrlExplicit);
-
-  const portOpen = await isPortOpen(endpoint.hostname, endpoint.port, 750);
-  if (portOpen && await canReadCdpVersion(endpoint, 750)) {
-    return { cdpUrl: endpoint.origin, started: false };
+function buildBrowserProfilePool({
+  profilePoolValue,
+  profilePoolSource,
+  profilePortsValue,
+  defaultProfileDir,
+  defaultStateDir,
+  baseCdpUrl,
+  cdpEndpointSource,
+}) {
+  const baseEndpoint = parseCdpEndpoint(baseCdpUrl);
+  const entries = parseProfilePoolEntries(profilePoolValue);
+  const effectiveEntries = entries.length > 0 ? entries : [defaultProfileDir];
+  const profilePorts = parseProfilePortEntries(profilePortsValue);
+  if (effectiveEntries.length > 1 && !isLocalCdpHost(baseEndpoint.hostname)) {
+    throw new Error('managed Chrome profile pools require a local CDP host; use 127.0.0.1 or localhost');
   }
-  if (portOpen) {
+  return effectiveEntries.map((entry, index) => createBrowserProfileSlot({
+    index,
+    entry,
+    profilePorts,
+    defaultStateDir,
+    baseEndpoint,
+    cdpEndpointSource: profilePoolSource ?? cdpEndpointSource ?? 'default',
+    poolSize: effectiveEntries.length,
+    explicit: entries.length > 0,
+  }));
+}
+
+function parseProfilePoolEntries(value) {
+  if (!value || !String(value).trim()) {
+    return [];
+  }
+  return String(value)
+    .split(delimiter)
+    .map((entry) => entry.trim())
+    .filter(Boolean);
+}
+
+function parseProfilePortEntries(value) {
+  const ports = new Map();
+  if (!value || !String(value).trim()) {
+    return ports;
+  }
+  for (const rawEntry of String(value).split(delimiter).map((entry) => entry.trim()).filter(Boolean)) {
+    const eq = rawEntry.indexOf('=');
+    if (eq <= 0) {
+      throw new Error(`profile port entry must be name=port: ${rawEntry}`);
+    }
+    const name = rawEntry.slice(0, eq).trim();
+    const port = Number(rawEntry.slice(eq + 1).trim());
+    if (!name) {
+      throw new Error(`profile port entry has an empty name: ${rawEntry}`);
+    }
+    if (!Number.isInteger(port) || port <= 0 || port > 65535) {
+      throw new Error(`profile port entry has an invalid port: ${rawEntry}`);
+    }
+    ports.set(safeProfileName(name, ports.size), port);
+  }
+  return ports;
+}
+
+function createBrowserProfileSlot({
+  index,
+  entry,
+  profilePorts,
+  defaultStateDir,
+  baseEndpoint,
+  cdpEndpointSource,
+  poolSize,
+  explicit,
+}) {
+  const { name, profileDir } = parseProfilePoolEntry(entry, index);
+  const safeName = safeProfileName(name || basename(profileDir) || `profile-${index + 1}`, index);
+  const slot = index + 1;
+  const stateDir = poolSize === 1 && !explicit
+    ? defaultStateDir
+    : join(defaultStateDir, 'profiles', safeName);
+  const endpoint = cdpEndpointWithPort(baseEndpoint, profilePorts.get(safeName) ?? baseEndpoint.port + index);
+  return {
+    key: `${slot}:${profileDir}`,
+    slot,
+    profileName: safeName,
+    profileDir,
+    stateDir,
+    cdpUrl: endpoint.origin,
+    cdpEndpointSource,
+  };
+}
+
+function profilePoolSlotForTab(profilePool, tabId) {
+  if (!Array.isArray(profilePool) || profilePool.length === 0) {
+    throw new Error('browser profile pool is empty');
+  }
+  return profilePool[(tabId - 1) % profilePool.length];
+}
+
+function findProfileSlotByDir(profilePool, profileDir) {
+  return profilePool.find((slot) => slot.profileDir === resolvePath(profileDir)) ?? null;
+}
+
+function parseProfilePoolEntry(entry, index) {
+  const trimmed = String(entry || '').trim();
+  const eq = trimmed.indexOf('=');
+  if (eq > 0) {
+    const name = trimmed.slice(0, eq).trim();
+    const value = trimmed.slice(eq + 1).trim();
+    if (!value) {
+      throw new Error(`profile pool entry ${index + 1} has an empty profile dir`);
+    }
+    return { name, profileDir: resolvePath(value) };
+  }
+  if (!trimmed) {
+    throw new Error(`profile pool entry ${index + 1} is empty`);
+  }
+  return { name: '', profileDir: resolvePath(trimmed) };
+}
+
+function safeProfileName(value, index) {
+  const normalized = String(value || '')
+    .replace(/[^A-Za-z0-9_.-]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .slice(0, 48);
+  return normalized || `profile-${index + 1}`;
+}
+
+function cdpEndpointWithPort(endpoint, port) {
+  if (!Number.isInteger(port) || port <= 0 || port > 65535) {
+    throw new Error(`managed Chrome profile pool exhausted CDP ports at ${port}`);
+  }
+  const host = endpoint.hostname.includes(':') && !endpoint.hostname.startsWith('[')
+    ? `[${endpoint.hostname}]`
+    : endpoint.hostname;
+  return parseCdpEndpoint(`${endpoint.protocol}//${host}:${port}`);
+}
+
+function browserSlotLogFields(slot, cdpUrl = slot.cdpUrl) {
+  return {
+    browser_slot: String(slot.slot),
+    browser_profile: slot.profileName,
+    browser_profile_dir: slot.profileDir,
+    cdp_url: cdpUrl,
+  };
+}
+
+function browserProfileState(record) {
+  return {
+    slot: record.slot.slot,
+    profile_name: record.slot.profileName,
+    profile_dir: record.slot.profileDir,
+    state_dir: record.slot.stateDir,
+    cdp_url: record.endpoint.cdpUrl,
+    pid: record.endpoint.pid ?? null,
+    started: Boolean(record.endpoint.started),
+    browser_version: record.browserVersion,
+    updated_at: timestamp(),
+  };
+}
+
+async function ensureManagedChromeRunning(options, logStartup = null) {
+  const requestedEndpoint = parseCdpEndpoint(options.cdpUrl);
+  const requestedProbe = await probeCdpEndpoint(requestedEndpoint, 750);
+  const managedProbes = needsManagedCdpRecovery(requestedEndpoint, requestedProbe)
+    ? await probeManagedCdpCandidates(750)
+    : null;
+  const startupPlan = planCdpEndpointRecovery(requestedEndpoint, requestedProbe, managedProbes);
+  if (startupPlan.recovery) {
+    logStartup?.('cdp-recovery', startupPlan.fatal ? 'failed' : 'redirected', startupPlan.fatal
+      ? 'local Chrome CDP port 922 is not usable and no managed Jailgun Chrome port is available'
+      : 'local Chrome CDP port 922 is not usable; switching to managed Jailgun Chrome', {
+      ...cdpRecoveryLogFields(startupPlan.recovery),
+      cdp_endpoint_source: options.cdpEndpointSource || 'unknown',
+      cdp_endpoint_configured: String(Boolean(options.cdpEndpointConfigured)),
+    }, startupPlan.fatal ? 'error' : 'warn');
+  }
+  if (startupPlan.fatal) {
+    throw cdpRecoveryError(startupPlan.fatal);
+  }
+
+  const endpoint = startupPlan.endpoint;
+  const probe = startupPlan.probe ?? requestedProbe;
+  if (probe.status === 'cdp') {
+    return { cdpUrl: endpoint.origin, started: false, pid: null };
+  }
+  if (probe.status === 'open-non-cdp') {
     throw new Error(`Port ${endpoint.hostname}:${endpoint.port} is open, but it is not responding as Chrome CDP at ${endpoint.origin}/json/version`);
   }
 
@@ -632,20 +1636,19 @@ async function ensureManagedChromeRunning(options) {
   const executable = resolveChromeExecutable(options.chromeExecutable);
   await mkdir(options.profileDir, { recursive: true });
   await mkdir(options.stateDir, { recursive: true });
+  await clearProfileLockArtifacts(options.profileDir);
 
-  const child = spawn(executable, [
-    `--user-data-dir=${options.profileDir}`,
-    '--profile-directory=Default',
-    '--no-first-run',
-    '--no-default-browser-check',
-    '--new-window',
-    `--remote-debugging-port=${endpoint.port}`,
-    `--remote-debugging-address=${endpoint.hostname}`,
-    'about:blank',
-  ], {
+  const displayState = await startManagedDisplayIfNeeded();
+
+  const launchArgs = buildManagedChromeLaunchArgs(options, endpoint);
+  const chromeEnv = {
+    ...process.env,
+    ...(displayState.display ? { DISPLAY: displayState.display } : {}),
+  };
+  const child = spawn(executable, launchArgs, {
     detached: true,
     stdio: 'ignore',
-    env: { ...process.env },
+    env: chromeEnv,
   });
   child.unref();
 
@@ -654,7 +1657,13 @@ async function ensureManagedChromeRunning(options) {
     host: endpoint.hostname,
     port: endpoint.port,
     profileDir: options.profileDir,
+    profileName: options.profileName ?? '',
+    stateDir: options.stateDir,
+    cdpUrl: endpoint.origin,
     executable,
+    headless: false,
+    display: displayState.display ?? '',
+    xvfbPid: displayState.pid ?? null,
     startedAt: timestamp(),
   });
 
@@ -663,12 +1672,205 @@ async function ensureManagedChromeRunning(options) {
   } catch (error) {
     const lockArtifacts = detectProfileLockArtifacts(options.profileDir);
     if (lockArtifacts.length > 0) {
+      await clearProfileLockArtifacts(options.profileDir).catch(() => undefined);
       error.message += `\nThe managed Chrome profile appears to be locked. Close any regular Chrome window using this profile and retry.\nProfile lock hints:\n- ${lockArtifacts.join('\n- ')}`;
+    }
+    if (displayState.pid) {
+      await stopManagedDisplay(displayState.pid).catch(() => undefined);
     }
     throw error;
   }
 
-  return { cdpUrl: endpoint.origin, started: true };
+  return { cdpUrl: endpoint.origin, started: true, pid: child.pid, child, xvfbPid: displayState.pid ?? null };
+}
+
+function managedBrowserRecordIsTerminable(record) {
+  const pid = Number(record?.endpoint?.pid);
+  return Boolean(record?.endpoint?.started) && Number.isInteger(pid) && pid > 0;
+}
+
+async function requestManagedBrowserClose(record, timeoutMs = 1500) {
+  const browser = record?.browser;
+  if (!browser || typeof browser.newBrowserCDPSession !== 'function') {
+    return {
+      status: 'skipped',
+      sent: false,
+      error: 'missing browser CDP session',
+    };
+  }
+  try {
+    await Promise.race([
+      (async () => {
+        const session = await browser.newBrowserCDPSession();
+        await session.send('Browser.close');
+      })(),
+      sleep(timeoutMs).then(() => {
+        throw new Error(`Browser.close timed out after ${timeoutMs}ms`);
+      }),
+    ]);
+    return {
+      status: 'sent',
+      sent: true,
+      error: '',
+    };
+  } catch (error) {
+    const message = error?.message || String(error);
+    if (/Target closed|has been closed|disconnected|WebSocket is not open/i.test(message)) {
+      return {
+        status: 'sent-close-observed',
+        sent: true,
+        error: message,
+      };
+    }
+    return {
+      status: 'failed',
+      sent: false,
+      error: message,
+    };
+  }
+}
+
+async function terminateManagedBrowserProcess(endpoint, hooks = {}) {
+  const pid = Number(endpoint?.pid);
+  const cdpUrl = endpoint?.cdpUrl || '';
+  if (!Number.isInteger(pid) || pid <= 0) {
+    return {
+      status: 'skipped',
+      pid: endpoint?.pid ?? null,
+      cdp_url: cdpUrl,
+      sigterm_sent: false,
+      sigkill_sent: false,
+      port_closed: false,
+      error: 'missing managed browser pid',
+    };
+  }
+  const parsedEndpoint = cdpUrl ? parseCdpEndpoint(cdpUrl) : null;
+  const xvfbPid = Number(endpoint?.xvfbPid);
+  const killProcess = hooks.killProcess ?? ((targetPid, signal) => process.kill(targetPid, signal));
+  const isProcessAliveFn = hooks.isProcessAlive ?? ((targetPid) => isProcessAlive(targetPid, killProcess));
+  const isPortOpenFn = hooks.isPortOpen ?? ((host, port, timeoutMs) => isPortOpen(host, port, timeoutMs));
+  const sleepFn = hooks.sleep ?? sleep;
+  const timeoutMs = Math.max(0, hooks.timeoutMs ?? 3000);
+  const intervalMs = Math.max(25, hooks.intervalMs ?? 100);
+  const result = {
+    status: 'ok',
+    pid,
+    cdp_url: cdpUrl,
+    sigterm_sent: false,
+    sigkill_sent: false,
+    port_closed: false,
+    error: '',
+  };
+
+  if (!isProcessAliveFn(pid)) {
+    result.status = 'already-exited';
+    result.port_closed = parsedEndpoint
+      ? !(await isPortOpenFn(parsedEndpoint.hostname, parsedEndpoint.port, 250).catch(() => true))
+      : false;
+    return result;
+  }
+
+  try {
+    killProcess(pid, 'SIGTERM');
+    result.sigterm_sent = true;
+  } catch (error) {
+    if (error?.code === 'ESRCH') {
+      result.status = 'already-exited';
+      return result;
+    }
+    result.status = 'failed';
+    result.error = error?.message || String(error);
+    return result;
+  }
+
+  const afterTerm = await waitForManagedBrowserToStop({
+    pid,
+    endpoint: parsedEndpoint,
+    timeoutMs,
+    intervalMs,
+    isProcessAlive: isProcessAliveFn,
+    isPortOpen: isPortOpenFn,
+    sleep: sleepFn,
+  });
+  result.port_closed = afterTerm.portClosed;
+  if (!afterTerm.alive) {
+    return result;
+  }
+
+  try {
+    killProcess(pid, 'SIGKILL');
+    result.sigkill_sent = true;
+  } catch (error) {
+    if (error?.code === 'ESRCH') {
+      result.port_closed = parsedEndpoint
+        ? !(await isPortOpenFn(parsedEndpoint.hostname, parsedEndpoint.port, 250).catch(() => true))
+        : result.port_closed;
+      return result;
+    }
+    result.status = 'failed';
+    result.error = error?.message || String(error);
+    return result;
+  }
+
+  const afterKill = await waitForManagedBrowserToStop({
+    pid,
+    endpoint: parsedEndpoint,
+    timeoutMs: Math.min(timeoutMs, 1500),
+    intervalMs,
+    isProcessAlive: isProcessAliveFn,
+    isPortOpen: isPortOpenFn,
+    sleep: sleepFn,
+  });
+  result.port_closed = afterKill.portClosed;
+  if (afterKill.alive) {
+    result.status = 'failed';
+    result.error = 'managed browser pid remained alive after SIGKILL';
+  }
+  if (Number.isInteger(xvfbPid) && xvfbPid > 0) {
+    try {
+      killProcess(xvfbPid, 'SIGTERM');
+      await waitForManagedPidToExit(xvfbPid, 1500);
+    } catch (error) {
+      if (error?.code !== 'ESRCH') {
+        result.status = 'failed';
+        result.error = result.error || error?.message || String(error);
+      }
+    }
+  }
+  return result;
+}
+
+async function waitForManagedBrowserToStop({
+  pid,
+  endpoint,
+  timeoutMs,
+  intervalMs,
+  isProcessAlive,
+  isPortOpen,
+  sleep: sleepFn,
+}) {
+  const deadline = Date.now() + timeoutMs;
+  let alive = isProcessAlive(pid);
+  let portClosed = endpoint
+    ? !(await isPortOpen(endpoint.hostname, endpoint.port, 250).catch(() => true))
+    : false;
+  while (alive && !portClosed && Date.now() < deadline) {
+    await sleepFn(Math.min(intervalMs, Math.max(0, deadline - Date.now())));
+    alive = isProcessAlive(pid);
+    portClosed = endpoint
+      ? !(await isPortOpen(endpoint.hostname, endpoint.port, 250).catch(() => true))
+      : false;
+  }
+  return { alive, portClosed };
+}
+
+function isProcessAlive(pid, killProcess = (targetPid, signal) => process.kill(targetPid, signal)) {
+  try {
+    killProcess(pid, 0);
+    return true;
+  } catch (error) {
+    return error?.code === 'EPERM';
+  }
 }
 
 function parseCdpEndpoint(value) {
@@ -686,31 +1888,154 @@ function parseCdpEndpoint(value) {
     throw new Error(`Chrome CDP URL has an invalid port: ${value}`);
   }
   return {
+    protocol: parsed.protocol,
     origin: parsed.origin,
     hostname: parsed.hostname,
     port,
   };
 }
 
-function rejectKnownBadCdpEndpoint(endpoint, explicit) {
-  if (!explicit) {
-    return;
+function planCdpEndpointRecovery(endpoint, probe, managedProbes = null) {
+  if (probe.status === 'cdp' || !isLegacyLocalCdpEndpoint(endpoint)) {
+    return { endpoint, probe, recovery: null, fatal: null };
   }
-  if (isLocalCdpHost(endpoint.hostname) && endpoint.port === 922) {
-    throw new Error('Chrome CDP port 922 is almost certainly a typo. The managed Jailgun Chrome default is http://127.0.0.1:9224; omit --cdp-url or use that URL explicitly.');
+  const managedProbeResults = normalizedManagedProbeResults(managedProbes);
+  const checked = [];
+  const blocked = [];
+  for (const candidate of managedProbeResults) {
+    checked.push(candidate.endpoint.origin);
+    if (candidate.probe.status === 'cdp' || candidate.probe.status === 'closed') {
+      return {
+        endpoint: candidate.endpoint,
+        probe: candidate.probe,
+        recovery: {
+          requested_cdp_url: endpoint.origin,
+          fallback_cdp_url: candidate.endpoint.origin,
+          selected_cdp_url: candidate.endpoint.origin,
+          reason: probe.reason || probe.status,
+          checked_cdp_urls: checked,
+          blocked_cdp_urls: blocked.map((blockedCandidate) => blockedCandidate.endpoint.origin),
+        },
+        fatal: null,
+      };
+    }
+    blocked.push(candidate);
   }
+  const firstBlocked = blocked[0] ?? managedProbeResults[0] ?? { endpoint: managedCdpEndpoint(), probe: { reason: 'not probed' } };
+  return {
+    endpoint: null,
+    probe: null,
+    recovery: {
+      requested_cdp_url: endpoint.origin,
+      fallback_cdp_url: '',
+      selected_cdp_url: '',
+      reason: probe.reason || probe.status,
+      checked_cdp_urls: checked,
+      blocked_cdp_urls: blocked.map((blockedCandidate) => blockedCandidate.endpoint.origin),
+    },
+    fatal: {
+      requested_cdp_url: endpoint.origin,
+      checked_cdp_urls: checked,
+      checked_endpoint: firstBlocked.endpoint.origin,
+      checked_port: firstBlocked.endpoint.port,
+      next_action: lsofCommandForPort(firstBlocked.endpoint.port),
+      reason: firstBlocked.probe.reason || 'managed Chrome CDP candidate is not usable',
+    },
+  };
+}
+
+function managedCdpEndpoint() {
+  return parseCdpEndpoint(`http://${DEFAULT_CDP_HOST}:${DEFAULT_CDP_PORT}`);
+}
+
+function managedCdpEndpoints() {
+  const endpoints = [];
+  for (let port = DEFAULT_CDP_PORT; port <= MANAGED_CDP_MAX_PORT; port += 1) {
+    endpoints.push(parseCdpEndpoint(`http://${DEFAULT_CDP_HOST}:${port}`));
+  }
+  return endpoints;
+}
+
+async function probeManagedCdpCandidates(timeoutMs) {
+  const results = [];
+  for (const endpoint of managedCdpEndpoints()) {
+    const probe = await probeCdpEndpoint(endpoint, timeoutMs);
+    results.push({ endpoint, probe });
+    if (probe.status === 'cdp' || probe.status === 'closed') {
+      break;
+    }
+  }
+  return results;
+}
+
+function normalizedManagedProbeResults(managedProbes) {
+  if (Array.isArray(managedProbes) && managedProbes.length > 0) {
+    return managedProbes;
+  }
+  return [{
+    endpoint: managedCdpEndpoint(),
+    probe: {
+      status: 'closed',
+      reason: 'managed Chrome default port selected',
+    },
+  }];
+}
+
+function needsManagedCdpRecovery(endpoint, probe) {
+  return probe.status !== 'cdp' && isLegacyLocalCdpEndpoint(endpoint);
+}
+
+function cdpRecoveryLogFields(recovery) {
+  return {
+    requested_cdp_url: recovery.requested_cdp_url,
+    fallback_cdp_url: recovery.fallback_cdp_url,
+    selected_cdp_url: recovery.selected_cdp_url,
+    reason: recovery.reason,
+    checked_cdp_urls: recovery.checked_cdp_urls.join(','),
+    blocked_cdp_urls: recovery.blocked_cdp_urls.join(','),
+  };
+}
+
+function cdpRecoveryError(fatal) {
+  return new Error([
+    `Cannot recover from local Chrome CDP port 922 at ${fatal.requested_cdp_url}: every managed Chrome CDP candidate is occupied by a non-CDP listener.`,
+    `Checked endpoint: ${fatal.checked_endpoint}/json/version`,
+    `Checked port: ${fatal.checked_port}`,
+    `Next action: ${fatal.next_action}`,
+  ].join('\n'));
+}
+
+function lsofCommandForPort(port) {
+  return `lsof -nP -iTCP:${port} -sTCP:LISTEN`;
+}
+
+function isLegacyLocalCdpEndpoint(endpoint) {
+  return isLocalCdpHost(endpoint.hostname) && endpoint.port === LEGACY_LOCAL_CDP_PORT;
 }
 
 function isLocalCdpHost(hostname) {
-  return hostname === '127.0.0.1' || hostname === 'localhost' || hostname === '::1';
+  return hostname === '127.0.0.1' || hostname === 'localhost' || hostname === '::1' || hostname === '[::1]';
 }
 
-async function canReadCdpVersion(endpoint, timeoutMs) {
+async function probeCdpEndpoint(endpoint, timeoutMs) {
+  const portOpen = await isPortOpen(endpoint.hostname, endpoint.port, timeoutMs);
+  if (!portOpen) {
+    return {
+      status: 'closed',
+      reason: `port ${endpoint.hostname}:${endpoint.port} is closed or unreachable`,
+    };
+  }
   try {
     await fetchCdpVersion(endpoint, timeoutMs);
-    return true;
-  } catch {
-    return false;
+    return {
+      status: 'cdp',
+      reason: 'Chrome CDP version endpoint responded',
+    };
+  } catch (error) {
+    return {
+      status: 'open-non-cdp',
+      reason: error?.message || String(error),
+    };
   }
 }
 
@@ -826,10 +2151,156 @@ function detectProfileLockArtifacts(profileDir) {
     .filter((candidate) => existsSync(candidate));
 }
 
+async function clearProfileLockArtifacts(profileDir) {
+  for (const candidate of detectProfileLockArtifacts(profileDir)) {
+    await rm(candidate, { force: true }).catch(() => undefined);
+  }
+}
+
+function buildManagedChromeLaunchArgs(options, endpoint) {
+  return [
+    `--user-data-dir=${options.profileDir}`,
+    '--profile-directory=Default',
+    '--no-first-run',
+    '--no-default-browser-check',
+    '--disable-session-crashed-bubble',
+    `--remote-debugging-port=${endpoint.port}`,
+    `--remote-debugging-address=${endpoint.hostname}`,
+    '--new-window',
+    'about:blank',
+  ];
+}
+
+function managedDisplayPlan(env = process.env) {
+  const display = String(env.DISPLAY || '').trim();
+  if (display) {
+    return { display, needsXvfb: false };
+  }
+  return { display: '', needsXvfb: true };
+}
+
+async function startManagedDisplayIfNeeded(env = process.env) {
+  const plan = managedDisplayPlan(env);
+  if (!plan.needsXvfb) {
+    return { display: plan.display, pid: null };
+  }
+  const displayNumber = chooseXvfbDisplayNumber();
+  return startManagedDisplay(displayNumber);
+}
+
+function chooseXvfbDisplayNumber() {
+  for (let number = 99; number < 150; number += 1) {
+    const socketPath = join('/tmp/.X11-unix', `X${number}`);
+    const lockPath = `/tmp/.X${number}-lock`;
+    if (!existsSync(socketPath) && !existsSync(lockPath)) {
+      return number;
+    }
+  }
+  throw new Error('could not find a free Xvfb display number');
+}
+
+async function startManagedDisplay(displayNumber) {
+  const display = `:${displayNumber}`;
+  const executable = resolveXvfbExecutable();
+  const child = spawn(executable, [display, '-screen', '0', '1280x720x24', '-nolisten', 'tcp'], {
+    detached: true,
+    stdio: 'ignore',
+    env: { ...process.env },
+  });
+  child.unref();
+  await waitForXvfbDisplay(displayNumber, 5000);
+  return { display, pid: child.pid };
+}
+
+function resolveXvfbExecutable() {
+  const result = spawnSync('which', ['Xvfb'], {
+    encoding: 'utf8',
+    timeout: 2500,
+  });
+  if (!result.error && result.status === 0 && result.stdout.trim()) {
+    return result.stdout.trim();
+  }
+  for (const candidate of ['/usr/bin/Xvfb', '/usr/local/bin/Xvfb']) {
+    if (existsSync(candidate)) {
+      return candidate;
+    }
+  }
+  throw new Error('Could not find Xvfb. Install Xvfb or set DISPLAY before launching managed Chrome.');
+}
+
+async function stopManagedDisplay(pid) {
+  if (!Number.isInteger(pid) || pid <= 0) {
+    return;
+  }
+  try {
+    process.kill(pid, 'SIGTERM');
+  } catch (error) {
+    if (error?.code !== 'ESRCH') {
+      throw error;
+    }
+    return;
+  }
+  await waitForManagedPidToExit(pid, 2000).catch(() => undefined);
+}
+
+async function waitForXvfbDisplay(displayNumber, timeoutMs) {
+  const socketPath = join('/tmp/.X11-unix', `X${displayNumber}`);
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    if (existsSync(socketPath)) {
+      return;
+    }
+    await sleep(Math.min(100, Math.max(10, deadline - Date.now())));
+  }
+  throw new Error(`Xvfb did not create ${socketPath} within ${timeoutMs}ms`);
+}
+
+async function waitForManagedPidToExit(pid, timeoutMs) {
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    if (!isProcessAlive(pid)) {
+      return;
+    }
+    await sleep(Math.min(100, Math.max(10, deadline - Date.now())));
+  }
+}
+
 async function writeManagedBrowserState(stateDir, state) {
   await mkdir(stateDir, { recursive: true });
   await writeFile(join(stateDir, 'managed-browser.pid'), `${state.pid ?? ''}\n`);
-  await writeFile(join(stateDir, 'managed-browser.json'), JSON.stringify(state, null, 2));
+  await writeFile(join(stateDir, 'managed-browser.json'), JSON.stringify({
+    status: 'running',
+    ...state,
+  }, null, 2));
+}
+
+async function writeManagedBrowserStoppedState(stateDir, endpoint, termination) {
+  await mkdir(stateDir, { recursive: true });
+  await writeFile(join(stateDir, 'managed-browser.pid'), '\n');
+  await writeFile(join(stateDir, 'managed-browser.json'), JSON.stringify({
+    status: 'stopped',
+    pid: null,
+    previousPid: endpoint.pid ?? termination.pid ?? null,
+    host: endpoint.cdpUrl ? parseCdpEndpoint(endpoint.cdpUrl).hostname : '',
+    port: endpoint.cdpUrl ? parseCdpEndpoint(endpoint.cdpUrl).port : null,
+    profileDir: endpoint.profileDir ?? '',
+    profileName: endpoint.profileName ?? '',
+    stateDir: endpoint.stateDir ?? stateDir,
+    cdpUrl: endpoint.cdpUrl ?? '',
+    display: endpoint.display ?? '',
+    xvfbPid: endpoint.xvfbPid ?? null,
+    stoppedAt: timestamp(),
+    termination,
+  }, null, 2));
+}
+
+async function writeManagedBrowserPoolState(stateDir, profiles) {
+  await mkdir(stateDir, { recursive: true });
+  await writeFile(join(stateDir, 'managed-browsers.json'), JSON.stringify({
+    updatedAt: timestamp(),
+    profileCount: profiles.length,
+    profiles,
+  }, null, 2));
 }
 
 async function createSourceArchive(options) {
@@ -842,12 +2313,12 @@ async function createSourceArchive(options) {
   let cleanupRepo = false;
   try {
     const local = await localRepoPath(options.repoUrl);
-    if (local) {
+    if (local && !options.freshSourceClone) {
       repoDir = local;
     } else {
       repoDir = join(tempRoot, 'repo');
       cleanupRepo = true;
-      await runGit(['clone', '--depth=1', options.repoUrl, repoDir]);
+      await runGit(['clone', '--no-local', '--depth=1', local ?? options.repoUrl, repoDir]);
       if (options.refName && options.refName !== 'HEAD') {
         await runGit(['fetch', '--depth=1', 'origin', options.refName], repoDir);
       }
@@ -863,6 +2334,7 @@ async function createSourceArchive(options) {
     return {
       tempRoot,
       cloneDir: cleanupRepo ? repoDir : '',
+      freshSourceClone: cleanupRepo,
       archivePath,
       archiveFilename: basename(archivePath),
       commit,
@@ -1041,21 +2513,25 @@ async function confirmUpload(page, archiveFilename, extraSelectors, timeoutMs) {
   const filename = basename(archiveFilename);
   const selectors = [
     ...extraSelectors,
+    '[data-testid*="upload-chip"]',
+    '[data-testid*="attachment"]',
     `text=${filename}`,
     `[aria-label*="${cssAttr(filename)}"]`,
+    `[aria-label*="Attached"]`,
+    `[aria-label*="Uploading"]`,
     `[title*="${cssAttr(filename)}"]`,
-    '[data-testid*="attachment"]',
+    'text=Attached',
+    'text=Uploading',
   ];
-  let lastError = null;
   for (const selector of selectors) {
     try {
       await page.waitForSelector(selector, { timeout: Math.min(timeoutMs, 10000) });
-      return;
+      return true;
     } catch (error) {
-      lastError = error;
+      void error;
     }
   }
-  throw new Error(`uploaded archive was not confirmed in chat UI: ${lastError?.message || lastError}`);
+  return false;
 }
 
 async function submitPromptToChat(page, prompt, timeoutMs, hooks = {}) {
@@ -1109,6 +2585,281 @@ async function submitPromptToChat(page, prompt, timeoutMs, hooks = {}) {
     await sleep(Math.min(250, Math.max(1, deadline - Date.now())));
   }
   throw new Error(`send button did not become enabled before timeout; last observed state: ${JSON.stringify(lastObserved)}`);
+}
+
+async function detectChatAuthState(page) {
+  const pageUrl = page.url();
+  const composerDetected = await hasChatComposer(page);
+  if (composerDetected) {
+    return {
+      state: 'ready',
+      pageUrl,
+      composerDetected: true,
+      codeRequested: false,
+      reason: null,
+      manualAction: null,
+    };
+  }
+
+  const bodyText = await page.locator('body').innerText({ timeout: 2500 }).catch(() => '');
+  const normalized = bodyText.replace(/\s+/g, ' ').trim();
+  const lower = normalized.toLowerCase();
+  const manualAction = manualAuthActionFromText(lower);
+  if (manualAction) {
+    return {
+      state: manualAction.action === 'session-expired' ? 'session-expired' : 'manual-browser-required',
+      pageUrl,
+      composerDetected: false,
+      codeRequested: false,
+      reason: manualAction.reason,
+      manualAction,
+    };
+  }
+  const codeRequested = await hasVisibleCodeInput(page);
+  if (codeRequested || /\b(code|verification code|one-time|one time)\b/i.test(normalized)) {
+    return {
+      state: 'code-requested',
+      pageUrl,
+      composerDetected: false,
+      codeRequested: true,
+      reason: null,
+      manualAction: null,
+    };
+  }
+  if (await hasLoginControl(page)) {
+    return {
+      state: 'auth-required',
+      pageUrl,
+      composerDetected: false,
+      codeRequested: false,
+      reason: null,
+      manualAction: null,
+    };
+  }
+  return {
+    state: 'unknown',
+    pageUrl,
+    composerDetected: false,
+    codeRequested: false,
+    reason: compact(normalized, 180) || 'ChatGPT composer was not detected',
+    manualAction: null,
+  };
+}
+
+async function hasChatComposer(page) {
+  for (const selector of [
+    '#prompt-textarea',
+    '[data-testid="composer-text-input"]',
+    ['textarea[place', 'holder*="Message"]'].join(''),
+    '[contenteditable="true"][role="textbox"]',
+    'form [contenteditable="true"]',
+  ]) {
+    const locator = page.locator(selector).first();
+    if (await locator.count().catch(() => 0) > 0 && await locator.isVisible().catch(() => false)) {
+      return true;
+    }
+  }
+  return false;
+}
+
+async function hasLoginControl(page) {
+  for (const selector of [
+    'input[type="email"]',
+    'input[name*="email" i]',
+    'button:has-text("Log in")',
+    'button:has-text("Sign in")',
+    'a:has-text("Log in")',
+    'a:has-text("Sign in")',
+  ]) {
+    const locator = page.locator(selector).first();
+    if (await locator.count().catch(() => 0) > 0 && await locator.isVisible().catch(() => false)) {
+      return true;
+    }
+  }
+  return false;
+}
+
+async function hasVisibleCodeInput(page) {
+  for (const selector of [
+    'input[autocomplete="one-time-code"]',
+    'input[name*="code" i]',
+    'input[inputmode="numeric"]',
+    'input[type="tel"]',
+  ]) {
+    const locator = page.locator(selector).first();
+    if (await locator.count().catch(() => 0) > 0 && await locator.isVisible().catch(() => false)) {
+      return true;
+    }
+  }
+  return false;
+}
+
+function manualAuthActionFromText(lowerText) {
+  if (/\b(password|enter your password)\b/.test(lowerText)) {
+    return { action: 'manual-browser-required', reason: 'password prompt detected' };
+  }
+  if (/\b(captcha|recaptcha|hcaptcha|verify you are human)\b/.test(lowerText)) {
+    return { action: 'manual-browser-required', reason: 'captcha prompt detected' };
+  }
+  if (/\b(passkey|security key|hardware key|authenticator app)\b/.test(lowerText)) {
+    return { action: 'manual-browser-required', reason: 'passkey or security-key prompt detected' };
+  }
+  if (/\b(sms|text message|phone|call your phone|whatsapp)\b/.test(lowerText) && !/\bemail\b/.test(lowerText)) {
+    return { action: 'manual-browser-required', reason: 'phone or SMS verification prompt detected' };
+  }
+  if (/\b(session expired|log in again|sign in again)\b/.test(lowerText)) {
+    return { action: 'session-expired', reason: 'session expired prompt detected' };
+  }
+  return null;
+}
+
+async function fillKnownEmailIfPresent(page, emailHint) {
+  const email = String(emailHint || '').trim();
+  if (!email) {
+    return false;
+  }
+  const input = await firstVisibleLocatorOrNull(page, [
+    'input[type="email"]',
+    'input[name*="email" i]',
+    'input[autocomplete="email"]',
+  ]);
+  if (!input) {
+    const login = await firstVisibleLocatorOrNull(page, [
+      'button:has-text("Log in")',
+      'button:has-text("Sign in")',
+      'a:has-text("Log in")',
+      'a:has-text("Sign in")',
+    ]);
+    if (login) {
+      await login.click({ timeout: 10000 });
+      await page.waitForLoadState('domcontentloaded', { timeout: 10000 }).catch(() => undefined);
+      return fillKnownEmailIfPresent(page, email);
+    }
+    return false;
+  }
+  await input.fill(email, { timeout: 10000 });
+  await input.press('Enter', { timeout: 10000 }).catch(() => undefined);
+  await page.waitForLoadState('domcontentloaded', { timeout: 10000 }).catch(() => undefined);
+  return true;
+}
+
+async function selectEmailCodeControl(page) {
+  const candidates = await authControlCandidates(page);
+  const emailCandidates = candidates.filter((candidate) => {
+    const text = candidate.text.toLowerCase();
+    return candidate.visible
+      && /\bemail\b/.test(text)
+      && /\b(code|verification|verify|send|continue|one-time|one time)\b/.test(text)
+      && !/\b(sms|text|phone|call|passkey|security key|authenticator|whatsapp)\b/.test(text);
+  });
+  if (emailCandidates.length === 0) {
+    return { clicked: false, reason: 'no obvious email-code control was visible' };
+  }
+  if (emailCandidates.length > 1) {
+    return { clicked: false, reason: 'multiple possible email-code controls were visible' };
+  }
+  const candidate = emailCandidates[0];
+  await page.locator(AUTH_CONTROL_SELECTOR).nth(candidate.index).click({ timeout: 10000 });
+  await page.waitForLoadState('domcontentloaded', { timeout: 10000 }).catch(() => undefined);
+  return {
+    clicked: true,
+    destinationHint: compact(candidate.text, 120),
+  };
+}
+
+async function authControlCandidates(page) {
+  return page.locator(AUTH_CONTROL_SELECTOR).evaluateAll((elements) => elements.map((el, index) => {
+    const rect = el.getBoundingClientRect();
+    const style = window.getComputedStyle(el);
+    const text = [
+      el.getAttribute('aria-label'),
+      el.getAttribute('title'),
+      el.textContent,
+      el.getAttribute('value'),
+    ].filter(Boolean).join(' ');
+    return {
+      index,
+      text: String(text || '').replace(/\s+/g, ' ').trim(),
+      visible: rect.width > 0 && rect.height > 0 && style.visibility !== 'hidden' && style.display !== 'none',
+    };
+  })).catch(() => []);
+}
+
+async function submitVerificationCode(page, code) {
+  const compactCode = String(code).replace(/\s+/g, '');
+  const singleInputs = await visibleCodeInputs(page);
+  if (singleInputs >= compactCode.length && compactCode.length > 1) {
+    for (let index = 0; index < compactCode.length; index += 1) {
+      await page.locator(CODE_INPUT_SELECTOR).nth(index).fill(compactCode[index], { timeout: 5000 });
+    }
+  } else {
+    const input = await firstVisibleLocatorOrNull(page, [
+      'input[autocomplete="one-time-code"]',
+      'input[name*="code" i]',
+      'input[inputmode="numeric"]',
+      'input[type="tel"]',
+    ]);
+    if (!input) {
+      throw new Error('verification code input was not visible');
+    }
+    await input.fill(compactCode, { timeout: 10000 });
+  }
+  const submit = await firstVisibleLocatorOrNull(page, [
+    'button:has-text("Continue")',
+    'button:has-text("Verify")',
+    'button:has-text("Submit")',
+    'button:has-text("Next")',
+    'input[type="submit"]',
+  ]);
+  if (submit) {
+    await submit.click({ timeout: 10000 });
+    await page.waitForLoadState('domcontentloaded', { timeout: 10000 }).catch(() => undefined);
+  }
+}
+
+async function visibleCodeInputs(page) {
+  const locator = page.locator(CODE_INPUT_SELECTOR);
+  const total = await locator.count().catch(() => 0);
+  let visible = 0;
+  for (let index = 0; index < total; index += 1) {
+    if (await locator.nth(index).isVisible().catch(() => false)) {
+      visible += 1;
+    }
+  }
+  return visible;
+}
+
+async function waitForAuthReadyOrAction(page, timeoutMs) {
+  const deadline = Date.now() + Math.max(1000, timeoutMs);
+  let last = await detectChatAuthState(page);
+  while (Date.now() <= deadline) {
+    last = await detectChatAuthState(page);
+    if (last.state === 'ready' || last.manualAction) {
+      return last;
+    }
+    await sleep(500);
+  }
+  return last;
+}
+
+async function firstVisibleLocatorOrNull(page, selectors) {
+  for (const selector of selectors) {
+    const locator = page.locator(selector).first();
+    if (await locator.count().catch(() => 0) > 0 && await locator.isVisible().catch(() => false)) {
+      return locator;
+    }
+  }
+  return null;
+}
+
+function manualBrowserRequired(reason) {
+  const error = new Error(reason || 'manual browser auth is required');
+  error.manualBrowserRequired = true;
+  return error;
+}
+
+function isManualBrowserRequiredError(error) {
+  return Boolean(error?.manualBrowserRequired);
 }
 
 async function firstAvailableLocator(page, selectors) {
@@ -1305,10 +3056,30 @@ function textLooksInserted(text, expected) {
   return sharedPrefix >= Math.ceil(compactNeedle.length * 0.95);
 }
 
+function isTransientNavigationError(error) {
+  const message = error?.message || String(error);
+  return /Execution context was destroyed|most likely because of a navigation|Cannot find context with specified id/i.test(message);
+}
+
 async function discoverTarCandidates(page) {
   return page.evaluate(() => {
     const controls = Array.from(document.querySelectorAll('a,button,[role="button"],[download],[href]'));
     const assistantRoots = Array.from(document.querySelectorAll('[data-message-author-role="assistant"]'));
+    // Detect A/B feedback response containers
+    const abFeedbackActive = /giving feedback on a new version|which response do you prefer/i.test(document.body?.innerText || '');
+    let abResponseRoots = [];
+    if (abFeedbackActive) {
+      const abSelectors = [
+        '[data-testid*="response-turn"]',
+        '[data-testid*="response-option"]',
+        '[class*="response-turn"]',
+        '[class*="comparison"]',
+      ];
+      for (const sel of abSelectors) {
+        abResponseRoots = Array.from(document.querySelectorAll(sel));
+        if (abResponseRoots.length >= 2) break;
+      }
+    }
     const textOf = (el) => String(el?.innerText || el?.textContent || '').replace(/\s+/g, ' ').trim();
     const attr = (el, name) => el?.getAttribute?.(name) || '';
     const href = (el) => el?.href || attr(el, 'href');
@@ -1324,7 +3095,8 @@ async function discoverTarCandidates(page) {
     for (let index = 0; index < controls.length; index += 1) {
       const el = controls[index];
       const assistant = closestAssistant(el);
-      if (assistantRoots.length > 0 && !assistant) continue;
+      const inABResponse = abResponseRoots.length > 0 && abResponseRoots.some((root) => root.contains(el));
+      if (assistantRoots.length > 0 && !assistant && !inABResponse) continue;
       if (!visible(el) || disabled(el)) continue;
       const tag = String(el.tagName || '').toLowerCase();
       const role = attr(el, 'role').toLowerCase();
@@ -1363,6 +3135,8 @@ async function discoverTarCandidates(page) {
       candidates,
       lastTextLength,
       lastTextPreview: lastAssistantText.slice(0, 240),
+      abFeedbackActive,
+      abResponseCount: abResponseRoots.length,
     };
   });
 }
@@ -1398,24 +3172,129 @@ async function readGenerationStatus(page) {
     ].join(' ').replace(/\s+/g, ' ').trim();
     let activeStop = false;
     let finalActions = 0;
+    let retryAvailable = false;
     for (const el of controls) {
       if (!visible(el) || disabled(el)) continue;
       const text = label(el);
       if (/\b(stop answering|stop generating|stop responding|stop thinking|stop)\b/i.test(text)) activeStop = true;
       if (/\b(copy response|good response|bad response|more actions|sources)\b/i.test(text)) finalActions += 1;
+      if (/^\s*retry\s*$/i.test(text)) retryAvailable = true;
     }
-    return { activeStop, finalActions };
+    const pageText = String(document.body?.innerText || document.body?.textContent || '');
+    const messageStreamError = /error in message stream/i.test(pageText);
+    return { activeStop, finalActions, messageStreamError, retryAvailable };
   });
 }
 
-async function downloadCandidate(page, candidate, outputDir) {
-  const downloadPromise = page.waitForEvent('download', { timeout: 120000 });
+async function selectLongestABResponse(page) {
+  return page.evaluate(() => {
+    const pageText = document.body?.innerText || '';
+    if (!/giving feedback on a new version|which response do you prefer/i.test(pageText)) {
+      return { detected: false, selected: false, selectedIndex: -1, responseLengths: [] };
+    }
+    // Find response containers
+    const abSelectors = [
+      '[data-testid*="response-turn"]',
+      '[data-testid*="response-option"]',
+      '[class*="response-turn"]',
+      '[class*="comparison"]',
+    ];
+    let responseRoots = [];
+    for (const sel of abSelectors) {
+      responseRoots = Array.from(document.querySelectorAll(sel));
+      if (responseRoots.length >= 2) break;
+    }
+    if (responseRoots.length < 2) {
+      return { detected: true, selected: false, selectedIndex: -1, responseLengths: [], reason: 'response-containers-not-found' };
+    }
+    const textOf = (el) => String(el?.innerText || el?.textContent || '').replace(/\s+/g, ' ').trim();
+    const responseLengths = responseRoots.map((root) => textOf(root).length);
+    // Find the longest response
+    let longestIndex = 0;
+    for (let i = 1; i < responseLengths.length; i++) {
+      if (responseLengths[i] > responseLengths[longestIndex]) {
+        longestIndex = i;
+      }
+    }
+    // Try to click the longest response to select it
+    const targetRoot = responseRoots[longestIndex];
+    const clickTargets = Array.from(targetRoot.querySelectorAll('button,[role="button"],a'));
+    const visible = (el) => {
+      const style = window.getComputedStyle(el);
+      const rect = el.getBoundingClientRect();
+      return style.visibility !== 'hidden' && style.display !== 'none' && rect.width > 0 && rect.height > 0;
+    };
+    // Click the response container itself or a selectable element within it
+    let selected = false;
+    try {
+      targetRoot.click();
+      selected = true;
+    } catch (e) {
+      // Try clicking a button within
+      for (const btn of clickTargets) {
+        if (visible(btn)) {
+          try {
+            btn.click();
+            selected = true;
+            break;
+          } catch (e2) { /* continue */ }
+        }
+      }
+    }
+    return { detected: true, selected, selectedIndex: longestIndex, responseLengths };
+  });
+}
+
+async function retryMessageStreamError(page) {
+  try {
+    return await page.evaluate(() => {
+      const controls = Array.from(document.querySelectorAll('button,[role="button"],a,[aria-label],[title]'));
+      const textOf = (el) => String(el?.innerText || el?.textContent || '').replace(/\s+/g, ' ').trim();
+      const pageText = textOf(document.body);
+      const detected = /error in message stream/i.test(pageText);
+      const visible = (el) => {
+        const style = window.getComputedStyle(el);
+        const rect = el.getBoundingClientRect();
+        return style.visibility !== 'hidden' && style.display !== 'none' && rect.width > 0 && rect.height > 0;
+      };
+      const disabled = (el) => el.hasAttribute?.('disabled') || /^true$/i.test(el.getAttribute?.('aria-disabled') || '');
+      const label = (el) => [
+        el.innerText || el.textContent || '',
+        el.getAttribute?.('aria-label') || '',
+        el.getAttribute?.('title') || '',
+      ].join(' ').replace(/\s+/g, ' ').trim();
+      if (!detected) {
+        return { detected: false, clicked: false, buttonLabel: '', excerpt: '', reason: 'message-stream-error-not-detected' };
+      }
+      for (const el of controls) {
+        if (!visible(el) || disabled(el)) continue;
+        const text = label(el);
+        if (!/^\s*retry\s*$/i.test(text)) continue;
+        el.click();
+        return { detected: true, clicked: true, buttonLabel: text, excerpt: pageText.slice(0, 240), reason: '' };
+      }
+      return { detected: true, clicked: false, buttonLabel: '', excerpt: pageText.slice(0, 240), reason: 'retry-control-not-found' };
+    });
+  } catch (error) {
+    return {
+      detected: false,
+      clicked: false,
+      buttonLabel: '',
+      excerpt: '',
+      reason: `evaluate-failed: ${error.message}`,
+    };
+  }
+}
+
+async function downloadCandidate(page, candidate, outputDir, timeoutMs = 120000) {
+  const downloadPromise = page.waitForEvent('download', { timeout: timeoutMs });
   const locator = page.locator('a,button,[role="button"],[download],[href]').nth(candidate.index);
   await locator.scrollIntoViewIfNeeded({ timeout: 5000 }).catch(() => undefined);
-  await locator.click({ timeout: 120000 });
+  await locator.click({ timeout: timeoutMs });
   const download = await downloadPromise;
   const suggested = normalizeTarName(download.suggestedFilename() || basename(candidate.href || '') || 'chatgpt-output.tar.gz');
   const path = join(outputDir, suggested);
+  await mkdir(outputDir, { recursive: true });
   await download.saveAs(path);
   const failure = await download.failure();
   if (failure) {
@@ -1456,7 +3335,7 @@ async function dismissRateLimitModal(page) {
         if (!view) return true;
         const style = view.getComputedStyle(el);
         const rect = el.getBoundingClientRect();
-        return style.visibility !== 'hidden' && style.display !== 'none' && rect.width >= 0 && rect.height >= 0;
+        return style.visibility !== 'hidden' && style.display !== 'none' && rect.width > 0 && rect.height > 0;
       };
       const disabled = (el) => el.hasAttribute('disabled') || /^true$/i.test(el.getAttribute('aria-disabled') || '');
       const textOf = (el) => String(el.textContent || '').replace(/\s+/g, ' ').trim();
@@ -1525,7 +3404,7 @@ async function dismissPopups(page) {
             kind: 'session-expired',
             excerpt: dialogText.slice(0, 240),
             label: '',
-            reason: 'detect-only',
+            reason: 'session expired prompt detected',
           };
         }
         if (/leave site|leave page|unsaved|changes you made|stay on page/i.test(dialogText)) {
@@ -1720,6 +3599,250 @@ async function stopIfGenerating(page) {
   });
 }
 
+async function finalizeTabAfterDownload(bridge, tab, envelope, reason) {
+  const errors = [];
+  let stopMethod = 'not-run:page-closed';
+  let closed = false;
+  const context = terminalCleanupContext(reason);
+
+  if (tab.page && !tab.page.isClosed()) {
+    try {
+      const stop = await stopIfGenerating(tab.page);
+      stopMethod = stop.clicked ? (stop.label || 'button') : `not-active:${stop.reason || 'not-found'}`;
+      bridge.emit(envelope, 'generation-stopped', { method: stopMethod, phase: 'post-download' });
+      bridge.bridgeLog(
+        envelope,
+        'generation-stopped',
+        stop.clicked ? 'ok' : 'not-active',
+        stop.clicked ? `stopped generation ${context}` : `generation was not active ${context}`,
+        { method: stopMethod, phase: 'post-download' },
+      );
+    } catch (error) {
+      const message = error?.message || String(error);
+      errors.push(`stop:${message}`);
+      bridge.bridgeLog(envelope, 'generation-stopped', 'failed', `failed to stop generation ${context}`, {
+        reason: message,
+      }, 'error');
+    }
+  }
+
+  if (tab.page && !tab.page.isClosed()) {
+    try {
+      closed = await bridge.closeTabAfterReceipt(tab, envelope, reason);
+    } catch (error) {
+      const message = error?.message || String(error);
+      errors.push(`close:${message}`);
+      bridge.bridgeLog(envelope, 'tab-closed', 'failed', `failed to close tab ${context}`, {
+        reason: message,
+      }, 'error');
+    }
+  }
+
+  return { stopMethod, closed, errors };
+}
+
+async function emitNoTarErrorAndCleanup(bridge, tab, envelope, kind, message) {
+  const cleanup = await finalizeTabAfterDownload(bridge, tab, envelope, kind);
+  bridge.emit(envelope, 'error', {
+    kind,
+    message,
+    recoverable: false,
+    stack: null,
+    cleanup_stop_method: cleanup.stopMethod,
+    tab_closed: cleanup.closed,
+    cleanup_errors: cleanup.errors.join(';'),
+  });
+  bridge.bridgeLog(envelope, kind, 'failed', message, {
+    cleanup_stop_method: cleanup.stopMethod,
+    tab_closed: String(Boolean(cleanup.closed)),
+    cleanup_errors: cleanup.errors.join(';'),
+  }, 'error');
+  return cleanup;
+}
+
+function terminalCleanupContext(reason) {
+  if (reason === 'download-complete') {
+    return 'after tar receipt';
+  }
+  if (reason === 'download-failed') {
+    return 'after failed tar download';
+  }
+  if (reason === 'done-no-tar') {
+    return 'after assistant finished without a tar';
+  }
+  if (reason === 'timeout-no-tar') {
+    return 'after tar wait timed out';
+  }
+  return `after ${reason}`;
+}
+
+async function collectKnownRunChatGptUrls(artifactsDir, currentRunId) {
+  const known = new Map();
+  let entries = [];
+  try {
+    entries = await readdir(artifactsDir, { withFileTypes: true });
+  } catch {
+    return known;
+  }
+  for (const entry of entries) {
+    if (!entry.isDirectory()) {
+      continue;
+    }
+    const eventsPath = join(artifactsDir, entry.name, 'events.ndjson');
+    let data = '';
+    try {
+      data = await readFile(eventsPath, 'utf8');
+    } catch {
+      continue;
+    }
+    for (const line of data.split(/\r?\n/)) {
+      if (!line.trim()) {
+        continue;
+      }
+      let event;
+      try {
+        event = JSON.parse(line);
+      } catch {
+        continue;
+      }
+      if (event.run_id === currentRunId) {
+        continue;
+      }
+      const pageUrl = event.fields?.page_url;
+      if (!isChatGptPageUrl(pageUrl)) {
+        continue;
+      }
+      const normalized = normalizeChatGptUrl(pageUrl);
+      if (!normalized) {
+        continue;
+      }
+      known.set(normalized, {
+        runId: event.run_id || entry.name,
+        tabId: event.tab_id ?? null,
+        url: pageUrl,
+      });
+    }
+  }
+  return known;
+}
+
+async function recoverKnownRunPage(bridge, page, envelope, source, phase) {
+  const pageUrl = page.url();
+  const outputDir = join(
+    bridge.options.downloadsDir,
+    envelope.run_id,
+    'orphan-recovery',
+    sanitizePathSegment(source.runId || 'unknown-run'),
+    sanitizePathSegment(source.tabId == null ? conversationIdFromChatGptUrl(pageUrl) : `tab-${source.tabId}`),
+  );
+  let downloaded = false;
+  let closed = false;
+  let localPath = '';
+  try {
+    await dismissPopups(page).catch(() => undefined);
+    await dismissRateLimitModal(page).catch(() => undefined);
+    const discovery = await discoverTarCandidates(page);
+    const ranked = rankCandidates(discovery.candidates, bridge.options.tarTargetName);
+    if (ranked.length > 0) {
+      const candidate = ranked[0];
+      bridge.bridgeLog(envelope, phase, 'download-started', 'recovering download from known abandoned run tab', {
+        source_run_id: source.runId || '',
+        source_tab_id: source.tabId == null ? '' : String(source.tabId),
+        page_url: pageUrl,
+        candidate_index: String(candidate.index),
+        candidate_count: String(ranked.length),
+        output_dir: outputDir,
+      }, 'warn');
+      const file = await downloadCandidate(page, candidate, outputDir, 30000);
+      localPath = file.path;
+      downloaded = true;
+      const receiptPath = join(
+        bridge.options.artifactsDir,
+        'receipts',
+        envelope.run_id,
+        `orphan-${sanitizePathSegment(source.runId || 'unknown-run')}-${sanitizePathSegment(source.tabId == null ? conversationIdFromChatGptUrl(pageUrl) : `tab-${source.tabId}`)}.json`,
+      );
+      await mkdir(resolve(receiptPath, '..'), { recursive: true });
+      await writeFile(receiptPath, JSON.stringify({
+        recovered_from_run_id: source.runId || null,
+        recovered_from_tab_id: source.tabId,
+        page_url: pageUrl,
+        local_path: file.path,
+        original_name: file.suggested,
+        local_name: file.suggested,
+        sha256: file.sha256,
+        size_bytes: file.sizeBytes,
+        entry_count: file.entryCount,
+        recovered_at: timestamp(),
+      }, null, 2));
+      bridge.bridgeLog(envelope, phase, 'downloaded', 'recovered tar download from known abandoned run tab', {
+        source_run_id: source.runId || '',
+        source_tab_id: source.tabId == null ? '' : String(source.tabId),
+        page_url: pageUrl,
+        local_path: file.path,
+        receipt_path: receiptPath,
+        sha256: file.sha256,
+        size_bytes: String(file.sizeBytes),
+        entry_count: String(file.entryCount),
+      }, 'warn');
+    } else {
+      bridge.bridgeLog(envelope, phase, 'no-candidate', 'known abandoned run tab had no tar candidate during recovery', {
+        source_run_id: source.runId || '',
+        source_tab_id: source.tabId == null ? '' : String(source.tabId),
+        page_url: pageUrl,
+        scanned_control_count: String(discovery.scannedControlCount ?? 0),
+      }, 'warn');
+    }
+  } catch (error) {
+    bridge.bridgeLog(envelope, phase, 'download-failed', 'failed to recover tar from known abandoned run tab', {
+      source_run_id: source.runId || '',
+      source_tab_id: source.tabId == null ? '' : String(source.tabId),
+      page_url: pageUrl,
+      reason: error?.message || String(error),
+    }, 'warn');
+  } finally {
+    if (!page.isClosed()) {
+      try {
+        const stop = await stopIfGenerating(page);
+        bridge.bridgeLog(envelope, phase, stop.clicked ? 'stopped' : 'not-active', 'stopped known abandoned run tab before close', {
+          source_run_id: source.runId || '',
+          source_tab_id: source.tabId == null ? '' : String(source.tabId),
+          page_url: pageUrl,
+          method: stop.clicked ? (stop.label || 'button') : `not-active:${stop.reason || 'not-found'}`,
+        }, 'warn');
+      } catch (error) {
+        bridge.bridgeLog(envelope, phase, 'stop-failed', 'failed to stop known abandoned run tab before close', {
+          source_run_id: source.runId || '',
+          source_tab_id: source.tabId == null ? '' : String(source.tabId),
+          page_url: pageUrl,
+          reason: error?.message || String(error),
+        }, 'warn');
+      }
+    }
+    if (!page.isClosed()) {
+      try {
+        await page.close({ runBeforeUnload: false });
+        closed = true;
+        bridge.bridgeLog(envelope, phase, 'closed', 'closed known abandoned run tab', {
+          source_run_id: source.runId || '',
+          source_tab_id: source.tabId == null ? '' : String(source.tabId),
+          page_url: pageUrl,
+          downloaded: String(downloaded),
+          local_path: localPath,
+        }, 'warn');
+      } catch (error) {
+        bridge.bridgeLog(envelope, phase, 'close-failed', 'failed to close known abandoned run tab', {
+          source_run_id: source.runId || '',
+          source_tab_id: source.tabId == null ? '' : String(source.tabId),
+          page_url: pageUrl,
+          reason: error?.message || String(error),
+        }, 'error');
+      }
+    }
+  }
+  return { downloaded, closed };
+}
+
 function parseArgs(argv) {
   const parsed = {};
   for (let i = 0; i < argv.length; i += 1) {
@@ -1752,6 +3875,9 @@ function validateEnvelope(envelope) {
   if (!envelope.run_id || typeof envelope.run_id !== 'string') {
     throw new Error('envelope run_id is required');
   }
+  if (!isSafeRunId(envelope.run_id)) {
+    throw new Error('envelope run_id must be a safe path segment');
+  }
   if (!envelope.ts || typeof envelope.ts !== 'string') {
     throw new Error('envelope ts is required');
   }
@@ -1777,14 +3903,23 @@ function requiredString(value, label) {
 function errorPayload(kind, error) {
   return {
     kind,
-    message: error?.message || String(error),
+    message: redactSensitiveText(error?.message || String(error)),
     recoverable: false,
-    stack: error?.stack || null,
+    stack: error?.stack ? redactSensitiveText(error.stack) : null,
   };
 }
 
 function toCamel(value) {
   return value.replace(/-([a-z])/g, (_, ch) => ch.toUpperCase());
+}
+
+function firstSetting(entries) {
+  for (const [source, value] of entries) {
+    if (value !== undefined && value !== null && value !== '') {
+      return { source, value };
+    }
+  }
+  return null;
 }
 
 function numberFrom(value, defaultValue) {
@@ -1798,6 +3933,22 @@ function numberFrom(value, defaultValue) {
   return number;
 }
 
+function booleanFrom(value, defaultValue) {
+  if (value === undefined || value === null || value === '') {
+    return defaultValue;
+  }
+  if (typeof value === 'boolean') {
+    return value;
+  }
+  if (/^(1|true|yes|on)$/i.test(String(value))) {
+    return true;
+  }
+  if (/^(0|false|no|off)$/i.test(String(value))) {
+    return false;
+  }
+  return defaultValue;
+}
+
 function resolvePath(value) {
   return isAbsolute(value) ? value : resolve(process.cwd(), value);
 }
@@ -1806,9 +3957,81 @@ function timestamp() {
   return new Date().toISOString();
 }
 
+function systemEnvelope(reason) {
+  return {
+    v: PROTOCOL_VERSION,
+    type: 'system',
+    run_id: 'unknown',
+    id: `system-${Date.now()}`,
+    ts: timestamp(),
+    payload: { reason },
+  };
+}
+
+function isChatGptPageUrl(value) {
+  try {
+    return new URL(value).hostname === 'chatgpt.com';
+  } catch {
+    return false;
+  }
+}
+
+function normalizeChatGptUrl(value) {
+  try {
+    const url = new URL(value);
+    if (url.hostname !== 'chatgpt.com') {
+      return null;
+    }
+    return `${url.origin}${url.pathname.replace(/\/+$/, '')}`;
+  } catch {
+    return null;
+  }
+}
+
+function conversationIdFromChatGptUrl(value) {
+  try {
+    const parts = new URL(value).pathname.split('/').filter(Boolean);
+    return parts[parts.length - 1] || 'chatgpt-page';
+  } catch {
+    return 'chatgpt-page';
+  }
+}
+
+function sanitizePathSegment(value) {
+  return String(value || 'unknown').replace(/[^A-Za-z0-9._-]+/g, '-').slice(0, 120) || 'unknown';
+}
+
+function isSafeRunId(value) {
+  const text = String(value || '');
+  return text.length > 0
+    && text.length <= 128
+    && text !== '.'
+    && text !== '..'
+    && /^[A-Za-z0-9._-]+$/.test(text);
+}
+
 function compact(value, max = 240) {
   const text = String(value || '').replace(/\s+/g, ' ').trim();
   return text.length > max ? `${text.slice(0, Math.max(0, max - 3))}...` : text;
+}
+
+function normalizeBridgeLogPayload(profileFields = {}, fields = {}, message = '', status = '') {
+  const normalizedFields = {};
+  for (const [key, value] of Object.entries(profileFields || {})) {
+    if (value !== undefined && value !== null) {
+      normalizedFields[key] = redactBridgeField(key, value);
+    }
+  }
+  for (const [key, value] of Object.entries(fields || {})) {
+    if (value !== undefined && value !== null) {
+      normalizedFields[key] = redactBridgeField(key, value);
+    }
+  }
+  normalizedFields.status = status;
+  return {
+    redactedMessage: redactSensitiveText(message),
+    normalizedFields,
+  };
 }
 
 function formatBridgeStderr(envelope, phase, status, message, fields, level) {
@@ -1831,7 +4054,7 @@ function formatBridgeStderr(envelope, phase, status, message, fields, level) {
 }
 
 function formatLogValue(value) {
-  const text = String(value);
+  const text = redactSensitiveText(value);
   if (text === '') {
     return '""';
   }
@@ -1839,6 +4062,20 @@ function formatLogValue(value) {
     return text;
   }
   return JSON.stringify(text);
+}
+
+function redactBridgeField(key, value) {
+  const keyText = String(key || '').toLowerCase();
+  if (/\b(code|otp|token|secret|password|cookie|authorization)\b/.test(keyText)) {
+    return '[redacted]';
+  }
+  return redactSensitiveText(value);
+}
+
+function redactSensitiveText(value) {
+  return String(value ?? '')
+    .replace(/\b(code|otp|token|secret|password|cookie|authorization)\s*[:=]\s*["']?[^"',\s|]+/gi, '$1=[redacted]')
+    .replace(/\b\d{6,8}\b/g, '[redacted-code]');
 }
 
 function cssAttr(value) {
@@ -1880,6 +4117,608 @@ function sleep(ms) {
   return new Promise((resolvePromise) => setTimeout(resolvePromise, ms));
 }
 
+async function assertDownloadCleanupSequencing() {
+  const calls = [];
+  const envelope = {
+    v: PROTOCOL_VERSION,
+    type: 'monitor-tab',
+    run_id: 'run-test',
+    tab_id: 3,
+    ts: timestamp(),
+    payload: {},
+  };
+  const tab = {
+    page: {
+      isClosed: () => false,
+      evaluate: async () => {
+        calls.push('stopIfGenerating');
+        return { clicked: true, label: 'Stop generating' };
+      },
+    },
+  };
+  const bridge = {
+    emit: (_envelope, type) => {
+      calls.push(`emit:${type}`);
+    },
+    bridgeLog: () => undefined,
+    closeTabAfterReceipt: async () => {
+      calls.push('closeTabAfterReceipt');
+      bridge.emit(envelope, 'tab-closed', { page_url: 'https://chatgpt.com/c/test', reason: 'download-complete' });
+      tab.page = null;
+      return true;
+    },
+  };
+
+  const cleanup = await finalizeTabAfterDownload(bridge, tab, envelope, 'download-complete');
+  const expected = [
+    'stopIfGenerating',
+    'emit:generation-stopped',
+    'closeTabAfterReceipt',
+    'emit:tab-closed',
+  ];
+  if (JSON.stringify(calls) !== JSON.stringify(expected)) {
+    throw new Error(`download cleanup sequence failed: ${JSON.stringify(calls)}`);
+  }
+  if (!cleanup.closed || cleanup.stopMethod !== 'Stop generating' || cleanup.errors.length > 0) {
+    throw new Error(`download cleanup result failed: ${JSON.stringify(cleanup)}`);
+  }
+}
+
+async function assertNoTarCleanupSequencing() {
+  const calls = [];
+  const envelope = {
+    v: PROTOCOL_VERSION,
+    type: 'monitor-tab',
+    run_id: 'run-test',
+    tab_id: 4,
+    ts: timestamp(),
+    payload: {},
+  };
+  const tab = {
+    page: {
+      isClosed: () => false,
+      evaluate: async () => {
+        calls.push('stopIfGenerating');
+        return { clicked: false, reason: 'not-found' };
+      },
+    },
+  };
+  const bridge = {
+    emit: (_envelope, type) => {
+      calls.push(`emit:${type}`);
+    },
+    bridgeLog: () => undefined,
+    closeTabAfterReceipt: async () => {
+      calls.push('closeTabAfterReceipt');
+      bridge.emit(envelope, 'tab-closed', { page_url: 'https://chatgpt.com/c/test', reason: 'done-no-tar' });
+      tab.page = null;
+      return true;
+    },
+  };
+
+  const cleanup = await emitNoTarErrorAndCleanup(
+    bridge,
+    tab,
+    envelope,
+    'done-no-tar',
+    'assistant finished but no tar.gz download candidate was found',
+  );
+  const expected = [
+    'stopIfGenerating',
+    'emit:generation-stopped',
+    'closeTabAfterReceipt',
+    'emit:tab-closed',
+    'emit:error',
+  ];
+  if (JSON.stringify(calls) !== JSON.stringify(expected)) {
+    throw new Error(`no-tar cleanup sequence failed: ${JSON.stringify(calls)}`);
+  }
+  if (!cleanup.closed || cleanup.stopMethod !== 'not-active:not-found' || cleanup.errors.length > 0) {
+    throw new Error(`no-tar cleanup result failed: ${JSON.stringify(cleanup)}`);
+  }
+}
+
+async function assertMessageStreamRetryClicksRetry() {
+  let clicked = false;
+  const retryButton = {
+    innerText: 'Retry',
+    textContent: 'Retry',
+    hasAttribute: () => false,
+    getAttribute: () => '',
+    getBoundingClientRect: () => ({ width: 80, height: 28 }),
+    click: () => {
+      clicked = true;
+    },
+  };
+  const fakeDocument = {
+    body: {
+      innerText: 'Error in message stream Retry',
+      textContent: 'Error in message stream Retry',
+    },
+    querySelectorAll: () => [retryButton],
+  };
+  const fakeWindow = {
+    getComputedStyle: () => ({ visibility: 'visible', display: 'block' }),
+  };
+  const page = {
+    evaluate: async (fn) => {
+      const previousDocument = globalThis.document;
+      const previousWindow = globalThis.window;
+      globalThis.document = fakeDocument;
+      globalThis.window = fakeWindow;
+      try {
+        return fn();
+      } finally {
+        if (previousDocument === undefined) {
+          delete globalThis.document;
+        } else {
+          globalThis.document = previousDocument;
+        }
+        if (previousWindow === undefined) {
+          delete globalThis.window;
+        } else {
+          globalThis.window = previousWindow;
+        }
+      }
+    },
+  };
+
+  const status = await readGenerationStatus(page);
+  if (!status.messageStreamError || !status.retryAvailable) {
+    throw new Error(`message stream status detection failed: ${JSON.stringify(status)}`);
+  }
+  const retry = await retryMessageStreamError(page);
+  if (!retry.clicked || !clicked || retry.buttonLabel !== 'Retry') {
+    throw new Error(`message stream retry click failed: ${JSON.stringify({ retry, clicked })}`);
+  }
+}
+
+async function assertKnownRunUrlCollection() {
+  const root = await mkdtemp(join(tmpdir(), 'jailgun-known-run-'));
+  try {
+    await mkdir(join(root, 'run-old'), { recursive: true });
+    await mkdir(join(root, 'run-current'), { recursive: true });
+    await writeFile(join(root, 'run-old', 'events.ndjson'), [
+      JSON.stringify({
+        run_id: 'run-old',
+        tab_id: 4,
+        fields: { page_url: 'https://chatgpt.com/c/old-conversation/' },
+      }),
+      JSON.stringify({
+        run_id: 'run-old',
+        tab_id: 5,
+        fields: { page_url: 'https://example.invalid/c/not-chatgpt' },
+      }),
+    ].join('\n'));
+    await writeFile(join(root, 'run-current', 'events.ndjson'), JSON.stringify({
+      run_id: 'run-current',
+      tab_id: 1,
+      fields: { page_url: 'https://chatgpt.com/c/current-conversation' },
+    }));
+    const known = await collectKnownRunChatGptUrls(root, 'run-current');
+    if (!known.has('https://chatgpt.com/c/old-conversation')) {
+      throw new Error(`known run URL collection missed prior ChatGPT URL: ${JSON.stringify([...known.keys()])}`);
+    }
+    if (known.has('https://chatgpt.com/c/current-conversation')) {
+      throw new Error('known run URL collection included current run URL');
+    }
+    if ([...known.keys()].some((url) => url.includes('example.invalid'))) {
+      throw new Error(`known run URL collection included non-ChatGPT URL: ${JSON.stringify([...known.keys()])}`);
+    }
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+}
+
+async function assertBrowserProfilePoolPlanning() {
+  const root = await mkdtemp(join(tmpdir(), 'jailgun-profile-pool-'));
+  try {
+    const pool = buildBrowserProfilePool({
+      profilePoolValue: [
+        `writer=${join(root, 'google-a')}`,
+        `reviewer=${join(root, 'google-b')}`,
+      ].join(delimiter),
+      profilePoolSource: 'self-test',
+      profilePortsValue: [
+        'writer=9224',
+        'reviewer=9301',
+      ].join(delimiter),
+      defaultProfileDir: join(root, 'default-profile'),
+      defaultStateDir: join(root, 'state'),
+      baseCdpUrl: 'http://127.0.0.1:9224',
+      cdpEndpointSource: 'self-test',
+    });
+    if (pool.length !== 2) {
+      throw new Error(`profile pool should contain two slots: ${JSON.stringify(pool)}`);
+    }
+    if (pool[0].profileName !== 'writer' || pool[1].profileName !== 'reviewer') {
+      throw new Error(`profile names were not preserved: ${JSON.stringify(pool)}`);
+    }
+    if (pool[0].cdpUrl !== 'http://127.0.0.1:9224' || pool[1].cdpUrl !== 'http://127.0.0.1:9301') {
+      throw new Error(`profile pool did not honor explicit CDP ports: ${JSON.stringify(pool)}`);
+    }
+    if (!pool[1].stateDir.endsWith(join('state', 'profiles', 'reviewer'))) {
+      throw new Error(`profile pool state dir did not isolate by profile: ${pool[1].stateDir}`);
+    }
+    const first = profilePoolSlotForTab(pool, 1);
+    const second = profilePoolSlotForTab(pool, 2);
+    const third = profilePoolSlotForTab(pool, 3);
+    if (first.profileName !== 'writer' || second.profileName !== 'reviewer' || third.profileName !== 'writer') {
+      throw new Error(`profile slot round-robin failed: ${JSON.stringify([first, second, third])}`);
+    }
+    const exact = findProfileSlotByDir(pool, join(root, 'google-b'));
+    if (exact.profileName !== 'reviewer') {
+      throw new Error(`open-tab profile_dir did not select exact profile: ${JSON.stringify(exact)}`);
+    }
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+}
+
+async function assertManagedBrowserTerminationSequence() {
+  const closeCalls = [];
+  const closeResult = await requestManagedBrowserClose({
+    browser: {
+      newBrowserCDPSession: async () => ({
+        send: async (method) => {
+          closeCalls.push(method);
+        },
+      }),
+    },
+  }, 100);
+  if (JSON.stringify(closeCalls) !== JSON.stringify(['Browser.close'])) {
+    throw new Error(`managed browser CDP close command failed: ${JSON.stringify(closeCalls)}`);
+  }
+  if (!closeResult.sent || closeResult.status !== 'sent') {
+    throw new Error(`managed browser CDP close result failed: ${JSON.stringify(closeResult)}`);
+  }
+
+  const closeObserved = await requestManagedBrowserClose({
+    browser: {
+      newBrowserCDPSession: async () => ({
+        send: async () => {
+          throw new Error('Protocol error (Browser.close): Target closed');
+        },
+      }),
+    },
+  }, 100);
+  if (!closeObserved.sent || closeObserved.status !== 'sent-close-observed') {
+    throw new Error(`managed browser CDP close observed result failed: ${JSON.stringify(closeObserved)}`);
+  }
+
+  const forcedCalls = [];
+  let forcedAlive = true;
+  let forcedPortOpen = true;
+  const forced = await terminateManagedBrowserProcess({
+    pid: 4242,
+    cdpUrl: 'http://127.0.0.1:9224',
+  }, {
+    timeoutMs: 0,
+    isProcessAlive: () => forcedAlive,
+    isPortOpen: async () => forcedPortOpen,
+    killProcess: (pid, signal) => {
+      forcedCalls.push(`${signal}:${pid}`);
+      if (signal === 'SIGKILL') {
+        forcedAlive = false;
+        forcedPortOpen = false;
+      }
+    },
+    sleep: async () => undefined,
+  });
+  if (JSON.stringify(forcedCalls) !== JSON.stringify(['SIGTERM:4242', 'SIGKILL:4242'])) {
+    throw new Error(`managed browser forced termination sequence failed: ${JSON.stringify(forcedCalls)}`);
+  }
+  if (forced.status !== 'ok' || !forced.sigterm_sent || !forced.sigkill_sent || !forced.port_closed) {
+    throw new Error(`managed browser forced termination result failed: ${JSON.stringify(forced)}`);
+  }
+
+  const gracefulCalls = [];
+  let gracefulAlive = true;
+  let gracefulPortOpen = true;
+  const graceful = await terminateManagedBrowserProcess({
+    pid: 4243,
+    cdpUrl: 'http://127.0.0.1:9225',
+  }, {
+    timeoutMs: 100,
+    isProcessAlive: () => gracefulAlive,
+    isPortOpen: async () => gracefulPortOpen,
+    killProcess: (pid, signal) => {
+      gracefulCalls.push(`${signal}:${pid}`);
+      if (signal === 'SIGTERM') {
+        gracefulAlive = false;
+        gracefulPortOpen = false;
+      }
+    },
+    sleep: async () => undefined,
+  });
+  if (JSON.stringify(gracefulCalls) !== JSON.stringify(['SIGTERM:4243'])) {
+    throw new Error(`managed browser graceful termination sequence failed: ${JSON.stringify(gracefulCalls)}`);
+  }
+  if (graceful.status !== 'ok' || !graceful.sigterm_sent || graceful.sigkill_sent || !graceful.port_closed) {
+    throw new Error(`managed browser graceful termination result failed: ${JSON.stringify(graceful)}`);
+  }
+
+  const skipped = await terminateManagedBrowserProcess({ pid: null, cdpUrl: 'http://127.0.0.1:9226' });
+  if (skipped.status !== 'skipped') {
+    throw new Error(`managed browser missing pid should be skipped: ${JSON.stringify(skipped)}`);
+  }
+}
+
+function assertTransientNavigationErrorClassification() {
+  if (!isTransientNavigationError(new Error('page.evaluate: Execution context was destroyed, most likely because of a navigation'))) {
+    throw new Error('navigation-destroyed Playwright error should be retryable');
+  }
+  if (isTransientNavigationError(new Error('Target page, context or browser has been closed'))) {
+    throw new Error('closed target errors should not be classified as transient navigation');
+  }
+}
+
+function assertEnvelopeRunIdValidation() {
+  for (const runId of ['../outside', 'bad/run', 'bad\\run', '.', '..', '']) {
+    let rejected = false;
+    try {
+      validateEnvelope({
+        v: 1,
+        type: 'hello',
+        run_id: runId,
+        ts: timestamp(),
+        payload: {},
+      });
+    } catch (error) {
+      if (!String(error?.message || error).includes('run_id')) {
+        throw error;
+      }
+      rejected = true;
+    }
+    if (!rejected) {
+      throw new Error(`unsafe run_id accepted: ${JSON.stringify(runId)}`);
+    }
+  }
+}
+
+function assertErrorPayloadRedaction() {
+  const error = new Error('code=123456 token=abc123');
+  error.stack = 'Error: password=hunter2 7654321';
+  const payload = errorPayload('self-test', error);
+  const serialized = JSON.stringify(payload);
+  for (const leaked of ['123456', 'abc123', 'hunter2', '7654321']) {
+    if (serialized.includes(leaked)) {
+      throw new Error(`error payload leaked sensitive text: ${serialized}`);
+    }
+  }
+  if (!serialized.includes('[redacted')) {
+    throw new Error(`error payload did not include redaction markers: ${serialized}`);
+  }
+}
+
+function assertBridgeLogProfileFieldRedaction() {
+  const payload = normalizeBridgeLogPayload(
+    {
+      browser_profile: 'acct-token=abc123',
+      browser_profile_dir: '/tmp/profile-password=hunter2',
+      cdp_url: 'http://127.0.0.1:9224/?token=secret123',
+      browser_slot: 1,
+    },
+    {},
+    'code=123456',
+    'ok',
+  );
+  const serialized = JSON.stringify(payload);
+  for (const leaked of ['abc123', 'hunter2', 'secret123', '123456']) {
+    if (serialized.includes(leaked)) {
+      throw new Error(`bridge log profile field leaked sensitive text: ${serialized}`);
+    }
+  }
+}
+
+function assertManagedChromeLaunchPlanning() {
+  const noDisplay = managedDisplayPlan({});
+  if (!noDisplay.needsXvfb || noDisplay.display !== '') {
+    throw new Error(`missing DISPLAY should plan Xvfb launch: ${JSON.stringify(noDisplay)}`);
+  }
+  const withDisplay = managedDisplayPlan({ DISPLAY: ':77' });
+  if (withDisplay.needsXvfb || withDisplay.display !== ':77') {
+    throw new Error(`existing DISPLAY should skip Xvfb launch: ${JSON.stringify(withDisplay)}`);
+  }
+  const launchArgs = buildManagedChromeLaunchArgs(
+    { profileDir: '/tmp/jailgun-profile' },
+    { port: 9224, hostname: '127.0.0.1' },
+  );
+  if (launchArgs.includes('--headless=new') || !launchArgs.includes('--new-window')) {
+    throw new Error(`managed Chrome launch args must stay headed: ${JSON.stringify(launchArgs)}`);
+  }
+}
+
+async function assertProfileLockCleanup() {
+  const root = await mkdtemp(join(tmpdir(), 'jailgun-lock-cleanup-'));
+  try {
+    const profileDir = join(root, 'profile');
+    await mkdir(profileDir, { recursive: true });
+    await Promise.all([
+      writeFile(join(profileDir, 'SingletonLock'), 'lock'),
+      writeFile(join(profileDir, 'SingletonCookie'), 'cookie'),
+      writeFile(join(profileDir, 'SingletonSocket'), 'socket'),
+      writeFile(join(profileDir, 'Lockfile'), 'lockfile'),
+    ]);
+    if (detectProfileLockArtifacts(profileDir).length !== 4) {
+      throw new Error('profile lock detection should find all stale artifacts');
+    }
+    await clearProfileLockArtifacts(profileDir);
+    if (detectProfileLockArtifacts(profileDir).length !== 0) {
+      throw new Error('profile lock cleanup did not remove stale artifacts');
+    }
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+}
+
+async function assertSessionExpiredFailFast() {
+  const bridge = new ChromeBridge({ profilePool: [] });
+  const events = [];
+  bridge.bridgeLog = () => undefined;
+  bridge.emit = (_envelope, type, payload) => {
+    events.push({ type, payload });
+  };
+  const fakeDialog = {
+    ownerDocument: {
+      defaultView: {
+        getComputedStyle: () => ({ visibility: 'visible', display: 'block' }),
+      },
+    },
+    innerText: 'Your session expired. Sign in again.',
+    textContent: 'Your session expired. Sign in again.',
+    getAttribute: () => '',
+    getBoundingClientRect: () => ({ width: 320, height: 180 }),
+    querySelectorAll: () => [],
+  };
+  const page = {
+    url: () => 'https://chatgpt.com/',
+    evaluate: async (fn) => {
+      const previousDocument = globalThis.document;
+      const previousWindow = globalThis.window;
+      globalThis.document = {
+        body: {
+          innerText: 'Your session expired. Sign in again.',
+          textContent: 'Your session expired. Sign in again.',
+        },
+        querySelectorAll: () => [fakeDialog],
+      };
+      globalThis.window = {
+        getComputedStyle: () => ({ visibility: 'visible', display: 'block' }),
+      };
+      try {
+        return fn();
+      } finally {
+        if (previousDocument === undefined) {
+          delete globalThis.document;
+        } else {
+          globalThis.document = previousDocument;
+        }
+        if (previousWindow === undefined) {
+          delete globalThis.window;
+        } else {
+          globalThis.window = previousWindow;
+        }
+      }
+    },
+  };
+  let failed = false;
+  try {
+    await bridge.runDismissals(page, {
+      run_id: 'run-test',
+      type: 'monitor-tab',
+      tab_id: 1,
+      ts: timestamp(),
+      payload: {},
+    }, 'monitor-dismissals');
+  } catch (error) {
+    failed = /session expired prompt detected/i.test(error.message);
+  }
+  if (!failed) {
+    throw new Error('session-expired popup should fail fast');
+  }
+  if (!events.some((event) => event.type === 'session-expired')) {
+    throw new Error(`session-expired event was not emitted: ${JSON.stringify(events)}`);
+  }
+}
+
+async function assertEmailCodeSelectionAndManualAuthFallbacks() {
+  for (const text of [
+    'password',
+    'captcha',
+    'passkey',
+    'sms',
+  ]) {
+    const action = manualAuthActionFromText(text.toLowerCase());
+    if (!action || action.action !== 'manual-browser-required') {
+      throw new Error(`manual auth handling failed for text: ${text}`);
+    }
+  }
+
+  let clickedIndex = -1;
+  const elements = [
+    {
+      innerText: 'Send email verification code',
+      textContent: 'Send email verification code',
+      getAttribute: (name) => ({
+        'aria-label': '',
+        title: '',
+        value: '',
+      })[name] || '',
+      getBoundingClientRect: () => ({ width: 120, height: 28 }),
+    },
+    {
+      innerText: 'Send SMS verification code',
+      textContent: 'Send SMS verification code',
+      getAttribute: (name) => ({
+        'aria-label': '',
+        title: '',
+        value: '',
+      })[name] || '',
+      getBoundingClientRect: () => ({ width: 120, height: 28 }),
+    },
+  ];
+  const page = {
+    locator: () => ({
+      evaluateAll: async (fn) => {
+        const previousWindow = globalThis.window;
+        globalThis.window = {
+          getComputedStyle: () => ({ visibility: 'visible', display: 'block' }),
+        };
+        try {
+          return fn(elements);
+        } finally {
+          if (previousWindow === undefined) {
+            delete globalThis.window;
+          } else {
+            globalThis.window = previousWindow;
+          }
+        }
+      },
+      nth: (index) => ({
+        click: async () => {
+          clickedIndex = index;
+        },
+      }),
+    }),
+    waitForLoadState: async () => undefined,
+  };
+  const selected = await selectEmailCodeControl(page);
+  if (!selected.clicked || clickedIndex !== 0 || !/email/i.test(selected.destinationHint || '')) {
+    throw new Error(`email code selection did not choose the email control: ${JSON.stringify({ selected, clickedIndex })}`);
+  }
+}
+
+async function assertKeepAliveCleanup() {
+  const bridge = new ChromeBridge({ profilePool: [] });
+  const calls = [];
+  bridge.bridgeLog = () => undefined;
+  const page = {
+    isClosed: () => false,
+    evaluate: async () => {
+      calls.push('ping');
+    },
+  };
+  await bridge.pingKeepAlive('tab:1', page, systemEnvelope('keepalive-test'), 'tab-keep-alive');
+  if (JSON.stringify(calls) !== JSON.stringify(['ping'])) {
+    throw new Error(`keep-alive ping failed: ${JSON.stringify(calls)}`);
+  }
+  bridge.startKeepAlive('tab:1', page, systemEnvelope('keepalive-test'), 'tab-keep-alive', 5);
+  if (!bridge.keepAliveTimers.has('tab:1')) {
+    throw new Error('keep-alive timer was not registered');
+  }
+  bridge.clearKeepAlive('tab:1');
+  if (bridge.keepAliveTimers.has('tab:1')) {
+    throw new Error('keep-alive timer was not cleared');
+  }
+  bridge.startKeepAlive('tab:2', page, systemEnvelope('keepalive-test'), 'tab-keep-alive', 5);
+  bridge.startKeepAlive('tab:3', page, systemEnvelope('keepalive-test'), 'tab-keep-alive', 5);
+  bridge.clearAllKeepAlives();
+  if (bridge.keepAliveTimers.size !== 0) {
+    throw new Error('clearAllKeepAlives did not clear all timers');
+  }
+}
+
 async function runSelfTest() {
   const name = normalizeTarName('jekko-fixes.tgz');
   if (name !== 'jekko-fixes.tar.gz') {
@@ -1892,6 +4731,68 @@ async function runSelfTest() {
   if (!ranked[0].text.includes('jekko-fixes')) {
     throw new Error('target tar ranking failed');
   }
+  const legacyFallback = planCdpEndpointRecovery(
+    parseCdpEndpoint('http://127.0.0.1:922'),
+    { status: 'closed', reason: 'connection refused' },
+    [
+      {
+        endpoint: parseCdpEndpoint('http://127.0.0.1:9224'),
+        probe: { status: 'closed', reason: 'connection refused' },
+      },
+    ],
+  );
+  if (legacyFallback.endpoint.origin !== 'http://127.0.0.1:9224' || !legacyFallback.recovery) {
+    throw new Error(`local CDP port 922 redirect failed: ${JSON.stringify(legacyFallback)}`);
+  }
+  const legacyBlockedDefault = planCdpEndpointRecovery(
+    parseCdpEndpoint('http://localhost:922'),
+    { status: 'open-non-cdp', reason: 'Unexpected token < in JSON' },
+    [
+      {
+        endpoint: parseCdpEndpoint('http://127.0.0.1:9224'),
+        probe: { status: 'open-non-cdp', reason: 'not Chrome CDP' },
+      },
+      {
+        endpoint: parseCdpEndpoint('http://127.0.0.1:9225'),
+        probe: { status: 'closed', reason: 'connection refused' },
+      },
+    ],
+  );
+  if (legacyBlockedDefault.endpoint.origin !== 'http://127.0.0.1:9225' || legacyBlockedDefault.recovery.blocked_cdp_urls[0] !== 'http://127.0.0.1:9224') {
+    throw new Error(`managed CDP port scan failed: ${JSON.stringify(legacyBlockedDefault)}`);
+  }
+  const allManagedBlocked = planCdpEndpointRecovery(
+    parseCdpEndpoint('http://127.0.0.1:922'),
+    { status: 'closed', reason: 'connection refused' },
+    managedCdpEndpoints().map((endpoint) => ({
+      endpoint,
+      probe: { status: 'open-non-cdp', reason: 'not Chrome CDP' },
+    })),
+  );
+  if (!allManagedBlocked.fatal || allManagedBlocked.fatal.checked_port !== 9224 || !allManagedBlocked.fatal.next_action.includes('lsof -nP -iTCP:9224')) {
+    throw new Error(`blocked managed CDP ports should return a clear fatal plan: ${JSON.stringify(allManagedBlocked)}`);
+  }
+  const validLegacy = planCdpEndpointRecovery(
+    parseCdpEndpoint('http://localhost:922'),
+    { status: 'cdp', reason: 'ok' },
+  );
+  if (validLegacy.endpoint.origin !== 'http://localhost:922' || validLegacy.recovery) {
+    throw new Error(`valid local CDP port 922 should stay selected: ${JSON.stringify(validLegacy)}`);
+  }
+  const remoteLegacy = planCdpEndpointRecovery(
+    parseCdpEndpoint('http://cdp.example.test:922'),
+    { status: 'closed', reason: 'unreachable' },
+  );
+  if (remoteLegacy.endpoint.origin !== 'http://cdp.example.test:922' || remoteLegacy.recovery) {
+    throw new Error(`remote CDP should stay selected: ${JSON.stringify(remoteLegacy)}`);
+  }
+  const customLocal = planCdpEndpointRecovery(
+    parseCdpEndpoint('http://127.0.0.1:9333'),
+    { status: 'closed', reason: 'connection refused' },
+  );
+  if (customLocal.endpoint.origin !== 'http://127.0.0.1:9333' || customLocal.recovery) {
+    throw new Error(`custom local CDP should keep existing behavior: ${JSON.stringify(customLocal)}`);
+  }
   validateEnvelope({
     v: 1,
     type: 'hello',
@@ -1899,68 +4800,66 @@ async function runSelfTest() {
     ts: timestamp(),
     payload: {},
   });
-  await verifyReachableCdpEndpointIsReused();
+  assertEnvelopeRunIdValidation();
+  assertErrorPayloadRedaction();
+  assertBridgeLogProfileFieldRedaction();
+  assertManagedChromeLaunchPlanning();
+  await assertProfileLockCleanup();
+  await assertSessionExpiredFailFast();
+  await assertEmailCodeSelectionAndManualAuthFallbacks();
+  await assertKeepAliveCleanup();
+  await assertFreshSourceCloneArchivesLocalRepos();
+  await assertDownloadCleanupSequencing();
+  await assertNoTarCleanupSequencing();
+  await assertMessageStreamRetryClicksRetry();
+  await assertKnownRunUrlCollection();
+  await assertBrowserProfilePoolPlanning();
+  await assertManagedBrowserTerminationSequence();
+  assertTransientNavigationErrorClassification();
   process.stdout.write('chrome-bridge self-test passed\n');
 }
 
-async function verifyReachableCdpEndpointIsReused() {
-  let versionRequests = 0;
-  const server = http.createServer((request, response) => {
-    if (request.url === '/json/version') {
-      versionRequests += 1;
-      response.writeHead(200, { 'content-type': 'application/json' });
-      response.end(JSON.stringify({
-        Browser: 'Chrome/999.0.0.0',
-        'Protocol-Version': '1.3',
-      }));
-      return;
-    }
-    response.writeHead(404, { 'content-type': 'text/plain' });
-    response.end('not found');
-  });
-
-  await new Promise((resolvePromise, rejectPromise) => {
-    server.once('error', rejectPromise);
-    server.listen(0, '127.0.0.1', resolvePromise);
-  });
-
-  const tempRoot = await mkdtemp(join(tmpdir(), 'chrome-bridge-self-test-'));
+async function assertFreshSourceCloneArchivesLocalRepos() {
+  const root = await mkdtemp(join(tmpdir(), 'jailgun-bridge-selftest-'));
   try {
-    const address = server.address();
-    if (!address || typeof address === 'string') {
-      throw new Error('mock CDP server did not expose a port');
-    }
-    const cdpUrl = `http://127.0.0.1:${address.port}`;
-    const result = await ensureManagedChromeRunning({
-      cdpUrl,
-      cdpUrlExplicit: true,
-      profileDir: join(tempRoot, 'profile'),
-      stateDir: join(tempRoot, 'state'),
-      chromeExecutable: '/definitely/not-used',
-      browserTimeoutMs: 2000,
-      downloadsDir: join(tempRoot, 'downloads'),
-      artifactsDir: join(tempRoot, 'artifacts'),
-      sourceMode: DEFAULT_SOURCE_ARCHIVE_MODE,
-      tarTargetName: '',
-      submitDelaySeconds: 0,
-      submitJitterSeconds: 0,
-      tarWaitMinutes: 1,
-    });
+    const repo = join(root, 'source');
+    await mkdir(repo, { recursive: true });
+    await runGit(['init'], repo);
+    await runGit(['config', 'user.email', 'jailgun@example.test'], repo);
+    await runGit(['config', 'user.name', 'Jailgun Self Test'], repo);
+    await writeFile(join(repo, 'README.md'), '# source\n');
+    await runGit(['add', 'README.md'], repo);
+    await runGit(['commit', '-m', 'initial'], repo);
 
-    if (result.started !== false) {
-      throw new Error('reachable CDP endpoint should be reused instead of starting Chrome');
-    }
-    if (result.cdpUrl !== cdpUrl) {
-      throw new Error(`unexpected CDP URL from reused endpoint: ${result.cdpUrl}`);
-    }
-    if (versionRequests === 0) {
-      throw new Error('reachable CDP endpoint was not queried');
-    }
-  } finally {
-    await rm(tempRoot, { recursive: true, force: true });
-    await new Promise((resolvePromise) => {
-      server.close(() => resolvePromise());
+    const direct = await createSourceArchive({
+      repoUrl: repo,
+      refName: 'HEAD',
+      prefix: 'source/',
+      archiveFilename: 'source.tar.gz',
+      tmpParent: root,
+      mode: 'full',
+      freshSourceClone: false,
     });
+    if (direct.cloneDir !== '' || direct.freshSourceClone) {
+      throw new Error(`local archive should use source checkout by default: ${JSON.stringify(direct)}`);
+    }
+    await rm(direct.tempRoot, { recursive: true, force: true });
+
+    const fresh = await createSourceArchive({
+      repoUrl: repo,
+      refName: 'HEAD',
+      prefix: 'source/',
+      archiveFilename: 'source.tar.gz',
+      tmpParent: root,
+      mode: 'full',
+      freshSourceClone: true,
+    });
+    if (!fresh.cloneDir || !fresh.freshSourceClone || !fresh.cloneDir.startsWith(fresh.tempRoot)) {
+      throw new Error(`fresh local archive should clone into temp root: ${JSON.stringify(fresh)}`);
+    }
+    await rm(fresh.tempRoot, { recursive: true, force: true });
+  } finally {
+    await rm(root, { recursive: true, force: true }).catch(() => undefined);
   }
 }
 
@@ -1970,6 +4869,22 @@ const SEND_BUTTON_SELECTORS = [
   '[data-testid*="send"]',
   'button:has-text("Send")',
 ];
+
+const AUTH_CONTROL_SELECTOR = [
+  'button',
+  '[role="button"]',
+  'a',
+  'label',
+  'input[type="button"]',
+  'input[type="submit"]',
+].join(', ');
+
+const CODE_INPUT_SELECTOR = [
+  'input[autocomplete="one-time-code"]',
+  'input[name*="code" i]',
+  'input[inputmode="numeric"]',
+  'input[type="tel"]',
+].join(', ');
 
 const MARKDOWN_EXTENSIONS = new Set(['.md', '.mdx']);
 const CODE_EXTENSIONS = new Set([
@@ -2057,5 +4972,28 @@ const EXCLUDED_DIRECTORIES = new Set([
   'vendor',
 ]);
 
+if (shouldSelfTest) {
+  await runSelfTest();
+  process.exit(0);
+}
+
 const bridge = new ChromeBridge(settings);
+installSignalHandlers(bridge);
 await bridge.run();
+
+function installSignalHandlers(bridgeInstance) {
+  const exits = new Map([
+    ['SIGHUP', 129],
+    ['SIGINT', 130],
+    ['SIGTERM', 143],
+  ]);
+  for (const [signal, code] of exits.entries()) {
+    process.once(signal, () => {
+      void bridgeInstance
+        .shutdown(`signal-${signal}`, 0, bridgeInstance.lastEnvelope ?? systemEnvelope(`signal-${signal}`))
+        .finally(() => {
+          process.exit(code);
+        });
+    });
+  }
+}

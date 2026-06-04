@@ -10,6 +10,14 @@ If SQL is added, route it through `db/migrations/` and `db/constraints/`, update
 `agent/boundaries.toml`, and run:
 
 ```bash
+bash ops/ci/db.sh
 bash ops/ci/release.sh
 bash ops/ci/jankurai.sh
 ```
+
+Ownership:
+- Owns: durable schema truth, migration notes, constraint policy, rollback and
+  backfill guidance, and DB boundary proof receipts.
+- Forbidden: credentials, dumps, local SQLite files, production data, browser
+  state, and ad hoc seed data.
+- Proof lane: `bash ops/ci/db.sh` plus the release and Jankurai lanes above.

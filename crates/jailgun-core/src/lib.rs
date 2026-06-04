@@ -1,5 +1,6 @@
 pub mod agent;
 pub mod agent_error;
+pub mod browser_registry;
 pub mod config;
 pub mod event;
 pub mod prompt_policy;
@@ -10,13 +11,18 @@ pub mod source_archive;
 pub mod tarball;
 
 pub use agent::{
-    JailgunAgentBrowserRequest, JailgunAgentDeployRequest, JailgunAgentRunRequest,
+    validate_run_id, JailgunAgentBrowserRequest, JailgunAgentDeployRequest, JailgunAgentRunRequest,
     JailgunAgentRunSummary, JailgunArtifact, JailgunChangedFile, JailgunCiRequest, JailgunFailure,
     JailgunGithubPolicyRequest, JailgunRepoRef, JailgunReviewPacket, JailgunSourceArchiveRequest,
     JailgunSourceArchiveSummary, JAILGUN_AGENT_INTERFACE_VERSION,
     JAILGUN_AGENT_MAX_RUNTIME_SECONDS, JAILGUN_AGENT_MAX_TABS,
 };
 pub use agent_error::{AgentError, AgentErrorExt};
+pub use browser_registry::{
+    default_account_id, default_registry_path, validate_account_id, BrowserAccount,
+    BrowserAccountRoots, BrowserAccountStatus, BrowserProfileRegistry, BrowserRegistryError,
+    DEFAULT_BROWSER_REGISTRY_ENV,
+};
 pub use config::{
     BrowserConfig, CleanupPolicy, DeployConfig, JailgunConfig, PathConfig, ProjectConfig,
 };

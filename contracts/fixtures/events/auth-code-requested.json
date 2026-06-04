@@ -1,0 +1,12 @@
+{
+  "run_id": "auth-acct-fixture",
+  "tab_id": null,
+  "timestamp": "2026-05-31T12:06:52Z",
+  "kind": "auth-code-requested",
+  "severity": "info",
+  "message": "auth email code requested",
+  "fields": {
+    "channel": "email",
+    "destination_hint": "email verification"
+  }
+}

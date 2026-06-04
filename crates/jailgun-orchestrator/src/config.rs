@@ -11,6 +11,7 @@ pub struct RunOptions {
     pub no_deploy: bool,
     pub dry_run: bool,
     pub profile_dir: PathBuf,
+    pub profile_pool: Vec<PathBuf>,
     pub downloads_dir: PathBuf,
     pub artifacts_dir: PathBuf,
     pub bridge_cmd: Vec<String>,

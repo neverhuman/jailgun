@@ -1,0 +1,11 @@
+{
+  "run_id": "auth-acct-fixture",
+  "tab_id": null,
+  "timestamp": "2026-05-31T12:06:53Z",
+  "kind": "auth-code-submitted",
+  "severity": "info",
+  "message": "auth code submitted",
+  "fields": {
+    "accepted": "true"
+  }
+}

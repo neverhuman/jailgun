@@ -17,6 +17,13 @@ pub enum EventKind {
     PromptPolicy,
     RateLimitDetected,
     BrowserLog,
+    AuthState,
+    AuthActionNeeded,
+    AuthCodeRequested,
+    AuthCodeSubmitted,
+    AuthComplete,
+    AuthFailed,
+    SessionExpired,
     Error,
 }
 

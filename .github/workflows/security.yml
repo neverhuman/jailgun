@@ -1,0 +1,49 @@
+name: Security
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+  security-events: write
+  pull-requests: read
+
+concurrency:
+  group: security-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  scanners:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: "20"
+          cache: npm
+      - name: Install scanner tools
+        run: |
+          cargo install cargo-audit --locked
+          cargo install cargo-deny --locked
+          go install github.com/gitleaks/gitleaks/v8@v8.24.2
+          go install github.com/anchore/syft/cmd/syft@v1.18.1
+          go install github.com/rhysd/actionlint/cmd/actionlint@v1.7.7
+          python3 -m pip install --user zizmor
+          echo "$HOME/go/bin" >> "$GITHUB_PATH"
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+      - run: npm ci
+      - run: bash ops/ci/security.sh
+      - uses: actions/dependency-review-action@2031cfc080254a8a887f58cffee85186f0e49e48
+        if: github.event_name == 'pull_request'
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        if: always()
+        with:
+          name: security-evidence
+          path: |
+            target/jankurai/security/evidence.json
+            target/jankurai/security/sbom.spdx.json
