@@ -1049,7 +1049,7 @@ async function confirmUpload(page, archiveFilename, extraSelectors, timeoutMs) {
   // Race ALL selectors in parallel. First successful match wins. The
   // previous sequential `for ... waitForSelector` loop blocked the
   // submit click for up to N * perSelectorTimeout (N=5, ~50s) when
-  // ChatGPT's DOM did not match the legacy chip selectors. Tabs sat
+  // ChatGPT's DOM did not match the older chip selectors. Tabs sat
   // with the prompt typed but the send button unclicked. Live run
   // `live-2profile-20260603T220417Z-deploy` showed
   // `prompt-injected-during-upload` followed by a ~90s wait before the
