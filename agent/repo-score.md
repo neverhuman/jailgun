@@ -7,12 +7,10 @@
 - Target stack ID: `rust-ts-vite-react-postgres-bounded-python`
 - Target stack: `Rust core + TypeScript/React/Vite + PostgreSQL + generated contracts + exception-only Python AI/data service`
 - Repo: `.`
-- Run ID: `1780561419`
-- Started at: `1780561419`
-- Elapsed: `31986` ms
-- Scope: `changed-fast`
-- Changed: `.github/workflows/ci.yml, .gitignore, Cargo.lock, Cargo.toml, Justfile, README.md, agent/jankurai-badge.json, agent/jankurai-badge.svg, agent/repo-score.json, agent/repo-score.md, apps/chrome-bridge/bin/cdp-recovery-smoke.mjs, apps/chrome-bridge/bin/chrome-bridge.mjs, apps/chrome-bridge/cdp-recovery-smoke.env, apps/chrome-bridge/package.json, config/jailgun.example.toml, contracts/AGENTS.md, contracts/fixtures/events/auth-action-needed.json, contracts/fixtures/events/auth-code-requested.json, contracts/fixtures/events/auth-code-submitted.json, contracts/fixtures/events/auth-complete.json, contracts/fixtures/events/auth-failed.json, contracts/fixtures/events/auth-state.json, contracts/fixtures/events/session-expired.json, contracts/json-schema/event.schema.json, crates/jailgun-cli/src/auth.rs, crates/jailgun-cli/src/cli.rs, crates/jailgun-cli/src/commands.rs, crates/jailgun-cli/src/main.rs, crates/jailgun-core/Cargo.toml, crates/jailgun-core/src/agent.rs, crates/jailgun-core/src/browser_registry.rs, crates/jailgun-core/src/config.rs, crates/jailgun-core/src/event.rs, crates/jailgun-core/src/lib.rs, crates/jailgun-orchestrator/src/agent.rs, crates/jailgun-orchestrator/src/bridge/command.rs, crates/jailgun-orchestrator/src/bridge/event.rs, crates/jailgun-orchestrator/src/bridge/mod.rs, crates/jailgun-orchestrator/src/config.rs, crates/jailgun-orchestrator/src/run/events.rs, crates/jailgun-orchestrator/src/run/mod.rs, crates/jailgun-server/Cargo.toml, crates/jailgun-server/src/lib.rs, db/AGENTS.md, db/README.md, docs/release.md, ops/ci/security.sh, scripts/generate-contracts.mjs, tools/security-lane.sh, .github/workflows/jankurai.yml, .github/workflows/security.yml, .jankurai/score-history.jsonl, crates/jailgun-cli/src/auth/bridge.rs, crates/jailgun-cli/src/auth/events.rs, crates/jailgun-cli/src/auth/mod.rs, crates/jailgun-cli/src/auth/session.rs, crates/jailgun-cli/src/commands/deploy.rs, crates/jailgun-cli/src/commands/mod.rs, crates/jailgun-cli/src/commands/review.rs, crates/jailgun-cli/src/commands/run.rs, crates/jailgun-cli/src/commands/server.rs, crates/jailgun-cli/src/commands/telegram.rs, crates/jailgun-cli/src/commands/tests.rs, crates/jailgun-cli/src/commands/validate.rs, crates/jailgun-core/src/agent/mod.rs, crates/jailgun-core/src/agent/request.rs, crates/jailgun-core/src/agent/summary.rs, crates/jailgun-core/src/agent/tests.rs, crates/jailgun-core/src/browser_registry/account.rs, crates/jailgun-core/src/browser_registry/ids.rs, crates/jailgun-core/src/browser_registry/mod.rs, crates/jailgun-core/src/browser_registry/registry.rs, crates/jailgun-core/src/browser_registry/storage.rs, crates/jailgun-core/src/browser_registry/tests.rs, crates/jailgun-core/tests/browser_account_id_properties.rs, crates/jailgun-orchestrator/src/agent/account_tests.rs, crates/jailgun-orchestrator/src/agent/accounts.rs, crates/jailgun-orchestrator/src/agent/execute.rs, crates/jailgun-orchestrator/src/agent/execute_summary.rs, crates/jailgun-orchestrator/src/agent/mod.rs, crates/jailgun-orchestrator/src/agent/prepare.rs, crates/jailgun-orchestrator/src/agent/prepare_env.rs, crates/jailgun-orchestrator/src/agent/review.rs, crates/jailgun-orchestrator/src/agent/tests.rs, crates/jailgun-orchestrator/src/bridge/event/mod.rs, crates/jailgun-orchestrator/src/bridge/event/payload.rs, crates/jailgun-orchestrator/src/bridge/event/tests.rs, crates/jailgun-orchestrator/src/run/bridge_events.rs, crates/jailgun-orchestrator/src/run/bridge_flow.rs, crates/jailgun-orchestrator/src/run/deploy.rs, crates/jailgun-orchestrator/src/run/launch.rs, crates/jailgun-orchestrator/src/run/publish.rs, crates/jailgun-orchestrator/src/run/tests.rs, crates/jailgun-orchestrator/src/run/timing.rs, crates/jailgun-orchestrator/src/run/tracker.rs, crates/jailgun-server/src/browser/auth/bridge.rs, crates/jailgun-server/src/browser/auth/driver.rs, crates/jailgun-server/src/browser/auth/mod.rs, crates/jailgun-server/src/browser/mod.rs, crates/jailgun-server/src/browser/registry.rs, crates/jailgun-server/src/mcp.rs, crates/jailgun-server/src/mcp/protocol.rs, crates/jailgun-server/src/mcp/tools.rs, crates/jailgun-server/src/routes.rs, crates/jailgun-server/src/runs/events.rs, crates/jailgun-server/src/runs/ingress.rs, crates/jailgun-server/src/runs/mod.rs, crates/jailgun-server/src/runs/queries.rs, crates/jailgun-server/src/state.rs, crates/jailgun-server/src/tests/browser_routes.rs, crates/jailgun-server/src/tests/mcp_routes.rs, crates/jailgun-server/src/tests/mod.rs, crates/jailgun-server/src/tests/run_routes.rs, crates/jailgun-server/src/tests/status_routes.rs, crates/jailgun-server/src/ws.rs, docs/HEADLESS_TWO_ACCOUNT_SETUP.md, ops/ci/db.sh, tips/headless/tip1.txt, tips/headless/tip2.txt, tips/headless/tip3.txt, tips/headless/tip4.txt, tips/headless/tip5.txt, tips/headless/tip6.txt, tips/headless/tip7.txt`
-- Advisory: `changed-fast scans only changed files plus required control files; run the full audit before merge or release.`
+- Run ID: `1780563338`
+- Started at: `1780563338`
+- Elapsed: `37363` ms
+- Scope: `full`
 - Raw score: `96`
 - Final score: `96`
 - Decision: `advisory`
@@ -72,9 +70,25 @@
 
 ## Copy-Code Redundancy
 
-- Status: `skipped` hard=`0` warning=`0` files=`0`
+- Status: `review` hard=`0` warning=`8` files=`160`
 - Policy: min-lines=`10` min-tokens=`100` max-findings=`50` include-tests=`false` strict=`false`
-- Duplicate volume: lines=`0` tokens=`0` bytes=`0`
+- Duplicate volume: lines=`19` tokens=`28` bytes=`302`
+
+- Notes:
+  - hard classes are limited to exact active-source file matches and substantial exact same-name units
+  - warning classes include same-body different-name units and token/block duplication
+  - tests, fixtures, stories, config, Docker, and migrations are omitted unless --include-tests is set
+
+| Kind | Severity | Language | Lines | Tokens | Instances | Reason |
+| --- | --- | --- | ---: | ---: | --- | --- |
+| `ExactUnitSameName` | `Warning` | `rust` | 3 | 2 | `crates/jailgun-deploy/src/fake/ci_tracker.rs:15-18, crates/jailgun-deploy/src/fake/job.rs:15-18, crates/jailgun-deploy/src/fake/upload.rs:14-17` | `same-name semantic unit copied across multiple files` |
+| `ExactUnitSameName` | `Warning` | `rust` | 4 | 12 | `crates/jailgun-cli/src/auth/mod.rs:138-142, crates/jailgun-orchestrator/src/run/bridge_flow.rs:176-180` | `same-name semantic unit copied across multiple files` |
+| `ExactUnitSameName` | `Warning` | `rust` | 3 | 4 | `crates/jailgun-deploy/src/shell/job.rs:20-23, crates/jailgun-deploy/src/shell/upload.rs:15-18` | `same-name semantic unit copied across multiple files` |
+| `ExactUnitSameName` | `Warning` | `rust` | 2 | 5 | `crates/jailgun-deploy/src/deploy/events.rs:10-12, crates/jailgun-orchestrator/src/run/publish.rs:4-6` | `same-name semantic unit copied across multiple files` |
+| `ExactUnitSameName` | `Warning` | `rust` | 2 | 3 | `crates/jailgun-deploy/src/shell.rs:17-19, crates/jailgun-deploy/src/util.rs:6-8` | `same-name semantic unit copied across multiple files` |
+| `ExactUnitDifferentName` | `Warning` | `rust` | 2 | 1 | `crates/jailgun-core/src/browser_registry/storage.rs:54-56, crates/jailgun-core/src/browser_registry/storage.rs:70-72` | `same body appears under different names across files` |
+| `ExactUnitDifferentName` | `Warning` | `rust` | 2 | 1 | `crates/jailgun-core/src/agent/request.rs:226-228, crates/jailgun-orchestrator/src/bridge/command.rs:43-45` | `same body appears under different names across files` |
+| `ExactUnitDifferentName` | `Warning` | `rust` | 1 | 0 | `crates/jailgun-core/src/agent_error.rs:35-36, crates/jailgun-deploy/src/deploy/model.rs:151-152, crates/jailgun-server/src/bus.rs:27-28` | `same body appears under different names across files` |
 
 ## Dimensions
 
@@ -84,8 +98,8 @@
 | Contract and boundary integrity | 13 | 88 | 11.44 | contract surface found; generated contract artifacts found |
 | Proof lanes and test routing | 12 | 100 | 12.00 | one-command setup/validation lane found; deterministic fast lane found |
 | Security and supply-chain posture | 12 | 100 | 12.00 | lockfile present; secret or dependency scan tooling found |
-| Code shape and semantic surface | 12 | 100 | 12.00 | largest authored code file: crates/jailgun-orchestrator/src/agent/prepare.rs (280 LOC); most code files stay under 300 LOC |
-| Data truth and workflow safety | 8 | 95 | 7.60 | database surface present; structured db boundary manifest present |
+| Code shape and semantic surface | 12 | 100 | 12.00 | largest authored code file: apps/browser-adapter/src/sourceArchive.ts (297 LOC); most code files stay under 300 LOC |
+| Data truth and workflow safety | 8 | 100 | 8.00 | database surface present; structured db boundary manifest present |
 | Observability and repair evidence | 8 | 88 | 7.04 | observability libraries or patterns found; ops/observability directory present |
 | Context economy and agent instructions | 7 | 93 | 6.51 | root `AGENTS.md` present; root `AGENTS.md` stays short |
 | Jankurai tool adoption and CI replacement | 7 | 95 | 6.65 | control-plane files present; applicable=17 |
@@ -166,116 +180,7 @@ No audited runtime boundary reclassifications declared.
 
 ## Findings
 
-1. `medium` `governance` `Cargo.lock`
-   Rule: `HLT-045-GENERATED-ZONE-GOVERNANCE`
-   Check: `HLT-045-GENERATED-ZONE-GOVERNANCE:governance` `soft` confidence `0.76`
-   Route: TLR `Contracts/data`, lane `contract`, owner `ci-release`
-   Docs: `agent/JANKURAI_STANDARD.md#generated-zones`
-   Reason: generated zone `Cargo.lock` has an uncommitted hand-edit at `Cargo.lock` instead of a regeneration
-   Fix: revert the in-place edit to `Cargo.lock` and regenerate it from the declared source/command in `agent/generated-zones.toml`; do not patch generated output by hand
-   Rerun: `just fast`
-   Fingerprint: `sha256:6bdf6f31ab054c7a86dde856885fef44c0ca739360d260e05a5196da7624ee57`
-   Evidence: `Cargo.lock` was hand-edited inside declared generated zone `Cargo.lock`
-2. `medium` `governance` `agent/repo-score.json`
-   Rule: `HLT-045-GENERATED-ZONE-GOVERNANCE`
-   Check: `HLT-045-GENERATED-ZONE-GOVERNANCE:governance` `soft` confidence `0.76`
-   Route: TLR `Contracts/data`, lane `contract`, owner `repo-governance`
-   Docs: `agent/JANKURAI_STANDARD.md#generated-zones`
-   Reason: generated zone `agent/repo-score.json` has an uncommitted hand-edit at `agent/repo-score.json` instead of a regeneration
-   Fix: revert the in-place edit to `agent/repo-score.json` and regenerate it from the declared source/command in `agent/generated-zones.toml`; do not patch generated output by hand
-   Rerun: `just fast`
-   Fingerprint: `sha256:b39b16db675f2ac6f07bb27c65d75980125641479fb417a52fb0cc618c687610`
-   Evidence: `agent/repo-score.json` was hand-edited inside declared generated zone `agent/repo-score.json`
-3. `medium` `governance` `agent/repo-score.md`
-   Rule: `HLT-045-GENERATED-ZONE-GOVERNANCE`
-   Check: `HLT-045-GENERATED-ZONE-GOVERNANCE:governance` `soft` confidence `0.76`
-   Route: TLR `Contracts/data`, lane `contract`, owner `repo-governance`
-   Docs: `agent/JANKURAI_STANDARD.md#generated-zones`
-   Reason: generated zone `agent/repo-score.md` has an uncommitted hand-edit at `agent/repo-score.md` instead of a regeneration
-   Fix: revert the in-place edit to `agent/repo-score.md` and regenerate it from the declared source/command in `agent/generated-zones.toml`; do not patch generated output by hand
-   Rerun: `just fast`
-   Fingerprint: `sha256:0eb61c1eca345af83abb3815f06460a844f3bcbe63a78fcc212622cf0bc24740`
-   Evidence: `agent/repo-score.md` was hand-edited inside declared generated zone `agent/repo-score.md`
-4. `medium` `governance` `contracts/fixtures/events/auth-action-needed.json`
-   Rule: `HLT-045-GENERATED-ZONE-GOVERNANCE`
-   Check: `HLT-045-GENERATED-ZONE-GOVERNANCE:governance` `soft` confidence `0.76`
-   Route: TLR `Contracts/data`, lane `contract`, owner `contracts`
-   Docs: `agent/JANKURAI_STANDARD.md#generated-zones`
-   Reason: generated zone `contracts/fixtures/events/` has an uncommitted hand-edit at `contracts/fixtures/events/auth-action-needed.json` instead of a regeneration
-   Fix: revert the in-place edit to `contracts/fixtures/events/auth-action-needed.json` and regenerate it from the declared source/command in `agent/generated-zones.toml`; do not patch generated output by hand
-   Rerun: `just fast`
-   Fingerprint: `sha256:b1d8556d0eb75b09b9100e5abda76c8c358495adda6024c3994c25763b371e42`
-   Evidence: `contracts/fixtures/events/auth-action-needed.json` was hand-edited inside declared generated zone `contracts/fixtures/events/`
-5. `medium` `governance` `contracts/fixtures/events/auth-code-requested.json`
-   Rule: `HLT-045-GENERATED-ZONE-GOVERNANCE`
-   Check: `HLT-045-GENERATED-ZONE-GOVERNANCE:governance` `soft` confidence `0.76`
-   Route: TLR `Contracts/data`, lane `contract`, owner `contracts`
-   Docs: `agent/JANKURAI_STANDARD.md#generated-zones`
-   Reason: generated zone `contracts/fixtures/events/` has an uncommitted hand-edit at `contracts/fixtures/events/auth-code-requested.json` instead of a regeneration
-   Fix: revert the in-place edit to `contracts/fixtures/events/auth-code-requested.json` and regenerate it from the declared source/command in `agent/generated-zones.toml`; do not patch generated output by hand
-   Rerun: `just fast`
-   Fingerprint: `sha256:67ee9ddaa0a0075b3a5fc7f6bd8debffe6bdbc83f47d0e8188d323c0830a5fea`
-   Evidence: `contracts/fixtures/events/auth-code-requested.json` was hand-edited inside declared generated zone `contracts/fixtures/events/`
-6. `medium` `governance` `contracts/fixtures/events/auth-code-submitted.json`
-   Rule: `HLT-045-GENERATED-ZONE-GOVERNANCE`
-   Check: `HLT-045-GENERATED-ZONE-GOVERNANCE:governance` `soft` confidence `0.76`
-   Route: TLR `Contracts/data`, lane `contract`, owner `contracts`
-   Docs: `agent/JANKURAI_STANDARD.md#generated-zones`
-   Reason: generated zone `contracts/fixtures/events/` has an uncommitted hand-edit at `contracts/fixtures/events/auth-code-submitted.json` instead of a regeneration
-   Fix: revert the in-place edit to `contracts/fixtures/events/auth-code-submitted.json` and regenerate it from the declared source/command in `agent/generated-zones.toml`; do not patch generated output by hand
-   Rerun: `just fast`
-   Fingerprint: `sha256:5215eb36621f3f77ec6258a004b9739a6978a178620de9c20775628a216c0a6d`
-   Evidence: `contracts/fixtures/events/auth-code-submitted.json` was hand-edited inside declared generated zone `contracts/fixtures/events/`
-7. `medium` `governance` `contracts/fixtures/events/auth-complete.json`
-   Rule: `HLT-045-GENERATED-ZONE-GOVERNANCE`
-   Check: `HLT-045-GENERATED-ZONE-GOVERNANCE:governance` `soft` confidence `0.76`
-   Route: TLR `Contracts/data`, lane `contract`, owner `contracts`
-   Docs: `agent/JANKURAI_STANDARD.md#generated-zones`
-   Reason: generated zone `contracts/fixtures/events/` has an uncommitted hand-edit at `contracts/fixtures/events/auth-complete.json` instead of a regeneration
-   Fix: revert the in-place edit to `contracts/fixtures/events/auth-complete.json` and regenerate it from the declared source/command in `agent/generated-zones.toml`; do not patch generated output by hand
-   Rerun: `just fast`
-   Fingerprint: `sha256:b6cff5a1cb1938ad2412a5c72bc41cdd9a2793e352966c1c94c3886ea0b49f29`
-   Evidence: `contracts/fixtures/events/auth-complete.json` was hand-edited inside declared generated zone `contracts/fixtures/events/`
-8. `medium` `governance` `contracts/fixtures/events/auth-failed.json`
-   Rule: `HLT-045-GENERATED-ZONE-GOVERNANCE`
-   Check: `HLT-045-GENERATED-ZONE-GOVERNANCE:governance` `soft` confidence `0.76`
-   Route: TLR `Contracts/data`, lane `contract`, owner `contracts`
-   Docs: `agent/JANKURAI_STANDARD.md#generated-zones`
-   Reason: generated zone `contracts/fixtures/events/` has an uncommitted hand-edit at `contracts/fixtures/events/auth-failed.json` instead of a regeneration
-   Fix: revert the in-place edit to `contracts/fixtures/events/auth-failed.json` and regenerate it from the declared source/command in `agent/generated-zones.toml`; do not patch generated output by hand
-   Rerun: `just fast`
-   Fingerprint: `sha256:02f19886dc768a15c62cbedd4700de98c9de75af5ba8fe1e4d5b21ce9264fb85`
-   Evidence: `contracts/fixtures/events/auth-failed.json` was hand-edited inside declared generated zone `contracts/fixtures/events/`
-9. `medium` `governance` `contracts/fixtures/events/auth-state.json`
-   Rule: `HLT-045-GENERATED-ZONE-GOVERNANCE`
-   Check: `HLT-045-GENERATED-ZONE-GOVERNANCE:governance` `soft` confidence `0.76`
-   Route: TLR `Contracts/data`, lane `contract`, owner `contracts`
-   Docs: `agent/JANKURAI_STANDARD.md#generated-zones`
-   Reason: generated zone `contracts/fixtures/events/` has an uncommitted hand-edit at `contracts/fixtures/events/auth-state.json` instead of a regeneration
-   Fix: revert the in-place edit to `contracts/fixtures/events/auth-state.json` and regenerate it from the declared source/command in `agent/generated-zones.toml`; do not patch generated output by hand
-   Rerun: `just fast`
-   Fingerprint: `sha256:d9cf7693f0ae2dafd0ef9d51ee809477d7f7f3f324892e4915f5ca63aa0a3f00`
-   Evidence: `contracts/fixtures/events/auth-state.json` was hand-edited inside declared generated zone `contracts/fixtures/events/`
-10. `medium` `governance` `contracts/fixtures/events/session-expired.json`
-   Rule: `HLT-045-GENERATED-ZONE-GOVERNANCE`
-   Check: `HLT-045-GENERATED-ZONE-GOVERNANCE:governance` `soft` confidence `0.76`
-   Route: TLR `Contracts/data`, lane `contract`, owner `contracts`
-   Docs: `agent/JANKURAI_STANDARD.md#generated-zones`
-   Reason: generated zone `contracts/fixtures/events/` has an uncommitted hand-edit at `contracts/fixtures/events/session-expired.json` instead of a regeneration
-   Fix: revert the in-place edit to `contracts/fixtures/events/session-expired.json` and regenerate it from the declared source/command in `agent/generated-zones.toml`; do not patch generated output by hand
-   Rerun: `just fast`
-   Fingerprint: `sha256:2137152ab75c91ee9c8e58b644eba1ab13e65a4f060bfe1f6c392e817ac51897`
-   Evidence: `contracts/fixtures/events/session-expired.json` was hand-edited inside declared generated zone `contracts/fixtures/events/`
-11. `medium` `governance` `contracts/json-schema/event.schema.json`
-   Rule: `HLT-045-GENERATED-ZONE-GOVERNANCE`
-   Check: `HLT-045-GENERATED-ZONE-GOVERNANCE:governance` `soft` confidence `0.76`
-   Route: TLR `Contracts/data`, lane `contract`, owner `contracts`
-   Docs: `agent/JANKURAI_STANDARD.md#generated-zones`
-   Reason: generated zone `contracts/json-schema/event.schema.json` has an uncommitted hand-edit at `contracts/json-schema/event.schema.json` instead of a regeneration
-   Fix: revert the in-place edit to `contracts/json-schema/event.schema.json` and regenerate it from the declared source/command in `agent/generated-zones.toml`; do not patch generated output by hand
-   Rerun: `just fast`
-   Fingerprint: `sha256:983303d72a04b109f8cd4775650ad51db6fd5ff72440a48611b6c4919948161b`
-   Evidence: `contracts/json-schema/event.schema.json` was hand-edited inside declared generated zone `contracts/json-schema/event.schema.json`
+No findings.
 
 ## Policy
 
@@ -285,25 +190,4 @@ No audited runtime boundary reclassifications declared.
 
 ## Agent Fix Queue
 
-1. `medium` `HLT-045-GENERATED-ZONE-GOVERNANCE` `Cargo.lock` - revert the in-place edit to `Cargo.lock` and regenerate it from the declared source/command in `agent/generated-zones.toml`; do not patch generated output by hand
-   Route: `Contracts/data`/`contract`
-2. `medium` `HLT-045-GENERATED-ZONE-GOVERNANCE` `agent/repo-score.json` - revert the in-place edit to `agent/repo-score.json` and regenerate it from the declared source/command in `agent/generated-zones.toml`; do not patch generated output by hand
-   Route: `Contracts/data`/`contract`
-3. `medium` `HLT-045-GENERATED-ZONE-GOVERNANCE` `agent/repo-score.md` - revert the in-place edit to `agent/repo-score.md` and regenerate it from the declared source/command in `agent/generated-zones.toml`; do not patch generated output by hand
-   Route: `Contracts/data`/`contract`
-4. `medium` `HLT-045-GENERATED-ZONE-GOVERNANCE` `contracts/fixtures/events/auth-action-needed.json` - revert the in-place edit to `contracts/fixtures/events/auth-action-needed.json` and regenerate it from the declared source/command in `agent/generated-zones.toml`; do not patch generated output by hand
-   Route: `Contracts/data`/`contract`
-5. `medium` `HLT-045-GENERATED-ZONE-GOVERNANCE` `contracts/fixtures/events/auth-code-requested.json` - revert the in-place edit to `contracts/fixtures/events/auth-code-requested.json` and regenerate it from the declared source/command in `agent/generated-zones.toml`; do not patch generated output by hand
-   Route: `Contracts/data`/`contract`
-6. `medium` `HLT-045-GENERATED-ZONE-GOVERNANCE` `contracts/fixtures/events/auth-code-submitted.json` - revert the in-place edit to `contracts/fixtures/events/auth-code-submitted.json` and regenerate it from the declared source/command in `agent/generated-zones.toml`; do not patch generated output by hand
-   Route: `Contracts/data`/`contract`
-7. `medium` `HLT-045-GENERATED-ZONE-GOVERNANCE` `contracts/fixtures/events/auth-complete.json` - revert the in-place edit to `contracts/fixtures/events/auth-complete.json` and regenerate it from the declared source/command in `agent/generated-zones.toml`; do not patch generated output by hand
-   Route: `Contracts/data`/`contract`
-8. `medium` `HLT-045-GENERATED-ZONE-GOVERNANCE` `contracts/fixtures/events/auth-failed.json` - revert the in-place edit to `contracts/fixtures/events/auth-failed.json` and regenerate it from the declared source/command in `agent/generated-zones.toml`; do not patch generated output by hand
-   Route: `Contracts/data`/`contract`
-9. `medium` `HLT-045-GENERATED-ZONE-GOVERNANCE` `contracts/fixtures/events/auth-state.json` - revert the in-place edit to `contracts/fixtures/events/auth-state.json` and regenerate it from the declared source/command in `agent/generated-zones.toml`; do not patch generated output by hand
-   Route: `Contracts/data`/`contract`
-10. `medium` `HLT-045-GENERATED-ZONE-GOVERNANCE` `contracts/fixtures/events/session-expired.json` - revert the in-place edit to `contracts/fixtures/events/session-expired.json` and regenerate it from the declared source/command in `agent/generated-zones.toml`; do not patch generated output by hand
-   Route: `Contracts/data`/`contract`
-11. `medium` `HLT-045-GENERATED-ZONE-GOVERNANCE` `contracts/json-schema/event.schema.json` - revert the in-place edit to `contracts/json-schema/event.schema.json` and regenerate it from the declared source/command in `agent/generated-zones.toml`; do not patch generated output by hand
-   Route: `Contracts/data`/`contract`
+No queued fixes.
