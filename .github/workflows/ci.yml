@@ -44,7 +44,6 @@ jobs:
       - run: bash tools/security-lane.sh # gitleaks detect dependency-review npm audit cargo audit syft sbom actionlint; catalog: jankurai security run . --out target/jankurai/security/evidence.json
       - uses: actions/dependency-review-action@2031cfc080254a8a887f58cffee85186f0e49e48
         if: github.event_name == 'pull_request'
-        continue-on-error: true
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         if: always()
         with:
