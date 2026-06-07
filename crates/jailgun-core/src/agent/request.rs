@@ -1,5 +1,6 @@
 use std::{collections::BTreeMap, path::PathBuf};
 
+use crate::{DEFAULT_BROWSER_QUEUE_TIMEOUT_SECONDS, MAX_BROWSER_QUEUE_TIMEOUT_SECONDS};
 use serde::{Deserialize, Serialize};
 
 pub const JAILGUN_AGENT_INTERFACE_VERSION: u16 = 1;
@@ -117,6 +118,8 @@ pub struct JailgunAgentBrowserRequest {
     #[serde(default)]
     pub allow_queueing: bool,
     #[serde(default)]
+    pub queue_timeout_seconds: Option<u64>,
+    #[serde(default)]
     pub downloads_dir: Option<PathBuf>,
     #[serde(default)]
     pub artifacts_dir: Option<PathBuf>,
@@ -128,6 +131,8 @@ pub struct JailgunAgentBrowserRequest {
     pub event_buffer: Option<usize>,
     #[serde(default)]
     pub deploy_concurrency: Option<u16>,
+    #[serde(default)]
+    pub download_target_name: Option<String>,
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
@@ -159,6 +164,7 @@ impl JailgunAgentRunRequest {
         }
         self.effective_tabs(config_tabs)?;
         self.effective_max_runtime_seconds()?;
+        self.effective_browser_queue_timeout_seconds()?;
         if self.deploy.enabled && !self.deploy.dry_run && !self.deploy.allow_live {
             return Err("live deploy requires deploy.allow_live=true".into());
         }
@@ -196,6 +202,17 @@ impl JailgunAgentRunRequest {
             ));
         }
         Ok(seconds)
+    }
+
+    pub fn effective_browser_queue_timeout_seconds(&self) -> Result<u64, String> {
+        let seconds = self
+            .browser
+            .queue_timeout_seconds
+            .unwrap_or(DEFAULT_BROWSER_QUEUE_TIMEOUT_SECONDS);
+        if seconds == 0 {
+            return Err("browser.queue_timeout_seconds must be positive".into());
+        }
+        Ok(seconds.min(MAX_BROWSER_QUEUE_TIMEOUT_SECONDS))
     }
 }
 

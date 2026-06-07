@@ -187,18 +187,19 @@ async function discoverTarCandidates(page) {
     const attr = (el, name) => el?.getAttribute?.(name) || '';
     const href = (el) => el?.href || attr(el, 'href');
     const closestAssistant = (el) => el?.closest?.('[data-message-author-role="assistant"]') || null;
+    const uploadChip = (el) => el?.closest?.('[data-testid*="upload-chip"]') || null;
     const visible = (el) => {
       const style = window.getComputedStyle(el);
       const rect = el.getBoundingClientRect();
       return style.visibility !== 'hidden' && style.display !== 'none' && rect.width > 0 && rect.height > 0;
     };
     const disabled = (el) => el.hasAttribute?.('disabled') || /^true$/i.test(attr(el, 'aria-disabled'));
-    const tar = (value) => /\.tar\.gz(?:$|[?#\s)]|\.tar\(\d+\)\.gz)/i.test(String(value || ''));
+    const tar = (value) => /\.tar(?:\(\d+\))?\.gz(?:$|[?#\s)])/i.test(String(value || ''));
     const candidates = [];
     for (let index = 0; index < controls.length; index += 1) {
       const el = controls[index];
       const assistant = closestAssistant(el);
-      if (assistantRoots.length > 0 && !assistant) {
+      if ((assistantRoots.length > 0 && !assistant) || uploadChip(el)) {
         continue;
       }
       if (!visible(el) || disabled(el)) {
@@ -237,7 +238,7 @@ async function discoverTarCandidates(page) {
     const textMentions = [];
     const roots = assistantRoots.length > 0 ? assistantRoots : [document.body];
     for (const root of roots) {
-      const matches = textOf(root).match(/[A-Za-z0-9._()-]+\.tar\.gz/gi) || [];
+      const matches = textOf(root).match(/[A-Za-z0-9._()-]+\.tar(?:\(\d+\))?\.gz/gi) || [];
       for (const name of matches) {
         textMentions.push(name);
       }
@@ -252,7 +253,24 @@ async function discoverTarCandidates(page) {
 }
 
 function rankCandidates(candidates) {
-  return [...candidates].sort((a, b) => b.score - a.score);
+  return [...candidates]
+    .filter((candidate) => !isDocumentTarLabelOnlyCandidate(candidate))
+    .sort((a, b) => b.score - a.score);
+}
+
+function isDocumentTarLabelOnlyCandidate(candidate) {
+  const href = String(candidate?.href || '');
+  if (candidate?.assistantIndex != null) {
+    return false;
+  }
+  if (tarNameLike(candidate?.download) || tarNameLike(href)) {
+    return false;
+  }
+  return tarNameLike(`${candidate?.text || ''} ${candidate?.aria || ''} ${candidate?.title || ''} ${candidate?.label || ''}`);
+}
+
+function tarNameLike(value) {
+  return /\.tar(?:\(\d+\))?\.gz(?:$|[?#\s)])/i.test(String(value || ''));
 }
 
 async function readGenerationStatus(page) {

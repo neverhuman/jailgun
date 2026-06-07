@@ -3,6 +3,8 @@ use std::{net::SocketAddr, path::PathBuf};
 use clap::{Parser, Subcommand, ValueEnum};
 use jailgun_core::CleanupPolicy;
 
+use crate::jailhard::JailhardArgs;
+
 #[derive(Debug, Parser)]
 #[command(name = "jailgun")]
 #[command(about = "Rust core for ChatGPT archive capture and safe deploy")]
@@ -182,6 +184,7 @@ pub enum Command {
         #[arg(long, default_value = "HEAD")]
         revision: String,
     },
+    Jailhard(JailhardArgs),
     Serve {
         #[arg(long, default_value = "config/jailgun.example.toml")]
         config: PathBuf,

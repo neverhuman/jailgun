@@ -89,7 +89,7 @@ pub(super) async fn send_tab_commands_for_tab(
         BridgeCommand::OpenTab(OpenTabPayload {
             chat_url: opts.config.browser.chat_url.clone(),
             model: opts.config.browser.model.clone(),
-            profile_dir: open_tab_profile_dir(opts),
+            profile_dir: open_tab_profile_dir(opts, tab_id),
         }),
     )
     .await?;
@@ -103,6 +103,10 @@ pub(super) async fn send_tab_commands_for_tab(
                 ref_name: opts.config.source_archive.ref_name.clone(),
                 prefix: opts.config.source_archive.prefix.clone(),
                 archive_filename: opts.config.source_archive.archive_filename.clone(),
+                local_archive_path: opts
+                    .local_archive_path
+                    .as_ref()
+                    .map(|path| path.display().to_string()),
                 tmp_parent: None,
                 delete_after_upload: opts.config.source_archive.delete_after_upload,
                 confirm_selectors: Vec::new(),
@@ -151,7 +155,10 @@ pub(super) async fn send_command(
         .map_err(|_| OrchestratorError::BridgeExited(None))
 }
 
-pub(super) fn open_tab_profile_dir(opts: &RunOptions) -> Option<String> {
+pub(super) fn open_tab_profile_dir(opts: &RunOptions, tab_id: u16) -> Option<String> {
+    if let Some(path) = opts.tab_profile_dirs.get(&tab_id) {
+        return Some(path.display().to_string());
+    }
     if opts.profile_pool.len() > 1 {
         None
     } else {

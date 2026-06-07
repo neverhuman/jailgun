@@ -5,13 +5,15 @@ use std::{
 };
 
 use anyhow::{Context, Result};
-use jailgun_core::{JailgunAgentRunRequest, JailgunConfig};
+use jailgun_core::{BrowserLeaseRequest, JailgunAgentRunRequest, JailgunConfig};
 
 use crate::{
     agent::{
-        accounts::resolve_requested_accounts, execute::execute_prepared_agent_run,
-        prepare_env::apply_profile_env, timestamp_now, AgentRunPaths, DefaultAgentRunBackend,
-        NoopAgentRunEventSink, PreparedAgentRun,
+        accounts::{browser_registry_path_for_request, resolve_requested_accounts},
+        execute::execute_prepared_agent_run,
+        prepare_env::{apply_profile_env, clear_profile_routing_env},
+        timestamp_now, AgentRunPaths, DefaultAgentRunBackend, NoopAgentRunEventSink,
+        PreparedAgentRun, PreparedBrowserLease,
     },
     config::RunOptions,
     support::{
@@ -72,13 +74,11 @@ pub fn prepare_agent_run(
     apply_request_config_overrides(&request, &mut config)?;
 
     let account_profiles = resolve_requested_accounts(&request, &config, tabs)?;
-    let explicit_profile_pool = if account_profiles.is_empty() {
-        request.browser.profile_pool.clone()
+    let uses_browser_lease = !account_profiles.is_empty();
+    let explicit_profile_pool = if uses_browser_lease {
+        Vec::new()
     } else {
-        account_profiles
-            .iter()
-            .map(|account| account.profile_dir.clone())
-            .collect::<Vec<_>>()
+        request.browser.profile_pool.clone()
     };
 
     let prompt_text = fs::read_to_string(&request.prompt_file)
@@ -152,13 +152,25 @@ pub fn prepare_agent_run(
     if let Some(tar_target_name) = request.source_archive.tar_target_name.as_ref() {
         bridge_env.insert("JAILGUN_TAR_TARGET_NAME".into(), tar_target_name.clone());
     }
-    apply_profile_env(
-        &mut bridge_env,
-        &config,
-        &account_profiles,
-        &explicit_profile_pool,
-        &profile_dir,
-    )?;
+    if let Some(download_target_name) = request.browser.download_target_name.as_ref() {
+        if !download_target_name.trim().is_empty() {
+            bridge_env.insert(
+                "JAILGUN_DOWNLOAD_TARGET_NAME".into(),
+                download_target_name.clone(),
+            );
+        }
+    }
+    if uses_browser_lease {
+        clear_profile_routing_env(&mut bridge_env, &config);
+    } else {
+        apply_profile_env(
+            &mut bridge_env,
+            &config,
+            &[],
+            &explicit_profile_pool,
+            &profile_dir,
+        )?;
+    }
 
     let bridge_cmd = bridge_command(request.browser.bridge_cmd.clone())?;
     let run_id = request.run_id.clone().unwrap_or_else(default_run_id);
@@ -177,11 +189,13 @@ pub fn prepare_agent_run(
         dry_run: config.deploy.dry_run,
         profile_dir: profile_dir.clone(),
         profile_pool: explicit_profile_pool.clone(),
+        tab_profile_dirs: Default::default(),
         downloads_dir,
         artifacts_dir,
         bridge_cmd,
         bridge_env,
         repo_url: repo_url.clone(),
+        local_archive_path: None,
         deploy_remote_host,
         deploy_remote_dir,
         deploy_remote_command,
@@ -196,6 +210,19 @@ pub fn prepare_agent_run(
         event_buffer: request.browser.event_buffer.unwrap_or(1024),
         deploy_concurrency: request.browser.deploy_concurrency.unwrap_or(1),
     };
+    let browser_lease = uses_browser_lease.then(|| PreparedBrowserLease {
+        registry_path: browser_registry_path_for_request(&request, &config),
+        request: BrowserLeaseRequest {
+            run_id: run_id.clone(),
+            account_ids: request.browser.account_ids.clone(),
+            tabs,
+            allow_queueing: request.browser.allow_queueing,
+            queue_timeout_seconds: request
+                .effective_browser_queue_timeout_seconds()
+                .unwrap_or(jailgun_core::DEFAULT_BROWSER_QUEUE_TIMEOUT_SECONDS),
+            lease_ttl_seconds: max_runtime_seconds.saturating_add(600),
+        },
+    });
 
     Ok(PreparedAgentRun {
         request,
@@ -208,6 +235,7 @@ pub fn prepare_agent_run(
         prompt_text,
         output_paths,
         opts,
+        browser_lease,
     })
 }
 

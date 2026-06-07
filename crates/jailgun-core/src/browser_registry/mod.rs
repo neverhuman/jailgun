@@ -1,10 +1,15 @@
 mod account;
 mod ids;
+mod leases;
 mod registry;
 mod storage;
 
 pub use account::{BrowserAccount, BrowserAccountRoots, BrowserAccountStatus};
 pub use ids::{default_account_id, validate_account_id};
+pub use leases::{
+    BrowserLease, BrowserLeaseAllocation, BrowserLeaseManager, BrowserLeaseRequest,
+    DEFAULT_BROWSER_QUEUE_TIMEOUT_SECONDS, MAX_BROWSER_QUEUE_TIMEOUT_SECONDS,
+};
 pub use registry::BrowserProfileRegistry;
 pub use storage::{default_registry_path, ensure_private_dir};
 
@@ -43,6 +48,24 @@ pub enum BrowserRegistryError {
     MissingAccount(String),
     #[error("browser account {id} is not ready: status={status}")]
     AccountNotReady { id: String, status: String },
+    #[error("no ready browser accounts are registered")]
+    NoReadyAccounts,
+    #[error("duplicate browser account id requested: {0}")]
+    DuplicateAccountId(String),
+    #[error("requested {requested} browser tab(s), but selected ready accounts allow {capacity}")]
+    InsufficientAccountCapacity { requested: u16, capacity: u16 },
+    #[error("browser account capacity is busy for {requested} requested tab(s)")]
+    LeaseBusy { requested: u16 },
+    #[error("browser account capacity is unavailable for {requested} requested tab(s)")]
+    LeaseUnavailable { requested: u16 },
+    #[error("invalid browser lease request: {0}")]
+    LeaseInvalid(String),
+    #[error("could not lock browser lease file {path}: {source}")]
+    Lock {
+        path: String,
+        #[source]
+        source: std::io::Error,
+    },
     #[error("browser account id is required")]
     EmptyAccountId,
     #[error("browser account id is invalid: {0}")]

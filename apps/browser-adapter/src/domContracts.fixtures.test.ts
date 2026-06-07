@@ -5,6 +5,7 @@ import { dirname, join } from 'node:path';
 import { beforeEach, describe, expect, it } from 'vitest';
 
 import {
+  collectArtifactConversationLinksFromDom,
   collectDismissablePopupFromDom,
   collectGitHubToolPromptsFromDom,
   collectRateLimitModalFromDom,
@@ -38,7 +39,7 @@ describe('chatgpt DOM fixtures — tar download detector', () => {
     expect(collectTarDownloadCandidatesFromDom()).toEqual([]);
   });
 
-  it('uploaded-archive.html → no tar candidates (chip is not a download)', () => {
+  it('uploaded-archive.html → no tar candidates (prompt upload chip is not a download)', () => {
     loadFixture('uploaded-archive.html');
     expect(collectTarDownloadCandidatesFromDom()).toEqual([]);
   });
@@ -74,6 +75,25 @@ describe('chatgpt DOM fixtures — tar download detector', () => {
   it('done-no-tar.html → no tar candidates among final actions', () => {
     loadFixture('done-no-tar.html');
     expect(collectTarDownloadCandidatesFromDom()).toEqual([]);
+  });
+
+  it('artifact-conversation-failed.html → history artifact link is recovery-only', () => {
+    loadFixture('artifact-conversation-failed.html');
+    expect(collectTarDownloadCandidatesFromDom(document, 'chapter-027-epoch-02.tar.gz')).toEqual([]);
+    const links = collectArtifactConversationLinksFromDom(
+      document,
+      'chapter-027-epoch-02.tar.gz',
+      'https://chatgpt.com/c/current-conversation'
+    );
+    expect(links).toHaveLength(1);
+    expect(links[0].url).toBe('https://chatgpt.com/c/chapter-027-artifact');
+  });
+
+  it('artifact-conversation-linked.html → linked page exposes the real tar candidate', () => {
+    loadFixture('artifact-conversation-linked.html');
+    const candidates = collectTarDownloadCandidatesFromDom(document, 'chapter-027-epoch-02.tar.gz');
+    expect(candidates).toHaveLength(1);
+    expect(candidates[0].download).toBe('chapter-027-epoch-02.tar.gz');
   });
 });
 

@@ -9,7 +9,10 @@ use std::path::PathBuf;
 
 use anyhow::Result;
 use async_trait::async_trait;
-use jailgun_core::{JailgunAgentRunRequest, JailgunAgentRunSummary, JailgunConfig, JailgunEvent};
+use jailgun_core::{
+    BrowserLeaseRequest, JailgunAgentRunRequest, JailgunAgentRunSummary, JailgunConfig,
+    JailgunEvent,
+};
 
 use crate::{
     config::RunOptions,
@@ -38,6 +41,13 @@ pub struct PreparedAgentRun {
     pub prompt_text: String,
     pub output_paths: AgentRunPaths,
     pub opts: RunOptions,
+    pub browser_lease: Option<PreparedBrowserLease>,
+}
+
+#[derive(Debug, Clone)]
+pub struct PreparedBrowserLease {
+    pub registry_path: PathBuf,
+    pub request: BrowserLeaseRequest,
 }
 
 #[async_trait]

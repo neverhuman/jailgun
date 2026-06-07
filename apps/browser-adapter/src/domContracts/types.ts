@@ -14,6 +14,23 @@ export interface DomTarCandidate {
   clickable: boolean;
   assistantIndex: number | null;
   tarSources: string[];
+  fileKind?: 'downloaded-archive' | 'downloaded-tex' | 'downloaded-file';
+}
+
+export interface DomArtifactConversationLink {
+  index: number;
+  url: string;
+  href: string;
+  text: string;
+  aria: string;
+  title: string;
+  score: number;
+  selector: string;
+  tagName: string;
+  conversationId: string;
+  chapter: string;
+  targetMatched: boolean;
+  artifactSignals: string[];
 }
 
 export interface ToolPromptCandidate {

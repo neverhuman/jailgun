@@ -4,6 +4,7 @@ import {
   clickGitHubToolPrompt,
   closeTabAfterReceipt,
   collectDismissablePopupFromDom,
+  collectArtifactConversationLinksFromDom,
   collectGitHubToolPromptsFromDom,
   collectRateLimitModalFromDom,
   collectTarDownloadCandidatesFromDom,
@@ -23,6 +24,141 @@ it('finds assistant tar links and ignores user mentions', () => {
   const candidates = collectTarDownloadCandidatesFromDom();
   expect(candidates).toHaveLength(1);
   expect(candidates[0].download).toBe('source.tar.gz');
+});
+
+it('finds assistant tar links with numbered names', () => {
+  document.body.innerHTML = `
+    <div data-message-author-role="assistant">
+      <a href="https://example.invalid/source.tar(289).gz" download="source.tar(289).gz">
+        Download source.tar(289).gz
+      </a>
+    </div>
+  `;
+  const candidates = collectTarDownloadCandidatesFromDom();
+  expect(candidates).toHaveLength(1);
+  expect(candidates[0].download).toBe('source.tar(289).gz');
+});
+
+it('prefers assistant tex downloads when a tex target is requested', () => {
+  document.body.innerHTML = `
+    <div data-message-author-role="assistant">
+      <a href="https://example.invalid/chapter-033-epoch-02.tar.gz" download="chapter-033-epoch-02.tar.gz">
+        Download alternate archive
+      </a>
+      <a href="https://example.invalid/chapter-033-epoch-02.tex" download="chapter-033-epoch-02.tex">
+        Download chapter-033-epoch-02.tex
+      </a>
+    </div>
+  `;
+  const candidates = collectTarDownloadCandidatesFromDom(document, 'chapter-033-epoch-02.tex');
+  expect(candidates).toHaveLength(2);
+  expect(candidates[0]).toMatchObject({
+    download: 'chapter-033-epoch-02.tex',
+    fileKind: 'downloaded-tex'
+  });
+});
+
+it('ignores prompt-side upload chips that mention tar archives', () => {
+  document.body.innerHTML = `
+    <form>
+      <div data-testid="upload-chip" aria-label="Attached source.tar(289).gz">
+        <button type="button" aria-label="Remove attachment">source.tar(289).gz</button>
+        <span data-state="ready">Attached</span>
+      </div>
+    </form>
+  `;
+  expect(collectTarDownloadCandidatesFromDom()).toEqual([]);
+});
+
+it('collects same-chapter artifact conversation links for tar recovery', () => {
+  document.body.innerHTML = `
+    <nav>
+      <a href="https://chatgpt.com/c/chapter-027-artifact?model=gpt-5">
+        Chapter 027 Tar.gz
+      </a>
+    </nav>
+  `;
+  const links = collectArtifactConversationLinksFromDom(
+    document,
+    'chapter-027-epoch-02.tar.gz',
+    'https://chatgpt.com/c/current-conversation?locale=en-US'
+  );
+  expect(links).toHaveLength(1);
+  expect(links[0]).toMatchObject({
+    url: 'https://chatgpt.com/c/chapter-027-artifact',
+    text: 'Chapter 027 Tar.gz',
+    chapter: '27',
+    targetMatched: true
+  });
+});
+
+it('ignores mismatched artifact conversation chapters', () => {
+  document.body.innerHTML = `
+    <nav>
+      <a href="https://chatgpt.com/c/chapter-028-artifact">Chapter 028 Tar.gz</a>
+    </nav>
+  `;
+  expect(collectArtifactConversationLinksFromDom(
+    document,
+    'chapter-027-epoch-02.tar.gz',
+    'https://chatgpt.com/c/current-conversation'
+  )).toEqual([]);
+});
+
+it('ignores generic editorial conversation links even when the chapter matches', () => {
+  document.body.innerHTML = `
+    <nav>
+      <a href="https://chatgpt.com/c/chapter-027-review">Chapter 027 Editorial Review</a>
+    </nav>
+  `;
+  expect(collectArtifactConversationLinksFromDom(
+    document,
+    'chapter-027-epoch-02.tar.gz',
+    'https://chatgpt.com/c/current-conversation'
+  )).toEqual([]);
+});
+
+it('ignores upload chips and conversation option controls as artifact conversation links', () => {
+  document.body.innerHTML = `
+    <form>
+      <div data-testid="upload-chip">
+        <a href="https://chatgpt.com/c/chapter-027-artifact">Chapter 027 Tar.gz</a>
+      </div>
+    </form>
+    <button aria-label="Open conversation options for Chapter 027 Tar.gz"></button>
+  `;
+  expect(collectArtifactConversationLinksFromDom(
+    document,
+    'chapter-027-epoch-02.tar.gz',
+    'https://chatgpt.com/c/current-conversation'
+  )).toEqual([]);
+});
+
+it('dedupes artifact conversation links and excludes the current conversation', () => {
+  document.body.innerHTML = `
+    <nav>
+      <a href="https://chatgpt.com/c/current-conversation?foo=1">Chapter 027 Tar.gz</a>
+      <a href="https://chatgpt.com/c/chapter-027-artifact?model=gpt-5">Chapter 027 Artifact</a>
+      <a href="https://chatgpt.com/en/c/chapter-027-artifact?locale=en-US">Chapter 027 LaTeX Creation</a>
+    </nav>
+  `;
+  const links = collectArtifactConversationLinksFromDom(
+    document,
+    'chapter-027-epoch-02.tar.gz',
+    'https://chatgpt.com/c/current-conversation?locale=en-US'
+  );
+  expect(links).toHaveLength(1);
+  expect(links[0].url).toBe('https://chatgpt.com/c/chapter-027-artifact');
+  expect(links[0].score).toBeGreaterThan(0);
+});
+
+it('does not treat ChatGPT conversation artifact links as direct tar downloads', () => {
+  document.body.innerHTML = `
+    <nav>
+      <a href="https://chatgpt.com/c/chapter-027-artifact">Chapter 027 Tar.gz</a>
+    </nav>
+  `;
+  expect(collectTarDownloadCandidatesFromDom(document, 'chapter-027-epoch-02.tar.gz')).toEqual([]);
 });
 
 it('selects Deny for GitHub Create Tree prompts', () => {
@@ -216,6 +352,58 @@ it('biases tar candidates toward --tar-target-name when multiple .tar.gz links a
   expect(noTarget).toHaveLength(3);
   expect(noTarget.map((candidate) => candidate.download)).toContain('jekko-fixes.tar.gz');
   expect(noTarget[0].score).toBe(noTarget[1].score);
+});
+
+it('detects assistant download controls that name a tarball without a filename', () => {
+  document.body.innerHTML = `
+    <div data-message-author-role="assistant">
+      <button>Download the tarball</button>
+    </div>
+  `;
+  const candidates = collectTarDownloadCandidatesFromDom(document);
+  expect(candidates).toHaveLength(1);
+  expect(candidates[0]).toMatchObject({
+    text: 'Download the tarball',
+    scope: 'assistant',
+    tagName: 'button'
+  });
+});
+
+it('ranks explicit .tar.gz links above generic archive download buttons', () => {
+  document.body.innerHTML = `
+    <div data-message-author-role="assistant">
+      <button>Download the tarball</button>
+      <a href="https://example.invalid/source.tar.gz" download="source.tar.gz">Download source.tar.gz</a>
+    </div>
+  `;
+  const candidates = collectTarDownloadCandidatesFromDom(document);
+  expect(candidates).toHaveLength(2);
+  expect(candidates[0].download).toBe('source.tar.gz');
+  expect(candidates[0].score).toBeGreaterThan(candidates[1].score);
+});
+
+it('ignores ChatGPT history links whose only tar signal is the label', () => {
+  document.body.innerHTML = `
+    <nav>
+      <a href="https://chatgpt.com/c/6a224b5f-25f0-83e8-8556-b960941c7551" aria-label="Missing .tar.gz Archive, unread">
+        Missing .tar.gz Archive
+      </a>
+      <button aria-label="Open conversation options for Missing .tar.gz Archive"></button>
+    </nav>
+  `;
+  expect(collectTarDownloadCandidatesFromDom(document)).toEqual([]);
+});
+
+it('ignores generic document download controls outside assistant messages', () => {
+  document.body.innerHTML = `
+    <aside>
+      <button>Download the archive</button>
+      <a href="https://chatgpt.com/c/6a224b5f-25f0-83e8-8556-b960941c7551" aria-label="Download Missing .tar.gz Archive">
+        Download Missing .tar.gz Archive
+      </a>
+    </aside>
+  `;
+  expect(collectTarDownloadCandidatesFromDom(document)).toEqual([]);
 });
 
 it('preserves existing tar candidate ordering when targetName is omitted', () => {

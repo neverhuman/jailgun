@@ -20,8 +20,10 @@ pub use agent::{
 pub use agent_error::{AgentError, AgentErrorExt};
 pub use browser_registry::{
     default_account_id, default_registry_path, validate_account_id, BrowserAccount,
-    BrowserAccountRoots, BrowserAccountStatus, BrowserProfileRegistry, BrowserRegistryError,
-    DEFAULT_BROWSER_REGISTRY_ENV,
+    BrowserAccountRoots, BrowserAccountStatus, BrowserLease, BrowserLeaseAllocation,
+    BrowserLeaseManager, BrowserLeaseRequest, BrowserProfileRegistry, BrowserRegistryError,
+    DEFAULT_BROWSER_QUEUE_TIMEOUT_SECONDS, DEFAULT_BROWSER_REGISTRY_ENV,
+    MAX_BROWSER_QUEUE_TIMEOUT_SECONDS,
 };
 pub use config::{
     BrowserConfig, CleanupPolicy, DeployConfig, JailgunConfig, PathConfig, ProjectConfig,

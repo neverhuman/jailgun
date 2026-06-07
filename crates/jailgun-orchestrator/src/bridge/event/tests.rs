@@ -10,6 +10,7 @@ fn roundtrip_download_complete_event() {
         receipt_path: "/tmp/r/x.tar.gz".into(),
         original_name: "patch.tar.gz".into(),
         local_name: "patch.tar.gz".into(),
+        file_kind: Some("downloaded-archive".into()),
         download_url: Some("blob:https://chatgpt.com/x".into()),
         entry_count: None,
         download_latency_ms: None,

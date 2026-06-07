@@ -61,7 +61,21 @@ pub(super) async fn handle_bridge_envelope(
         }
         BridgeEvent::DownloadComplete(payload) => {
             if let Some(tab_id) = tab_id {
-                if let Err(reason) = validate_download_archive(opts, tab_id, &payload.local_path) {
+                let is_archive = download_complete_is_archive(&payload);
+                if is_archive {
+                    if let Err(reason) =
+                        validate_download_archive(opts, tab_id, &payload.local_path)
+                    {
+                        summary.failures.push((tab_id, reason.clone()));
+                        publish_error(events, &opts.run_id, Some(tab_id), reason);
+                        tracker.mark_terminal(tab_id);
+                        effects.terminal_tab = Some(tab_id);
+                        return effects;
+                    }
+                } else if !opts.no_deploy && opts.config.deploy.enabled {
+                    let reason =
+                        "non-archive downloads cannot be deployed; expected a .tar.gz artifact"
+                            .to_string();
                     summary.failures.push((tab_id, reason.clone()));
                     publish_error(events, &opts.run_id, Some(tab_id), reason);
                     tracker.mark_terminal(tab_id);
@@ -163,6 +177,14 @@ pub(super) async fn handle_bridge_envelope(
         _ => {}
     }
     effects
+}
+
+fn download_complete_is_archive(payload: &crate::bridge::DownloadCompletePayload) -> bool {
+    match payload.file_kind.as_deref() {
+        Some("downloaded-archive") | Some("archive") | Some("tar-gz") => true,
+        Some("downloaded-tex") | Some("downloaded-file") | Some("tex") | Some("file") => false,
+        Some(_) | None => payload.local_path.to_ascii_lowercase().ends_with(".tar.gz"),
+    }
 }
 
 pub(super) struct DeployResult {

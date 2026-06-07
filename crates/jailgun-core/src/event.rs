@@ -6,7 +6,10 @@ use time::{format_description::well_known::Rfc3339, OffsetDateTime};
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "kebab-case")]
 pub enum EventKind {
+    RunQueued,
     RunStarted,
+    BrowserLeaseAcquired,
+    BrowserLeaseReleased,
     TabOpened,
     PromptSubmitted,
     TarDiscovered,

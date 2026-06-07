@@ -43,13 +43,18 @@ impl AgentRunEventSink for ServerAgentEventSink {
 }
 
 pub(super) fn prepared_snapshot(prepared: &PreparedAgentRun) -> RunSnapshot {
+    let status = if prepared.browser_lease.is_some() {
+        "queued"
+    } else {
+        "running"
+    };
     RunSnapshot {
         run_id: prepared.opts.run_id.clone(),
         started_at: prepared.started_at.clone(),
         finished_at: None,
-        status: "running".into(),
+        status: status.into(),
         tabs: Vec::new(),
-        deploy_queue: DeployQueueState::Running,
+        deploy_queue: DeployQueueState::Idle,
         denied_github_prompts: 0,
         allowed_info_prompts: 0,
     }
@@ -102,6 +107,12 @@ pub(crate) async fn record_event(state: &Arc<AppState>, event: JailgunEvent) {
 
 fn apply_event_to_run(run: &mut RunSnapshot, event: &JailgunEvent) {
     match event.kind {
+        EventKind::RunQueued => {
+            run.status = "queued".into();
+        }
+        EventKind::BrowserLeaseAcquired => {
+            run.status = "starting".into();
+        }
         EventKind::RunStarted => {
             run.started_at = event.timestamp.clone();
             run.status = event

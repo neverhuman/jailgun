@@ -26,6 +26,8 @@ pub struct UploadArchivePayload {
     pub ref_name: String,
     pub prefix: String,
     pub archive_filename: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub local_archive_path: Option<String>,
     #[serde(default)]
     pub tmp_parent: Option<String>,
     #[serde(default = "default_delete_after_upload")]
@@ -235,6 +237,27 @@ mod tests {
         let line = encode_envelope(&envelope).expect("encode");
         let decoded = decode_envelope(line.trim_end()).expect("decode");
         assert_eq!(decoded.kind, "auth-submit-code");
+        let typed = BridgeCommand::decode(&decoded.kind, decoded.payload).expect("typed");
+        assert_eq!(typed, cmd);
+    }
+
+    #[test]
+    fn roundtrip_upload_archive_with_local_archive_path() {
+        let cmd = BridgeCommand::UploadArchive(UploadArchivePayload {
+            repo_url: "local://jailhard".into(),
+            ref_name: "HEAD".into(),
+            prefix: "source/".into(),
+            archive_filename: "source.tar.gz".into(),
+            local_archive_path: Some("/tmp/jailgun-hardening/source.tar.gz".into()),
+            tmp_parent: None,
+            delete_after_upload: true,
+            confirm_selectors: Vec::new(),
+            timeout_ms: 45_000,
+        });
+        let envelope = envelope_for_command(&cmd, "run-test", "2026-05-31T12:00:00Z", Some(1));
+        let line = encode_envelope(&envelope).expect("encode");
+        assert!(line.contains("local_archive_path"));
+        let decoded = decode_envelope(line.trim_end()).expect("decode");
         let typed = BridgeCommand::decode(&decoded.kind, decoded.payload).expect("typed");
         assert_eq!(typed, cmd);
     }

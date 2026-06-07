@@ -91,7 +91,7 @@ pub(super) fn build_agent_summary(
     }
 }
 
-fn artifacts_from_events(
+pub(super) fn artifacts_from_events(
     events: &[JailgunEvent],
     config: &JailgunConfig,
     expected_top_level: Option<&str>,
@@ -108,42 +108,56 @@ fn artifacts_from_events(
             continue;
         };
         let archive_path = PathBuf::from(path);
-        let validation = match validate_tar_gz(&archive_path, require_single_top_level) {
-            Ok(validation) => {
-                if let Some(expected) = expected_top_level {
-                    if validation.top_level.as_deref() != Some(expected) {
-                        failures.push(JailgunFailure {
-                            tab_id: event.tab_id,
-                            code: "tar-validation".into(),
-                            message: format!(
-                                "archive top-level must be {expected}/, found {}",
-                                validation.top_level.as_deref().unwrap_or("(multiple)")
-                            ),
-                        });
+        let artifact_kind = artifact_kind_from_event(event, &archive_path);
+        let is_archive = artifact_kind == "downloaded-archive";
+        let validation = if is_archive {
+            match validate_tar_gz(&archive_path, require_single_top_level) {
+                Ok(validation) => {
+                    if let Some(expected) = expected_top_level {
+                        if validation.top_level.as_deref() != Some(expected) {
+                            failures.push(JailgunFailure {
+                                tab_id: event.tab_id,
+                                code: "tar-validation".into(),
+                                message: format!(
+                                    "archive top-level must be {expected}/, found {}",
+                                    match validation.top_level.as_deref() {
+                                        Some(top_level) => top_level,
+                                        None => "(multiple)",
+                                    }
+                                ),
+                            });
+                        }
                     }
+                    Some(validation)
                 }
-                Some(validation)
+                Err(error) => {
+                    failures.push(JailgunFailure {
+                        tab_id: event.tab_id,
+                        code: "tar-validation".into(),
+                        message: error.to_string(),
+                    });
+                    None
+                }
             }
-            Err(error) => {
+        } else {
+            if let Err(error) = validate_downloaded_file(&archive_path) {
                 failures.push(JailgunFailure {
                     tab_id: event.tab_id,
-                    code: "tar-validation".into(),
-                    message: error.to_string(),
+                    code: "file-validation".into(),
+                    message: error,
                 });
-                None
             }
+            None
         };
-        let changed_files = validation
-            .as_ref()
-            .map(|validation| {
-                derive_changed_file_paths(
-                    validation,
-                    config.deploy.remote_strip_components as usize,
-                )
-            })
-            .unwrap_or_default();
+        let changed_files = match validation.as_ref() {
+            Some(validation) => derive_changed_file_paths(
+                validation,
+                config.deploy.remote_strip_components as usize,
+            ),
+            None => Vec::new(),
+        };
         artifacts.push(JailgunArtifact {
-            kind: "downloaded-archive".into(),
+            kind: artifact_kind,
             path: archive_path,
             sha256: event.fields.get("sha256").cloned(),
             size_bytes: event
@@ -156,6 +170,48 @@ fn artifacts_from_events(
         });
     }
     (artifacts, failures)
+}
+
+fn artifact_kind_from_event(event: &JailgunEvent, path: &Path) -> String {
+    match event.fields.get("file_kind").map(String::as_str) {
+        Some("downloaded-archive") | Some("archive") | Some("tar-gz") => {
+            "downloaded-archive".into()
+        }
+        Some("downloaded-tex") | Some("tex") => "downloaded-tex".into(),
+        Some("downloaded-file") | Some("file") => "downloaded-file".into(),
+        Some(other) if !other.trim().is_empty() => other.to_string(),
+        _ if is_tar_gz_path(path) => "downloaded-archive".into(),
+        _ if path
+            .extension()
+            .and_then(|extension| extension.to_str())
+            .is_some_and(|extension| extension.eq_ignore_ascii_case("tex")) =>
+        {
+            "downloaded-tex".into()
+        }
+        _ => "downloaded-file".into(),
+    }
+}
+
+fn is_tar_gz_path(path: &Path) -> bool {
+    path.file_name()
+        .and_then(|name| name.to_str())
+        .is_some_and(|name| name.to_ascii_lowercase().ends_with(".tar.gz"))
+}
+
+fn validate_downloaded_file(path: &Path) -> Result<(), String> {
+    let metadata = std::fs::metadata(path).map_err(|error| {
+        format!(
+            "downloaded file is not readable: {}: {error}",
+            path.display()
+        )
+    })?;
+    if !metadata.is_file() {
+        return Err(format!("downloaded path is not a file: {}", path.display()));
+    }
+    if metadata.len() == 0 {
+        return Err(format!("downloaded file is empty: {}", path.display()));
+    }
+    Ok(())
 }
 
 pub(super) fn receipt_paths_from_events(events: &[JailgunEvent]) -> Vec<PathBuf> {

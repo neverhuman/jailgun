@@ -1,6 +1,6 @@
 {
-  "report_fingerprint": "sha256:dcb2d53cca168823b921b3b7487f5099bb200222ac4a67430596e1970a98c4c9",
-  "input_fingerprint": "sha256:47f9461403ba7d39cc6e8ff60d334daf382f878f519e2206005e2eb3fb4643a3",
+  "report_fingerprint": "sha256:0c8175e8de0d383b8ac5f4c94163b61411a20c2ebbb75c97af6940f7c59f6f78",
+  "input_fingerprint": "sha256:89e166844fd62dcd61b61acce365d772f391b581770a44572394d11f0092d539",
   "policy_fingerprint": "sha256:2e02fe1c1919de94a47a99164c962683a934c73ca5bb30bec62384f7b17fe742",
   "manifest_fingerprints": {
     "owner_map": "sha256:c5d6ff65c3420d96e00ff0232f7d382635d4e54169dc799c4c14d8602d9491ef",
@@ -10,8 +10,8 @@
     "proof_lanes": "sha256:15ec3d011b63046bbc896e0de66f4c8ec26bc4b72e286200e2ece5f714024c73",
     "standard_version": "sha256:e89e3b08c1e1ab55b195b4041787100956f3888aaba37595bce4403606dcb996"
   },
-  "dirty_worktree": false,
-  "generated_at": "1780563338",
+  "dirty_worktree": true,
+  "generated_at": "1780818504",
   "schema_url": "schemas/repo-score.schema.json",
   "standard": "jankurai",
   "standard_version": "0.9.0",
@@ -25,23 +25,82 @@
   "conformance_decision": "pass",
   "conformance_blockers": [],
   "repo": ".",
-  "run_id": "1780563338",
-  "started_at": "1780563338",
-  "elapsed_ms": 37363,
+  "run_id": "1780818504",
+  "started_at": "1780818504",
+  "elapsed_ms": 31348,
   "scope": {
-    "mode": "full",
-    "paths": []
+    "mode": "changed-fast",
+    "paths": [
+      "Cargo.lock",
+      "README.md",
+      "agent/jankurai-badge.json",
+      "agent/jankurai-badge.svg",
+      "agent/repo-score.json",
+      "agent/repo-score.md",
+      "apps/browser-adapter/bin/live-capture.mjs",
+      "apps/browser-adapter/src/domContracts.fixtures.test.ts",
+      "apps/browser-adapter/src/domContracts.test.ts",
+      "apps/browser-adapter/src/domContracts.ts",
+      "apps/browser-adapter/src/domContracts/tarDownloads.ts",
+      "apps/browser-adapter/src/domContracts/types.ts",
+      "apps/browser-adapter/test-fixtures/chatgpt/uploaded-archive.html",
+      "apps/chrome-bridge/bin/chrome-bridge.mjs",
+      "crates/jailgun-cli/Cargo.toml",
+      "crates/jailgun-cli/src/cli.rs",
+      "crates/jailgun-cli/src/commands/mod.rs",
+      "crates/jailgun-cli/src/commands/run.rs",
+      "crates/jailgun-cli/src/main.rs",
+      "crates/jailgun-core/src/agent/request.rs",
+      "crates/jailgun-core/src/browser_registry/mod.rs",
+      "crates/jailgun-core/src/event.rs",
+      "crates/jailgun-core/src/lib.rs",
+      "crates/jailgun-orchestrator/src/agent/account_tests.rs",
+      "crates/jailgun-orchestrator/src/agent/accounts.rs",
+      "crates/jailgun-orchestrator/src/agent/execute.rs",
+      "crates/jailgun-orchestrator/src/agent/execute_summary.rs",
+      "crates/jailgun-orchestrator/src/agent/mod.rs",
+      "crates/jailgun-orchestrator/src/agent/prepare.rs",
+      "crates/jailgun-orchestrator/src/agent/prepare_env.rs",
+      "crates/jailgun-orchestrator/src/agent/tests.rs",
+      "crates/jailgun-orchestrator/src/bridge/command.rs",
+      "crates/jailgun-orchestrator/src/bridge/event/payload.rs",
+      "crates/jailgun-orchestrator/src/bridge/event/tests.rs",
+      "crates/jailgun-orchestrator/src/config.rs",
+      "crates/jailgun-orchestrator/src/run/bridge_events.rs",
+      "crates/jailgun-orchestrator/src/run/bridge_flow.rs",
+      "crates/jailgun-orchestrator/src/run/events.rs",
+      "crates/jailgun-orchestrator/src/run/tests.rs",
+      "crates/jailgun-server/src/runs/events.rs",
+      "docs/release.md",
+      "apps/browser-adapter/src/domContracts/artifactConversationLinks.ts",
+      "apps/browser-adapter/test-fixtures/chatgpt/artifact-conversation-failed.html",
+      "apps/browser-adapter/test-fixtures/chatgpt/artifact-conversation-linked.html",
+      "crates/jailgun-cli/src/bin/jailhard.rs",
+      "crates/jailgun-cli/src/jailhard.rs",
+      "crates/jailgun-cli/src/jailhard/archive.rs",
+      "crates/jailgun-cli/src/jailhard/browser.rs",
+      "crates/jailgun-cli/src/jailhard/git.rs",
+      "crates/jailgun-cli/src/jailhard/prompt.rs",
+      "crates/jailgun-cli/src/jailhard/review.rs",
+      "crates/jailgun-cli/src/jailhard/scope.rs",
+      "crates/jailgun-cli/src/jailhard/tests.rs",
+      "crates/jailgun-cli/src/jailhard/util.rs",
+      "crates/jailgun-cli/src/lib.rs",
+      "crates/jailgun-core/src/browser_registry/leases.rs",
+      "crates/jailgun-core/src/browser_registry/leases/lock.rs",
+      "crates/jailgun-core/src/browser_registry/leases/tests.rs"
+    ]
   },
-  "score": 96,
-  "raw_score": 96,
+  "score": 89,
+  "raw_score": 89,
   "decision": {
     "status": "advisory",
     "minimum_score": 85,
     "passed": true,
     "hard_findings": 0,
-    "soft_findings": 0,
+    "soft_findings": 6,
     "ratchet": {
-      "baseline_score": 96,
+      "baseline_score": 89,
       "allowed_drop": 0,
       "passed": true,
       "score_delta": 0,
@@ -54,11 +113,11 @@
     }
   },
   "git": {
-    "head": "bf74010",
+    "head": "bda5ba6",
     "base": null,
-    "changed_files": 0,
-    "mode": "full",
-    "dirty_worktree": false
+    "changed_files": 58,
+    "mode": "changed-fast",
+    "dirty_worktree": true
   },
   "policy": {
     "path": "./agent/audit-policy.toml",
@@ -270,10 +329,6 @@
         "owner map present",
         "test/proof routing map present",
         "local `AGENTS.md` file(s)",
-        "reference-profile cell `contracts` is canonical",
-        "reference-profile cell `contracts` has local AGENTS.md guidance",
-        "reference-profile cell `db` is canonical",
-        "reference-profile cell `db` has local AGENTS.md guidance",
         "reference-profile cell `ops` is canonical",
         "reference-profile cell `ops` has local AGENTS.md guidance",
         "root `README.md` routes to workspace layout",
@@ -318,38 +373,31 @@
     {
       "name": "Security and supply-chain posture",
       "weight": 12,
-      "score": 100,
-      "weighted_points": 12.0,
+      "score": 82,
+      "weighted_points": 9.84,
       "evidence": [
         "lockfile present",
         "secret or dependency scan tooling found",
         "provenance/SBOM tooling found",
         "workflow linting tooling found",
         "security lane present",
-        "canonical security lane wrapper present",
         "agent-readiness audit gate found in CI",
-        "rust bad-behavior advisory signals: 360",
-        "typescript bad-behavior advisory signals: 1",
+        "rust bad-behavior advisory signals: 192",
         "ci bad-behavior advisory signals: 3",
         "gittools bad-behavior advisory signals: 2",
-        "Rust and npm dependency audits are operational commands",
-        "secret scanning command is operational",
-        "complete operational security command posture with zero hard language findings"
+        "Rust and npm dependency audits are operational commands"
       ],
       "notes": []
     },
     {
       "name": "Code shape and semantic surface",
       "weight": 12,
-      "score": 100,
-      "weighted_points": 12.0,
+      "score": 80,
+      "weighted_points": 9.6,
       "evidence": [
-        "largest authored code file: apps/browser-adapter/src/sourceArchive.ts (297 LOC)",
+        "largest authored code file: crates/jailgun-core/src/browser_registry/leases.rs (441 LOC)",
         "most code files stay under 300 LOC",
-        "copy-code advisory classes found: 8 (advisory only, no score impact)",
-        "authored code stays below hard LOC limits with no shape markers",
-        "rust bad-behavior advisory signals: 360",
-        "typescript bad-behavior advisory signals: 1",
+        "rust bad-behavior advisory signals: 192",
         "ci bad-behavior advisory signals: 3",
         "gittools bad-behavior advisory signals: 2",
         "no hard bad-behavior findings across detector-backed language families"
@@ -359,15 +407,11 @@
     {
       "name": "Data truth and workflow safety",
       "weight": 8,
-      "score": 100,
-      "weighted_points": 8.0,
+      "score": 60,
+      "weighted_points": 4.8,
       "evidence": [
-        "database surface present",
         "structured db boundary manifest present",
-        "db boundary routes roots, migrations, and constraints",
-        "migration directory present",
-        "constraint or RLS language found",
-        "db policy docs describe constraints and rollback safety"
+        "db boundary routes roots, migrations, and constraints"
       ],
       "notes": []
     },
@@ -456,47 +500,39 @@
       "accessibility": [
         "agent/repo-score.json",
         "agent/repo-score.md",
-        "ops/ci/ux-qa.sh",
-        "scripts/render-dashboard-ux-qa.mjs"
+        "ops/ci/ux-qa.sh"
       ],
       "api_mocks": [
         "ops/ci/ux-qa.sh",
-        "package-lock.json",
-        "scripts/render-dashboard-ux-qa.mjs"
+        "package-lock.json"
       ],
       "artifact_backed_proof": [
         "agent/ux-qa.toml",
         "apps/chrome-bridge/bin/chrome-bridge.mjs",
-        "apps/dashboard/src/App.drilldown.test.tsx",
-        "apps/dashboard/src/components/FailureTooltip.tsx",
-        "apps/dashboard/src/components/TabProgressBar.tsx"
+        "ops/ci/ux-qa.sh",
+        "package-lock.json"
       ],
       "design_tokens": [
-        "ops/ci/ux-qa.sh",
-        "scripts/render-dashboard-ux-qa.mjs"
+        "ops/ci/ux-qa.sh"
       ],
       "geometry_runtime": [
         "agent/ux-qa.toml",
         "apps/browser-adapter/bin/live-capture.mjs",
-        "apps/browser-adapter/src/domContracts/domHelpers.ts",
-        "apps/browser-adapter/src/domContracts/popups.ts",
-        "apps/browser-adapter/src/domContracts/rateLimit.ts"
+        "apps/chrome-bridge/bin/chrome-bridge.mjs",
+        "ops/ci/ux-qa.sh"
       ],
       "layout_stability": [
-        "ops/ci/ux-qa.sh",
-        "scripts/render-dashboard-ux-qa.mjs"
+        "ops/ci/ux-qa.sh"
       ],
       "playwright_visual": [
         "apps/chrome-bridge/bin/chrome-bridge.mjs",
-        "ops/ci/ux-qa.sh",
-        "scripts/render-dashboard-ux-qa.mjs"
+        "ops/ci/ux-qa.sh"
       ],
       "storybook": [
         "agent/repo-score.json"
       ],
       "visual_review": [
-        "ops/ci/ux-qa.sh",
-        "scripts/render-dashboard-ux-qa.mjs"
+        "ops/ci/ux-qa.sh"
       ]
     },
     "artifact": {
@@ -1099,10 +1135,10 @@
   "copy_code": {
     "schema_version": "1.1.0",
     "generated_by": "jankurai copy-code",
-    "generated_at": "2026-06-04T08:55:01.845709560+00:00",
-    "repo": ".",
+    "generated_at": "",
+    "repo": "",
     "auditor_version": "1.6.10",
-    "status": "review",
+    "status": "skipped",
     "policy": {
       "active_source_only": true,
       "include_tests": false,
@@ -1110,358 +1146,31 @@
       "min_tokens": 100,
       "max_findings": 50,
       "strict": false,
-      "excluded_roots": [
-        "build/",
-        "cache/",
-        "dist/",
-        "docs/",
-        "generated/",
-        "node_modules/",
-        "paper/",
-        "reference/",
-        "target/",
-        "tips/",
-        "vendor/"
-      ],
-      "warning_only_roots": [
-        "config/",
-        "docker/",
-        "fixtures/",
-        "migrations/",
-        "ops/scripts/",
-        "python_runtime/",
-        "stories/",
-        "runtime_payload/",
-        "seed_data/",
-        "tests/"
-      ]
+      "excluded_roots": [],
+      "warning_only_roots": []
     },
     "summary": {
-      "files_scanned": 332,
-      "files_considered": 160,
-      "active_files": 160,
+      "files_scanned": 0,
+      "files_considered": 0,
+      "active_files": 0,
       "exact_file_classes": 0,
       "hard_classes": 0,
-      "warning_classes": 8,
+      "warning_classes": 0,
       "hard_instances": 0,
-      "warning_instances": 18,
-      "duplicate_lines": 19,
-      "duplicate_tokens": 28,
-      "duplicate_bytes": 302,
-      "total_redundant_lines": 23,
-      "total_redundant_tokens": 30,
-      "total_redundant_bytes": 335
+      "warning_instances": 0,
+      "duplicate_lines": 0,
+      "duplicate_tokens": 0,
+      "duplicate_bytes": 0,
+      "total_redundant_lines": 0,
+      "total_redundant_tokens": 0,
+      "total_redundant_bytes": 0
     },
-    "classes": [
-      {
-        "id": "copy-code-unit-rust-154afe7a2a0c026c",
-        "kind": "exact_unit_same_name",
-        "severity": "warning",
-        "confidence": "high",
-        "language": "rust",
-        "unit_name": "new",
-        "duplicate_lines": 3,
-        "duplicate_tokens": 2,
-        "duplicate_bytes": 32,
-        "instance_count": 3,
-        "total_redundant_lines": 6,
-        "total_redundant_tokens": 4,
-        "total_redundant_bytes": 64,
-        "effective_severity": "warning",
-        "hard_fail": false,
-        "fingerprint": "4fafd1f616332725",
-        "reason": "same-name semantic unit copied across multiple files",
-        "recommended_action": "keep the named unit in one owner and call it from the other sites",
-        "instances": [
-          {
-            "path": "crates/jailgun-deploy/src/fake/ci_tracker.rs",
-            "language": "rust",
-            "start_line": 15,
-            "end_line": 18,
-            "unit_name": "new"
-          },
-          {
-            "path": "crates/jailgun-deploy/src/fake/job.rs",
-            "language": "rust",
-            "start_line": 15,
-            "end_line": 18,
-            "unit_name": "new"
-          },
-          {
-            "path": "crates/jailgun-deploy/src/fake/upload.rs",
-            "language": "rust",
-            "start_line": 14,
-            "end_line": 17,
-            "unit_name": "new"
-          }
-        ]
-      },
-      {
-        "id": "copy-code-unit-rust-efb906b284f83935",
-        "kind": "exact_unit_same_name",
-        "severity": "warning",
-        "confidence": "high",
-        "language": "rust",
-        "unit_name": "timestamp_now",
-        "duplicate_lines": 4,
-        "duplicate_tokens": 12,
-        "duplicate_bytes": 121,
-        "instance_count": 2,
-        "total_redundant_lines": 4,
-        "total_redundant_tokens": 12,
-        "total_redundant_bytes": 121,
-        "effective_severity": "warning",
-        "hard_fail": false,
-        "fingerprint": "75d24bad70537ab9",
-        "reason": "same-name semantic unit copied across multiple files",
-        "recommended_action": "keep the named unit in one owner and call it from the other sites",
-        "instances": [
-          {
-            "path": "crates/jailgun-cli/src/auth/mod.rs",
-            "language": "rust",
-            "start_line": 138,
-            "end_line": 142,
-            "unit_name": "timestamp_now"
-          },
-          {
-            "path": "crates/jailgun-orchestrator/src/run/bridge_flow.rs",
-            "language": "rust",
-            "start_line": 176,
-            "end_line": 180,
-            "unit_name": "timestamp_now"
-          }
-        ]
-      },
-      {
-        "id": "copy-code-unit-rust-12c9eb48343252bd",
-        "kind": "exact_unit_same_name",
-        "severity": "warning",
-        "confidence": "high",
-        "language": "rust",
-        "unit_name": "new",
-        "duplicate_lines": 3,
-        "duplicate_tokens": 4,
-        "duplicate_bytes": 42,
-        "instance_count": 2,
-        "total_redundant_lines": 3,
-        "total_redundant_tokens": 4,
-        "total_redundant_bytes": 42,
-        "effective_severity": "warning",
-        "hard_fail": false,
-        "fingerprint": "c7cbbb1e02314b4f",
-        "reason": "same-name semantic unit copied across multiple files",
-        "recommended_action": "keep the named unit in one owner and call it from the other sites",
-        "instances": [
-          {
-            "path": "crates/jailgun-deploy/src/shell/job.rs",
-            "language": "rust",
-            "start_line": 20,
-            "end_line": 23,
-            "unit_name": "new"
-          },
-          {
-            "path": "crates/jailgun-deploy/src/shell/upload.rs",
-            "language": "rust",
-            "start_line": 15,
-            "end_line": 18,
-            "unit_name": "new"
-          }
-        ]
-      },
-      {
-        "id": "copy-code-unit-rust-45d3346de33bc918",
-        "kind": "exact_unit_same_name",
-        "severity": "warning",
-        "confidence": "high",
-        "language": "rust",
-        "unit_name": "publish",
-        "duplicate_lines": 2,
-        "duplicate_tokens": 5,
-        "duplicate_bytes": 33,
-        "instance_count": 2,
-        "total_redundant_lines": 2,
-        "total_redundant_tokens": 5,
-        "total_redundant_bytes": 33,
-        "effective_severity": "warning",
-        "hard_fail": false,
-        "fingerprint": "f049280259622394",
-        "reason": "same-name semantic unit copied across multiple files",
-        "recommended_action": "keep the named unit in one owner and call it from the other sites",
-        "instances": [
-          {
-            "path": "crates/jailgun-deploy/src/deploy/events.rs",
-            "language": "rust",
-            "start_line": 10,
-            "end_line": 12,
-            "unit_name": "publish"
-          },
-          {
-            "path": "crates/jailgun-orchestrator/src/run/publish.rs",
-            "language": "rust",
-            "start_line": 4,
-            "end_line": 6,
-            "unit_name": "publish"
-          }
-        ]
-      },
-      {
-        "id": "copy-code-unit-rust-20ddeed31635ae6b",
-        "kind": "exact_unit_same_name",
-        "severity": "warning",
-        "confidence": "high",
-        "language": "rust",
-        "unit_name": "shell_quote",
-        "duplicate_lines": 2,
-        "duplicate_tokens": 3,
-        "duplicate_bytes": 51,
-        "instance_count": 2,
-        "total_redundant_lines": 2,
-        "total_redundant_tokens": 3,
-        "total_redundant_bytes": 51,
-        "effective_severity": "warning",
-        "hard_fail": false,
-        "fingerprint": "1d0c478937cec9d7",
-        "reason": "same-name semantic unit copied across multiple files",
-        "recommended_action": "keep the named unit in one owner and call it from the other sites",
-        "instances": [
-          {
-            "path": "crates/jailgun-deploy/src/shell.rs",
-            "language": "rust",
-            "start_line": 17,
-            "end_line": 19,
-            "unit_name": "shell_quote"
-          },
-          {
-            "path": "crates/jailgun-deploy/src/util.rs",
-            "language": "rust",
-            "start_line": 6,
-            "end_line": 8,
-            "unit_name": "shell_quote"
-          }
-        ]
-      },
-      {
-        "id": "copy-code-body-rust-dc1683e0676e5adb",
-        "kind": "exact_unit_different_name",
-        "severity": "warning",
-        "confidence": "medium",
-        "language": "rust",
-        "duplicate_lines": 2,
-        "duplicate_tokens": 1,
-        "duplicate_bytes": 12,
-        "instance_count": 2,
-        "total_redundant_lines": 2,
-        "total_redundant_tokens": 1,
-        "total_redundant_bytes": 12,
-        "effective_severity": "warning",
-        "hard_fail": false,
-        "fingerprint": "1c59df36520a6df4",
-        "reason": "same body appears under different names across files",
-        "recommended_action": "choose one owner for the shared body or intentionally differentiate the behavior",
-        "instances": [
-          {
-            "path": "crates/jailgun-core/src/browser_registry/storage.rs",
-            "language": "rust",
-            "start_line": 54,
-            "end_line": 56,
-            "unit_name": "set_private_dir_permissions"
-          },
-          {
-            "path": "crates/jailgun-core/src/browser_registry/storage.rs",
-            "language": "rust",
-            "start_line": 70,
-            "end_line": 72,
-            "unit_name": "set_private_file_permissions"
-          }
-        ]
-      },
-      {
-        "id": "copy-code-body-rust-292e97ca3c1379b2",
-        "kind": "exact_unit_different_name",
-        "severity": "warning",
-        "confidence": "medium",
-        "language": "rust",
-        "duplicate_lines": 2,
-        "duplicate_tokens": 1,
-        "duplicate_bytes": 10,
-        "instance_count": 2,
-        "total_redundant_lines": 2,
-        "total_redundant_tokens": 1,
-        "total_redundant_bytes": 10,
-        "effective_severity": "warning",
-        "hard_fail": false,
-        "fingerprint": "56ba765ae604c0fc",
-        "reason": "same body appears under different names across files",
-        "recommended_action": "choose one owner for the shared body or intentionally differentiate the behavior",
-        "instances": [
-          {
-            "path": "crates/jailgun-core/src/agent/request.rs",
-            "language": "rust",
-            "start_line": 226,
-            "end_line": 228,
-            "unit_name": "default_true"
-          },
-          {
-            "path": "crates/jailgun-orchestrator/src/bridge/command.rs",
-            "language": "rust",
-            "start_line": 43,
-            "end_line": 45,
-            "unit_name": "default_delete_after_upload"
-          }
-        ]
-      },
-      {
-        "id": "copy-code-body-rust-d10b36aa74a59bcf",
-        "kind": "exact_unit_different_name",
-        "severity": "warning",
-        "confidence": "medium",
-        "language": "rust",
-        "duplicate_lines": 1,
-        "duplicate_tokens": 0,
-        "duplicate_bytes": 1,
-        "instance_count": 3,
-        "total_redundant_lines": 2,
-        "total_redundant_tokens": 0,
-        "total_redundant_bytes": 2,
-        "effective_severity": "warning",
-        "hard_fail": false,
-        "fingerprint": "00372b9f2e3e61f6",
-        "reason": "same body appears under different names across files",
-        "recommended_action": "choose one owner for the shared body or intentionally differentiate the behavior",
-        "instances": [
-          {
-            "path": "crates/jailgun-core/src/agent_error.rs",
-            "language": "rust",
-            "start_line": 35,
-            "end_line": 36,
-            "unit_name": "agent_error"
-          },
-          {
-            "path": "crates/jailgun-deploy/src/deploy/model.rs",
-            "language": "rust",
-            "start_line": 151,
-            "end_line": 152,
-            "unit_name": "write_receipt"
-          },
-          {
-            "path": "crates/jailgun-server/src/bus.rs",
-            "language": "rust",
-            "start_line": 27,
-            "end_line": 28,
-            "unit_name": "publish"
-          }
-        ]
-      }
-    ],
-    "notes": [
-      "hard classes are limited to exact active-source file matches and substantial exact same-name units",
-      "warning classes include same-body different-name units and token/block duplication",
-      "tests, fixtures, stories, config, Docker, and migrations are omitted unless --include-tests is set"
-    ]
+    "classes": [],
+    "notes": []
   },
   "profile_structure": {
-    "applicable_count": 3,
-    "canonical_count": 3,
+    "applicable_count": 1,
+    "canonical_count": 1,
     "noncanonical_count": 0,
     "guidance_missing_count": 0,
     "cells": [
@@ -1564,40 +1273,36 @@
       },
       {
         "id": "contracts",
-        "applicable": true,
-        "status": "canonical",
+        "applicable": false,
+        "status": "not_applicable",
         "canonical_path": "contracts/",
-        "detected_paths": [
-          "contracts"
-        ],
+        "detected_paths": [],
         "aliases": [
           "openapi/",
           "protobuf/",
           "json-schema/",
           "generated/"
         ],
-        "guidance_status": "present",
+        "guidance_status": "not_required",
         "owner": "contracts",
         "proof_lane": "generation / drift checks",
-        "agent_fix": "keep `contracts/AGENTS.md` aligned with owns / forbidden / proof lane guidance"
+        "agent_fix": "no action"
       },
       {
         "id": "db",
-        "applicable": true,
-        "status": "canonical",
+        "applicable": false,
+        "status": "not_applicable",
         "canonical_path": "db/",
-        "detected_paths": [
-          "db"
-        ],
+        "detected_paths": [],
         "aliases": [
           "migrations/",
           "constraints/",
           "sql/"
         ],
-        "guidance_status": "present",
+        "guidance_status": "not_required",
         "owner": "db",
         "proof_lane": "migration / constraint tests",
-        "agent_fix": "keep `db/AGENTS.md` aligned with owns / forbidden / proof lane guidance"
+        "agent_fix": "no action"
       },
       {
         "id": "python-ai",
@@ -1642,27 +1347,9 @@
       }
     ],
     "evidence": {
-      "applicable_count": 3,
-      "canonical_count": 3,
+      "applicable_count": 1,
+      "canonical_count": 1,
       "detected_cells": [
-        {
-          "canonical_path": "contracts/",
-          "detected_paths": [
-            "contracts"
-          ],
-          "guidance_status": "present",
-          "id": "contracts",
-          "status": "canonical"
-        },
-        {
-          "canonical_path": "db/",
-          "detected_paths": [
-            "db"
-          ],
-          "guidance_status": "present",
-          "id": "db",
-          "status": "canonical"
-        },
         {
           "canonical_path": "ops/",
           "detected_paths": [
@@ -1679,6 +1366,201 @@
       "noncanonical_count": 0
     }
   },
-  "findings": [],
-  "agent_fix_queue": []
+  "findings": [
+    {
+      "severity": "medium",
+      "category": "shape",
+      "path": ".",
+      "problem": "`Code shape and semantic surface` scored 80 below the standard floor of 85",
+      "agent_fix": "split large or ambiguous authored code into smaller semantic modules with focused tests",
+      "evidence": [
+        "largest authored code file: crates/jailgun-core/src/browser_registry/leases.rs (441 LOC)",
+        "most code files stay under 300 LOC",
+        "rust bad-behavior advisory signals: 192",
+        "ci bad-behavior advisory signals: 3"
+      ],
+      "check_id": "HLT-001-DEAD-MARKER:shape",
+      "hardness": "soft",
+      "confidence": 0.76,
+      "evidence_kind": "repository-scan",
+      "rerun_command": "just fast",
+      "fingerprint": "sha256:12ebe26f3c2502c263f2f90d34051575bc5a2237db26fdaca75728d73e859f0c",
+      "rule_id": "HLT-001-DEAD-MARKER",
+      "tlr": "Entropy",
+      "lane": "fast",
+      "docs_url": "docs/audit-rubric.md#future-hostile-language-rule",
+      "owner": "tools"
+    },
+    {
+      "severity": "medium",
+      "category": "security",
+      "path": ".github/workflows/jankurai.yml",
+      "problem": "`Security and supply-chain posture` scored 82 below the standard floor of 85",
+      "agent_fix": "wire secret, dependency, provenance, and workflow scans into an operational CI lane",
+      "evidence": [
+        "lockfile present",
+        "secret or dependency scan tooling found",
+        "provenance/SBOM tooling found",
+        "workflow linting tooling found"
+      ],
+      "check_id": "HLT-016-SUPPLY-CHAIN-DRIFT:security",
+      "hardness": "soft",
+      "confidence": 0.76,
+      "evidence_kind": "workflow-command",
+      "rerun_command": "just security",
+      "fingerprint": "sha256:ec1755a71434d759be9bf13da7030bebfb4a51e33a408a8133789413d48f7938",
+      "rule_id": "HLT-016-SUPPLY-CHAIN-DRIFT",
+      "tlr": "Security, secrets, agency",
+      "lane": "security",
+      "docs_url": "docs/audit-rubric.md#top-level-risk-mapping",
+      "owner": "ci-release"
+    },
+    {
+      "severity": "medium",
+      "category": "governance",
+      "path": "Cargo.lock",
+      "problem": "generated zone `Cargo.lock` has an uncommitted hand-edit at `Cargo.lock` instead of a regeneration",
+      "agent_fix": "revert the in-place edit to `Cargo.lock` and regenerate it from the declared source/command in `agent/generated-zones.toml`; do not patch generated output by hand",
+      "evidence": [
+        "`Cargo.lock` was hand-edited inside declared generated zone `Cargo.lock`"
+      ],
+      "check_id": "HLT-045-GENERATED-ZONE-GOVERNANCE:governance",
+      "hardness": "soft",
+      "confidence": 0.76,
+      "evidence_kind": "contract-manifest",
+      "rerun_command": "just fast",
+      "fingerprint": "sha256:6bdf6f31ab054c7a86dde856885fef44c0ca739360d260e05a5196da7624ee57",
+      "rule_id": "HLT-045-GENERATED-ZONE-GOVERNANCE",
+      "tlr": "Contracts/data",
+      "lane": "contract",
+      "docs_url": "agent/JANKURAI_STANDARD.md#generated-zones",
+      "owner": "ci-release"
+    },
+    {
+      "severity": "medium",
+      "category": "governance",
+      "path": "agent/repo-score.json",
+      "problem": "generated zone `agent/repo-score.json` has an uncommitted hand-edit at `agent/repo-score.json` instead of a regeneration",
+      "agent_fix": "revert the in-place edit to `agent/repo-score.json` and regenerate it from the declared source/command in `agent/generated-zones.toml`; do not patch generated output by hand",
+      "evidence": [
+        "`agent/repo-score.json` was hand-edited inside declared generated zone `agent/repo-score.json`"
+      ],
+      "check_id": "HLT-045-GENERATED-ZONE-GOVERNANCE:governance",
+      "hardness": "soft",
+      "confidence": 0.76,
+      "evidence_kind": "contract-manifest",
+      "rerun_command": "just fast",
+      "fingerprint": "sha256:b39b16db675f2ac6f07bb27c65d75980125641479fb417a52fb0cc618c687610",
+      "rule_id": "HLT-045-GENERATED-ZONE-GOVERNANCE",
+      "tlr": "Contracts/data",
+      "lane": "contract",
+      "docs_url": "agent/JANKURAI_STANDARD.md#generated-zones",
+      "owner": "repo-governance"
+    },
+    {
+      "severity": "medium",
+      "category": "governance",
+      "path": "agent/repo-score.md",
+      "problem": "generated zone `agent/repo-score.md` has an uncommitted hand-edit at `agent/repo-score.md` instead of a regeneration",
+      "agent_fix": "revert the in-place edit to `agent/repo-score.md` and regenerate it from the declared source/command in `agent/generated-zones.toml`; do not patch generated output by hand",
+      "evidence": [
+        "`agent/repo-score.md` was hand-edited inside declared generated zone `agent/repo-score.md`"
+      ],
+      "check_id": "HLT-045-GENERATED-ZONE-GOVERNANCE:governance",
+      "hardness": "soft",
+      "confidence": 0.76,
+      "evidence_kind": "contract-manifest",
+      "rerun_command": "just fast",
+      "fingerprint": "sha256:0eb61c1eca345af83abb3815f06460a844f3bcbe63a78fcc212622cf0bc24740",
+      "rule_id": "HLT-045-GENERATED-ZONE-GOVERNANCE",
+      "tlr": "Contracts/data",
+      "lane": "contract",
+      "docs_url": "agent/JANKURAI_STANDARD.md#generated-zones",
+      "owner": "repo-governance"
+    },
+    {
+      "severity": "medium",
+      "category": "data",
+      "path": "db/",
+      "problem": "`Data truth and workflow safety` scored 60 below the standard floor of 85",
+      "agent_fix": "move durable truth into migrations, constraints, adapters, and application-owned transactions",
+      "evidence": [
+        "structured db boundary manifest present",
+        "db boundary routes roots, migrations, and constraints"
+      ],
+      "check_id": "HLT-006-DIRECT-DB-WRONG-LAYER:data",
+      "hardness": "soft",
+      "confidence": 0.76,
+      "evidence_kind": "sql",
+      "rerun_command": "just fast",
+      "fingerprint": "sha256:bc3c154999ceeadf008cf312a5b1205941d2a5bc9868961a1358cefa07b821ae",
+      "rule_id": "HLT-006-DIRECT-DB-WRONG-LAYER",
+      "tlr": "Contracts/data",
+      "lane": "db",
+      "docs_url": "docs/audit-rubric.md#required-shape",
+      "owner": "repo-governance"
+    }
+  ],
+  "agent_fix_queue": [
+    {
+      "path": "Cargo.lock",
+      "priority": "medium",
+      "rule_id": "HLT-045-GENERATED-ZONE-GOVERNANCE",
+      "tlr": "Contracts/data",
+      "lane": "contract",
+      "owner": "ci-release",
+      "task": "revert the in-place edit to `Cargo.lock` and regenerate it from the declared source/command in `agent/generated-zones.toml`; do not patch generated output by hand",
+      "why": "generated zone `Cargo.lock` has an uncommitted hand-edit at `Cargo.lock` instead of a regeneration"
+    },
+    {
+      "path": "agent/repo-score.json",
+      "priority": "medium",
+      "rule_id": "HLT-045-GENERATED-ZONE-GOVERNANCE",
+      "tlr": "Contracts/data",
+      "lane": "contract",
+      "owner": "repo-governance",
+      "task": "revert the in-place edit to `agent/repo-score.json` and regenerate it from the declared source/command in `agent/generated-zones.toml`; do not patch generated output by hand",
+      "why": "generated zone `agent/repo-score.json` has an uncommitted hand-edit at `agent/repo-score.json` instead of a regeneration"
+    },
+    {
+      "path": "agent/repo-score.md",
+      "priority": "medium",
+      "rule_id": "HLT-045-GENERATED-ZONE-GOVERNANCE",
+      "tlr": "Contracts/data",
+      "lane": "contract",
+      "owner": "repo-governance",
+      "task": "revert the in-place edit to `agent/repo-score.md` and regenerate it from the declared source/command in `agent/generated-zones.toml`; do not patch generated output by hand",
+      "why": "generated zone `agent/repo-score.md` has an uncommitted hand-edit at `agent/repo-score.md` instead of a regeneration"
+    },
+    {
+      "path": "db/",
+      "priority": "medium",
+      "rule_id": "HLT-006-DIRECT-DB-WRONG-LAYER",
+      "tlr": "Contracts/data",
+      "lane": "db",
+      "owner": "repo-governance",
+      "task": "move durable truth into migrations, constraints, adapters, and application-owned transactions",
+      "why": "`Data truth and workflow safety` scored 60 below the standard floor of 85"
+    },
+    {
+      "path": ".",
+      "priority": "medium",
+      "rule_id": "HLT-001-DEAD-MARKER",
+      "tlr": "Entropy",
+      "lane": "fast",
+      "owner": "tools",
+      "task": "split large or ambiguous authored code into smaller semantic modules with focused tests",
+      "why": "`Code shape and semantic surface` scored 80 below the standard floor of 85"
+    },
+    {
+      "path": ".github/workflows/jankurai.yml",
+      "priority": "medium",
+      "rule_id": "HLT-016-SUPPLY-CHAIN-DRIFT",
+      "tlr": "Security, secrets, agency",
+      "lane": "security",
+      "owner": "ci-release",
+      "task": "wire secret, dependency, provenance, and workflow scans into an operational CI lane",
+      "why": "`Security and supply-chain posture` scored 82 below the standard floor of 85"
+    }
+  ]
 }

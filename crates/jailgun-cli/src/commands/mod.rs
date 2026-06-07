@@ -206,6 +206,7 @@ pub async fn dispatch(command: Command) -> Result<()> {
             repo,
             revision,
         } => notify_commit(token_file, chat_id_cache, chat_id, repo, revision).await,
+        Command::Jailhard(args) => crate::jailhard::run(args).await,
         Command::Serve {
             config,
             addr,

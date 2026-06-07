@@ -11,11 +11,6 @@ pub(super) fn resolve_requested_accounts(
     config: &JailgunConfig,
     requested_tabs: u16,
 ) -> Result<Vec<BrowserAccount>> {
-    if request.browser.allow_queueing {
-        anyhow::bail!(
-            "browser.allow_queueing is not supported until the server queue is implemented"
-        );
-    }
     if request.prompt_ref.starts_with("jmcp://")
         && request.browser.account_ids.is_empty()
         && (request.browser.profile_dir.is_some() || !request.browser.profile_pool.is_empty())
@@ -31,14 +26,7 @@ pub(super) fn resolve_requested_accounts(
     if !should_use_registry {
         return Ok(Vec::new());
     }
-    let registry_path = request
-        .browser
-        .bridge_env
-        .get(&config.browser.profile_registry_env)
-        .map(PathBuf::from)
-        .unwrap_or_else(|| {
-            BrowserProfileRegistry::default_path_from_env(&config.browser.profile_registry_env)
-        });
+    let registry_path = browser_registry_path_for_request(request, config);
     let registry = BrowserProfileRegistry::load_or_default(&registry_path).with_context(|| {
         format!(
             "loading browser profile registry {}",
@@ -78,7 +66,24 @@ pub(super) fn resolve_requested_accounts(
     Ok(accounts)
 }
 
-fn ensure_account_capacity(accounts: &[BrowserAccount], requested_tabs: u16) -> Result<()> {
+pub(super) fn browser_registry_path_for_request(
+    request: &JailgunAgentRunRequest,
+    config: &JailgunConfig,
+) -> PathBuf {
+    request
+        .browser
+        .bridge_env
+        .get(&config.browser.profile_registry_env)
+        .map(PathBuf::from)
+        .unwrap_or_else(|| {
+            BrowserProfileRegistry::default_path_from_env(&config.browser.profile_registry_env)
+        })
+}
+
+pub(super) fn ensure_account_capacity(
+    accounts: &[BrowserAccount],
+    requested_tabs: u16,
+) -> Result<()> {
     let capacity = accounts
         .iter()
         .map(|account| account.max_tabs.max(1))

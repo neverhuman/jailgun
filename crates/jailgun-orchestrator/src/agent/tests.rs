@@ -5,7 +5,8 @@ use jailgun_core::{
 };
 
 use super::execute_summary::{
-    ci_status_from_events, deploy_status_from_events, receipt_paths_from_events,
+    artifacts_from_events, ci_status_from_events, deploy_status_from_events,
+    receipt_paths_from_events,
 };
 use super::review::{cap_utf8, is_test_path, parse_name_status};
 
@@ -121,4 +122,30 @@ fn summary_helpers_extract_deploy_ci_and_receipts() {
         receipt_paths_from_events(&events),
         vec![PathBuf::from("target/receipts/deploy.json")]
     );
+}
+
+#[test]
+fn summary_accepts_direct_tex_download_without_tar_validation() {
+    let root = tempfile::tempdir().expect("tempdir");
+    let tex_path = root.path().join("chapter-033-epoch-02.tex");
+    std::fs::write(&tex_path, "\\chapter{Test}\n\nBody.\n").expect("write tex");
+    let event = JailgunEvent::new("run-1", EventKind::DownloadReceipt, "download complete")
+        .with_tab(1)
+        .with_field("local_path", tex_path.display().to_string())
+        .with_field(
+            "receipt_path",
+            root.path().join("receipt.json").display().to_string(),
+        )
+        .with_field("sha256", "a".repeat(64))
+        .with_field("size_bytes", "24")
+        .with_field("file_kind", "downloaded-tex");
+
+    let (artifacts, failures) =
+        artifacts_from_events(&[event], &jailgun_core::JailgunConfig::default(), None);
+
+    assert!(failures.is_empty(), "{failures:?}");
+    assert_eq!(artifacts.len(), 1);
+    assert_eq!(artifacts[0].kind, "downloaded-tex");
+    assert!(artifacts[0].tar_validation.is_none());
+    assert!(artifacts[0].changed_files.is_empty());
 }

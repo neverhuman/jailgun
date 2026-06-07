@@ -2,11 +2,12 @@
 import { createHash } from 'node:crypto';
 import http from 'node:http';
 import net from 'node:net';
-import { createWriteStream, existsSync } from 'node:fs';
-import { mkdir, mkdtemp, readFile, readdir, rm, stat, writeFile } from 'node:fs/promises';
+import { createReadStream, createWriteStream, existsSync, readFileSync } from 'node:fs';
+import { copyFile, mkdir, mkdtemp, readFile, readdir, rm, stat, writeFile } from 'node:fs/promises';
 import { createRequire } from 'node:module';
 import { homedir, tmpdir } from 'node:os';
 import { basename, delimiter, dirname, extname, isAbsolute, join, resolve } from 'node:path';
+import { pipeline } from 'node:stream/promises';
 import { fileURLToPath } from 'node:url';
 import { spawn, spawnSync } from 'node:child_process';
 import readline from 'node:readline';
@@ -25,42 +26,52 @@ const DEFAULT_STATE_DIR = join(homedir(), '.google-profile-automation-state');
 const DEFAULT_SOURCE_ARCHIVE_MODE = 'ai-source';
 const DEFAULT_MAX_MINUTES = 30;
 const DEFAULT_BROWSER_TIMEOUT_MS = 45000;
+const DEFAULT_CDP_CONNECT_TIMEOUT_MS = 30000;
 const DEFAULT_GLOBAL_MODAL_SWEEP_MS = 2500;
-const DEFAULT_MESSAGE_STREAM_RETRY_LIMIT = 6;
+const DEFAULT_MESSAGE_STREAM_RETRY_LIMIT = 0;
 const DEFAULT_MESSAGE_STREAM_RETRY_DELAY_MS = 10000;
+const DEFAULT_ARTIFACT_STALL_REPAIR_SECONDS = 0;
+const DEFAULT_ARTIFACT_REPAIR_ATTEMPT_LIMIT = 0;
+const DEFAULT_ARTIFACT_CONVERSATION_RECOVERY_LIMIT = 3;
 
 const args = parseArgs(process.argv.slice(2));
 const shouldSelfTest = args.selfTest === 'true';
+const globalConfig = loadGlobalJailgunConfig();
 
 const cdpUrlSetting = firstSetting([
   ['--cdp-url', args.cdpUrl],
   ['JAILGUN_CDP_URL', process.env.JAILGUN_CDP_URL],
+  ['~/.jailgun/config.json:cdp_url', globalConfig.cdpUrl],
 ]);
 const cdpHostSetting = firstSetting([
   ['--cdp-host', args.cdpHost],
   ['--host', args.host],
   ['JAILGUN_CDP_HOST', process.env.JAILGUN_CDP_HOST],
   ['GOOGLE_AUTOMATION_REMOTE_DEBUG_HOST', process.env.GOOGLE_AUTOMATION_REMOTE_DEBUG_HOST],
+  ['~/.jailgun/config.json:cdp_host', globalConfig.cdpHost],
 ]);
 const cdpPortSetting = firstSetting([
   ['--cdp-port', args.cdpPort],
   ['--port', args.port],
   ['JAILGUN_CDP_PORT', process.env.JAILGUN_CDP_PORT],
   ['GOOGLE_AUTOMATION_REMOTE_DEBUG_PORT', process.env.GOOGLE_AUTOMATION_REMOTE_DEBUG_PORT],
+  ['~/.jailgun/config.json:cdp_port', globalConfig.cdpPort],
 ]);
 const cdpUrlOverride = cdpUrlSetting?.value ?? null;
 const cdpHost = cdpHostSetting?.value ?? DEFAULT_CDP_HOST;
 const cdpPort = numberFrom(cdpPortSetting?.value, DEFAULT_CDP_PORT);
-const profileDir = resolvePath(args.profileDir ?? process.env.JAILGUN_CHROME_PROFILE_DIR ?? process.env.GOOGLE_AUTOMATION_PROFILE_DIR ?? DEFAULT_PROFILE_DIR);
-const stateDir = resolvePath(args.stateDir ?? process.env.JAILGUN_CHROME_STATE_DIR ?? process.env.GOOGLE_AUTOMATION_STATE_DIR ?? DEFAULT_STATE_DIR);
+const profileDir = resolvePath(args.profileDir ?? process.env.JAILGUN_CHROME_PROFILE_DIR ?? process.env.GOOGLE_AUTOMATION_PROFILE_DIR ?? globalConfig.profileDir ?? DEFAULT_PROFILE_DIR);
+const stateDir = resolvePath(args.stateDir ?? process.env.JAILGUN_CHROME_STATE_DIR ?? process.env.GOOGLE_AUTOMATION_STATE_DIR ?? globalConfig.stateDir ?? DEFAULT_STATE_DIR);
 const profilePoolSetting = firstSetting([
   ['--profile-pool', args.profilePool],
   ['JAILGUN_CHROME_PROFILE_POOL', process.env.JAILGUN_CHROME_PROFILE_POOL],
   ['JAILGUN_CHROME_PROFILE_DIRS', process.env.JAILGUN_CHROME_PROFILE_DIRS],
+  ['~/.jailgun/config.json:profile_pool', globalConfig.profilePool],
 ]);
 const profilePortsSetting = firstSetting([
   ['--profile-ports', args.profilePorts],
   ['JAILGUN_CHROME_PROFILE_PORTS', process.env.JAILGUN_CHROME_PROFILE_PORTS],
+  ['~/.jailgun/config.json:profile_ports', globalConfig.profilePorts],
 ]);
 
 const settings = {
@@ -79,7 +90,7 @@ const settings = {
     cdpEndpointSource: cdpUrlSetting?.source ?? cdpPortSetting?.source ?? cdpHostSetting?.source ?? 'default',
   }),
   profilePoolExplicit: Boolean(profilePoolSetting),
-  chromeExecutable: args.chromeExecutable ?? args.browserExecutable ?? process.env.JAILGUN_CHROME_EXECUTABLE ?? process.env.GOOGLE_CHROME_EXECUTABLE ?? '',
+  chromeExecutable: args.chromeExecutable ?? args.browserExecutable ?? process.env.JAILGUN_CHROME_EXECUTABLE ?? process.env.GOOGLE_CHROME_EXECUTABLE ?? globalConfig.chromeExecutable ?? '',
   chromeHeadless: booleanFrom(
     args.headed === 'true'
       ? false
@@ -91,15 +102,25 @@ const settings = {
   artifactsDir: resolvePath(args.artifactsDir ?? process.env.JAILGUN_ARTIFACTS_DIR ?? 'artifacts'),
   sourceMode: args.sourceMode ?? process.env.JAILGUN_SOURCE_ARCHIVE_MODE ?? DEFAULT_SOURCE_ARCHIVE_MODE,
   tarTargetName: args.tarTargetName ?? process.env.JAILGUN_TAR_TARGET_NAME ?? '',
+  downloadTargetName: args.downloadTargetName ?? process.env.JAILGUN_DOWNLOAD_TARGET_NAME ?? '',
   submitDelaySeconds: numberFrom(args.submitDelaySeconds ?? process.env.JAILGUN_SUBMIT_DELAY_SECONDS, 0),
   submitJitterSeconds: numberFrom(args.submitJitterSeconds ?? process.env.JAILGUN_SUBMIT_JITTER_SECONDS, 0),
   tarWaitMinutes: numberFrom(args.tarWaitMinutes ?? process.env.JAILGUN_TAR_WAIT_MINUTES, DEFAULT_MAX_MINUTES),
   globalModalSweepMs: numberFrom(args.globalModalSweepMs ?? process.env.JAILGUN_GLOBAL_MODAL_SWEEP_MS, DEFAULT_GLOBAL_MODAL_SWEEP_MS),
-  messageStreamRetryLimit: numberFrom(args.messageStreamRetryLimit ?? process.env.JAILGUN_MESSAGE_STREAM_RETRY_LIMIT, DEFAULT_MESSAGE_STREAM_RETRY_LIMIT),
+  messageStreamRetryLimit: DEFAULT_MESSAGE_STREAM_RETRY_LIMIT,
   messageStreamRetryDelayMs: numberFrom(
     args.messageStreamRetryDelayMs ?? process.env.JAILGUN_MESSAGE_STREAM_RETRY_DELAY_MS,
     DEFAULT_MESSAGE_STREAM_RETRY_DELAY_MS,
   ),
+  artifactStallRepairMs: Math.max(0, numberFrom(
+    args.artifactStallRepairSeconds ?? process.env.JAILGUN_ARTIFACT_STALL_REPAIR_SECONDS,
+    DEFAULT_ARTIFACT_STALL_REPAIR_SECONDS,
+  ) * 1000),
+  artifactRepairAttemptLimit: DEFAULT_ARTIFACT_REPAIR_ATTEMPT_LIMIT,
+  artifactConversationRecoveryLimit: Math.max(0, Math.floor(numberFrom(
+    args.artifactConversationRecoveryLimit ?? process.env.JAILGUN_ARTIFACT_CONVERSATION_RECOVERY_LIMIT,
+    DEFAULT_ARTIFACT_CONVERSATION_RECOVERY_LIMIT,
+  ))),
   recoverKnownRunTabs: booleanFrom(args.recoverKnownRunTabs ?? process.env.JAILGUN_RECOVER_KNOWN_RUN_TABS, true),
   knownRunArtifactsDir: resolvePath(args.knownRunArtifactsDir ?? process.env.JAILGUN_KNOWN_RUN_ARTIFACTS_DIR ?? join('artifacts', 'live-runs')),
 };
@@ -293,7 +314,6 @@ class ChromeBridge {
           'rate-limit-detection',
           'global-modal-sweeper',
           'known-run-tab-recovery',
-          'message-stream-retry',
         ],
       });
       await this.recoverKnownRunChatGptTabs(envelope, 'startup-known-run-tab-recovery');
@@ -328,15 +348,51 @@ class ChromeBridge {
         ...fields,
       }, level)
       : null;
-    const chrome = await ensureManagedChromeRunning({
+    const browserOptions = {
       ...this.options,
       cdpUrl: slot.cdpUrl,
       cdpEndpointSource: slot.cdpEndpointSource,
       profileDir: slot.profileDir,
       profileName: slot.profileName,
       stateDir: slot.stateDir,
-    }, logStartup);
-    const browser = await chromium.connectOverCDP(chrome.cdpUrl, { timeout: this.options.browserTimeoutMs });
+    };
+    let chrome = null;
+    let browser = null;
+    const connectTimeoutMs = Math.min(this.options.browserTimeoutMs, DEFAULT_CDP_CONNECT_TIMEOUT_MS);
+    for (let attempt = 1; attempt <= 2; attempt += 1) {
+      chrome = await ensureManagedChromeRunning(browserOptions, logStartup);
+      logStartup?.('browser-connect', 'starting', 'connecting Playwright over CDP', {
+        cdp_url: chrome.cdpUrl,
+        browser_timeout_ms: String(connectTimeoutMs),
+        attempt: String(attempt),
+      });
+      try {
+        browser = await chromium.connectOverCDP(chrome.cdpUrl, { timeout: connectTimeoutMs });
+        logStartup?.('browser-connect', 'ok', 'connected Playwright over CDP', {
+          cdp_url: chrome.cdpUrl,
+          browser_timeout_ms: String(connectTimeoutMs),
+          attempt: String(attempt),
+        });
+        break;
+      } catch (error) {
+        if (attempt >= 2 || !isRetryableCdpConnectError(error)) {
+          throw error;
+        }
+        const restart = await restartManagedBrowserForConnectFailure(browserOptions, chrome, error, logStartup);
+        logStartup?.('browser-connect', restart.status === 'failed' ? 'restart-failed' : 'retrying', 'retrying Playwright CDP connection after managed browser restart', {
+          cdp_url: chrome.cdpUrl,
+          browser_timeout_ms: String(connectTimeoutMs),
+          attempt: String(attempt),
+          next_attempt: String(attempt + 1),
+          restart_status: restart.status,
+          restart_error: restart.error || '',
+          reason: error?.message || String(error),
+        }, restart.status === 'failed' ? 'error' : 'warn');
+      }
+    }
+    if (!browser || !chrome) {
+      throw new Error(`failed to connect Playwright over CDP for profile ${slot.profileName}`);
+    }
     const context = browser.contexts()[0];
     if (!context) {
       throw new Error(`no browser context found at ${chrome.cdpUrl}`);
@@ -412,20 +468,23 @@ class ChromeBridge {
     const tab = this.requireTab(envelope);
     const payload = envelope.payload ?? {};
     const prompt = payload.prompt || null;
-    this.bridgeLog(envelope, 'source-upload', 'started', 'creating source archive', {
+    const localArchivePath = payload.local_archive_path ? resolvePath(String(payload.local_archive_path)) : '';
+    this.bridgeLog(envelope, 'source-upload', 'started', 'preparing source archive', {
       repo_url: payload.repo_url || '',
       ref_name: payload.ref_name || 'HEAD',
       fresh_source_clone: String(Boolean(payload.fresh_source_clone)),
+      local_archive_path: localArchivePath ? '[provided]' : '',
       prompt_bundled: String(Boolean(prompt)),
     });
     const archive = await createSourceArchive({
-      repoUrl: requiredString(payload.repo_url, 'repo_url'),
+      repoUrl: localArchivePath ? '' : requiredString(payload.repo_url, 'repo_url'),
       refName: payload.ref_name || 'HEAD',
       prefix: payload.prefix || 'source/',
       archiveFilename: payload.archive_filename || 'source.tar.gz',
       tmpParent: payload.tmp_parent || undefined,
       mode: this.options.sourceMode,
       freshSourceClone: Boolean(payload.fresh_source_clone),
+      localArchivePath,
     });
 
     let deletedTemp = false;
@@ -435,13 +494,12 @@ class ChromeBridge {
       // Fill prompt into composer immediately — while upload is still processing.
       // The send button will be disabled until the upload completes.
       if (prompt) {
-        const composer = await firstAvailableLocator(tab.page, [
-          '#prompt-textarea',
-          '[data-testid="composer-text-input"]',
-          ['textarea[place', 'holder*="Message"]'].join(''),
-          '[contenteditable="true"][role="textbox"]',
-          'form [contenteditable="true"]',
-        ]);
+        const composer = await waitForChatComposer(tab.page, payload.submit_timeout_ms ?? 45000, {
+          log: (phase, status, message, fields = {}, level = 'info') => {
+            this.bridgeLog(envelope, phase, status, message, fields, level);
+          },
+          authState: (state) => this.emitPromptAuthState(envelope, state),
+        });
         await composer.fill(prompt, { timeout: payload.submit_timeout_ms ?? 45000 });
         this.bridgeLog(envelope, 'prompt-injected-during-upload', 'ok', 'prompt text filled into composer while upload is processing', {
           char_count: String(prompt.length),
@@ -463,7 +521,7 @@ class ChromeBridge {
       }
       const fileStat = await stat(archive.archivePath);
       const sha256 = await sha256File(archive.archivePath);
-      if (payload.delete_after_upload !== false) {
+      if (payload.delete_after_upload !== false && archive.tempRoot) {
         await rm(archive.tempRoot, { recursive: true, force: true });
         deletedTemp = true;
       }
@@ -492,6 +550,7 @@ class ChromeBridge {
           log: (phase, status, message, fields = {}, level = 'info') => {
             this.bridgeLog(envelope, phase, status, message, fields, level);
           },
+          authState: (state) => this.emitPromptAuthState(envelope, state),
         });
         this.emit(envelope, 'prompt-submitted', {
           char_count: prompt.length,
@@ -518,6 +577,7 @@ class ChromeBridge {
       log: (phase, status, message, fields = {}, level = 'info') => {
         this.bridgeLog(envelope, phase, status, message, fields, level);
       },
+      authState: (state) => this.emitPromptAuthState(envelope, state),
     });
     this.emit(envelope, 'prompt-submitted', {
       char_count: prompt.length,
@@ -541,10 +601,49 @@ class ChromeBridge {
     const startedAt = Date.now();
     const deadline = startedAt + Math.max(1, this.options.tarWaitMinutes) * 60000;
     const outputDir = join(this.options.downloadsDir, envelope.run_id, `tab-${String(tabId).padStart(2, '0')}`);
+    const targetName = artifactTargetName(this.options);
+    const waitingForTex = isTexNameLike(targetName);
+    const artifactLabel = artifactWaitLabel(targetName);
+    const noArtifactKind = (kind) => waitingForTex ? kind.replace(/-no-tar$/, '-no-artifact') : kind;
     await mkdir(outputDir, { recursive: true });
     let lastTelemetry = 0;
     let tick = 0;
     let messageStreamRetries = 0;
+    let lastProgressSignature = '';
+    let lastProgressChangedAt = startedAt;
+    const artifactRepairState = {
+      attempts: 0,
+      submitted: false,
+      lastError: '',
+    };
+    const artifactConversationRecoveryState = {
+      attempts: 0,
+      visitedUrls: new Set([normalizeChatGptUrl(tab.page.url())].filter(Boolean)),
+    };
+    const failNoTar = async (kind, message, details = {}) => {
+      const recovery = await recoverArtifactConversationDownload(this, tab, envelope, {
+        kind,
+        message,
+        outputDir,
+        tabId,
+        targetName,
+        state: artifactConversationRecoveryState,
+      });
+      if (recovery.downloaded) {
+        return;
+      }
+      await emitNoTarErrorAndCleanup(
+        this,
+        tab,
+        envelope,
+        kind,
+        message,
+        {
+          ...details,
+          ...artifactConversationRecoveryDetails(recovery),
+        },
+      );
+    };
     this.bridgeLog(envelope, 'monitor-started', 'ok', 'tab monitor loop started', {
       completion_check_ms: String(completionMs),
       telemetry_tick_ms: String(pollMs),
@@ -559,7 +658,7 @@ class ChromeBridge {
       try {
         await this.runDismissals(tab.page, envelope, 'monitor-dismissals');
         await this.handleGitHubToolPrompts(tab.page, envelope);
-        discovery = await discoverTarCandidates(tab.page);
+        discovery = await discoverTarCandidates(tab.page, targetName);
         status = await readGenerationStatus(tab.page);
       } catch (error) {
         if (isTransientNavigationError(error)) {
@@ -573,15 +672,28 @@ class ChromeBridge {
         }
         throw error;
       }
-      const ranked = rankCandidates(discovery.candidates, this.options.tarTargetName);
+      const ranked = rankCandidates(discovery.candidates, targetName);
       const now = Date.now();
+      const progressSignature = [
+        ranked.length,
+        Boolean(status.activeStop),
+        status.finalActions,
+        Boolean(status.messageStreamError),
+        discovery.lastTextLength,
+        compact(discovery.lastTextPreview || '', 240),
+      ].join('|');
+      if (progressSignature !== lastProgressSignature) {
+        lastProgressSignature = progressSignature;
+        lastProgressChangedAt = now;
+      }
+      const stalledMs = Math.max(0, now - lastProgressChangedAt);
       const progressKind = now - lastTelemetry >= pollMs ? 'telemetry' : 'completion-check';
       if (progressKind === 'telemetry') {
         lastTelemetry = now;
       }
       this.emit(envelope, 'tab-progress', {
         kind: progressKind,
-        phase: ranked.length > 0 ? 'tar-candidate-found' : status.messageStreamError ? 'message-stream-error' : status.activeStop ? 'generating' : 'checking',
+        phase: ranked.length > 0 ? 'artifact-candidate-found' : status.messageStreamError ? 'message-stream-error' : status.activeStop ? 'generating' : 'checking',
         busy_reason: status.activeStop ? 'active-stop-button' : status.messageStreamError ? 'message-stream-error' : null,
         has_active_stop: Boolean(status.activeStop),
         has_final_actions: status.finalActions > 0,
@@ -600,6 +712,7 @@ class ChromeBridge {
           retry_available: String(Boolean(status.retryAvailable)),
           message_stream_retries: String(messageStreamRetries),
           last_text_length: String(discovery.lastTextLength),
+          stalled_ms: String(stalledMs),
           preview: compact(discovery.lastTextPreview || '', 160),
           page_url: tab.page.url(),
         });
@@ -607,9 +720,11 @@ class ChromeBridge {
 
       if (ranked.length > 0) {
         const candidate = ranked[0];
+        const candidateTargetName = downloadTargetNameForCandidate(this.options, candidate, targetName);
         this.emit(envelope, 'tar-discovered', {
           candidates: ranked.slice(0, 5),
           selected_index: candidate.index,
+          file_kind: candidateFileKind(candidate, candidateTargetName),
         });
         const preStop = await stopIfGenerating(tab.page).catch((error) => ({
           clicked: false,
@@ -632,26 +747,35 @@ class ChromeBridge {
           { method: preStopMethod, phase: 'pre-download' },
         );
         const startedDownloadAt = timestamp();
-        const targetPath = join(outputDir, normalizeTarName(candidate.label || candidate.download || candidate.href || 'chatgpt-output.tar.gz'));
+        const targetPath = join(outputDir, candidateTargetName ? normalizeArtifactName(candidateTargetName) : normalizeArtifactName(candidate.label || candidate.download || candidate.href || 'chatgpt-output.tar.gz'));
         this.emit(envelope, 'download-started', {
           candidate_index: candidate.index,
           remote_url: candidate.href || '',
           target_path: targetPath,
           started_at: startedDownloadAt,
         });
-        this.bridgeLog(envelope, 'download-started', 'started', 'clicking selected tar download candidate', {
+        this.bridgeLog(envelope, 'download-started', 'started', 'clicking selected artifact download candidate', {
           candidate_index: String(candidate.index),
           candidate_count: String(ranked.length),
           candidate_score: String(candidate.score ?? ''),
           target_path: targetPath,
+          target_name: candidateTargetName,
           label: compact(candidate.label || candidate.download || candidate.href || '', 160),
         });
         let completePayload = null;
         let cleanup = null;
-        let cleanupReason = 'download-failed';
         try {
           await this.runDismissals(tab.page, envelope, 'download-preflight');
-          const file = await downloadCandidate(tab.page, candidate, outputDir);
+          const file = await downloadCandidate(tab.page, candidate, outputDir, 120000, {
+            bridge: this,
+            envelope,
+            tabId,
+            artifactsDir: this.options.artifactsDir,
+            page: tab.page,
+            targetName: candidateTargetName,
+            downloadsDir: outputDir,
+            browserProfileDir: tab.browserProfileDir,
+          });
           const receiptPath = join(this.options.artifactsDir, 'receipts', envelope.run_id, `tab-${String(tabId).padStart(2, '0')}-download.json`);
           await mkdir(resolve(receiptPath, '..'), { recursive: true });
           const finishedDownloadAt = timestamp();
@@ -662,7 +786,8 @@ class ChromeBridge {
             local_path: file.path,
             receipt_path: receiptPath,
             original_name: file.suggested,
-            local_name: file.suggested,
+            local_name: file.localName,
+            file_kind: file.fileKind,
             download_url: candidate.href || null,
             entry_count: file.entryCount,
             started_at: startedDownloadAt,
@@ -670,15 +795,47 @@ class ChromeBridge {
             download_latency_ms: downloadLatencyMs,
           };
           await writeFile(receiptPath, JSON.stringify(completePayload, null, 2));
-          cleanupReason = 'download-complete';
-        } finally {
-          cleanup = await finalizeTabAfterDownload(this, tab, envelope, cleanupReason);
+        } catch (error) {
+          const failureBundlePath = error?.failureBundlePath || await writeDownloadFailureBundle({
+            bridge: this,
+            envelope,
+            tabId,
+            artifactsDir: this.options.artifactsDir,
+            page: tab.page,
+          }, {
+            kind: 'download-failed',
+            message: error?.message || String(error),
+            output_dir: outputDir,
+            candidate: downloadCandidateMetadata(candidate),
+            attempts: [],
+            error: error?.message || String(error),
+            created_at: timestamp(),
+            details: {
+              target_path: targetPath,
+              candidate_index: String(candidate.index),
+              candidate_count: String(ranked.length),
+              candidate_score: String(candidate.score ?? ''),
+            },
+          });
+          await emitDownloadErrorAndCleanup(this, tab, envelope, error, {
+            target_path: targetPath,
+            candidate_index: String(candidate.index),
+            candidate_count: String(ranked.length),
+            candidate_score: String(candidate.score ?? ''),
+            target_name: candidateTargetName,
+            file_kind: candidateFileKind(candidate, candidateTargetName),
+            failure_bundle_path: failureBundlePath,
+            failed_download_bundle_path: failureBundlePath,
+          });
+          return;
         }
+        cleanup = await finalizeTabAfterDownload(this, tab, envelope, 'download-complete');
         this.emit(envelope, 'download-complete', completePayload);
         this.bridgeLog(envelope, 'download-complete', 'ok', 'download receipt written and tab closed', {
           sha256: completePayload.sha256,
           size_bytes: String(completePayload.size_bytes),
-          entry_count: String(completePayload.entry_count),
+          entry_count: String(completePayload.entry_count ?? ''),
+          file_kind: completePayload.file_kind,
           receipt_path: completePayload.receipt_path,
           local_path: completePayload.local_path,
           generation_stop_method: cleanup?.stopMethod || '',
@@ -691,37 +848,36 @@ class ChromeBridge {
         return;
       }
 
-      if (status.messageStreamError && messageStreamRetries < this.options.messageStreamRetryLimit) {
-        messageStreamRetries += 1;
-        const retry = await retryMessageStreamError(tab.page);
-        this.bridgeLog(
-          envelope,
-          'message-stream-retry',
-          retry.clicked ? 'clicked' : 'not-clicked',
-          retry.clicked ? 'clicked ChatGPT message stream Retry' : 'message stream error detected but Retry was not clicked',
+      if (
+        this.options.artifactStallRepairMs > 0
+        && ranked.length === 0
+        && status.activeStop
+        && !status.messageStreamError
+        && discovery.assistantRootCount > 0
+        && discovery.lastTextLength > 0
+        && discovery.lastTextLength < 1000
+        && stalledMs >= this.options.artifactStallRepairMs
+      ) {
+        await failNoTar(
+          noArtifactKind('artifact-stall-no-tar'),
+          `assistant stalled without ${artifactLabel} download candidate`,
           {
-            attempt: String(messageStreamRetries),
-            max_attempts: String(this.options.messageStreamRetryLimit),
-            detected: String(Boolean(retry.detected)),
-            button_label: retry.buttonLabel || '',
-            reason: retry.reason || '',
-            excerpt: compact(retry.excerpt || '', 200),
+            artifact_repair_attempts: String(artifactRepairState.attempts),
+            artifact_repair_max_attempts: String(this.options.artifactRepairAttemptLimit),
+            artifact_repair_submitted: String(Boolean(artifactRepairState.submitted)),
+            artifact_repair_error: artifactRepairState.lastError,
+            artifact_repair_disabled: 'true',
+            stalled_ms: String(stalledMs),
+            threshold_ms: String(this.options.artifactStallRepairMs),
           },
-          retry.clicked ? 'warn' : 'error',
         );
-        if (retry.clicked) {
-          await sleep(this.options.messageStreamRetryDelayMs);
-          continue;
-        }
+        return;
       }
 
       if (status.messageStreamError) {
-        await emitNoTarErrorAndCleanup(
-          this,
-          tab,
-          envelope,
-          'message-stream-no-tar',
-          `assistant hit message stream error without tar.gz after ${messageStreamRetries} retry attempts`,
+        await failNoTar(
+          noArtifactKind('message-stream-no-tar'),
+          `assistant hit message stream error without ${artifactLabel} after ${messageStreamRetries} retry attempts`,
         );
         return;
       }
@@ -745,12 +901,14 @@ class ChromeBridge {
       }
 
       if (!status.activeStop && status.finalActions > 0) {
-        await emitNoTarErrorAndCleanup(
-          this,
-          tab,
-          envelope,
-          'done-no-tar',
-          'assistant finished but no tar.gz download candidate was found',
+        await failNoTar(
+          noArtifactKind('done-no-tar'),
+          `assistant finished but no ${artifactLabel} download candidate was found`,
+          {
+            artifact_repair_attempts: String(artifactRepairState.attempts),
+            artifact_repair_submitted: String(Boolean(artifactRepairState.submitted)),
+            artifact_repair_error: artifactRepairState.lastError,
+          },
         );
         return;
       }
@@ -758,12 +916,14 @@ class ChromeBridge {
       await sleep(Math.min(completionMs, pollMs));
     }
 
-    await emitNoTarErrorAndCleanup(
-      this,
-      tab,
-      envelope,
-      'timeout-no-tar',
-      `timed out after ${this.options.tarWaitMinutes} minutes waiting for tar.gz download candidate`,
+    await failNoTar(
+      noArtifactKind('timeout-no-tar'),
+      `timed out after ${this.options.tarWaitMinutes} minutes waiting for ${artifactLabel} download candidate`,
+      {
+        artifact_repair_attempts: String(artifactRepairState.attempts),
+        artifact_repair_submitted: String(Boolean(artifactRepairState.submitted)),
+        artifact_repair_error: artifactRepairState.lastError,
+      },
     );
   }
 
@@ -1152,6 +1312,24 @@ class ChromeBridge {
       composer_detected: Boolean(state.composerDetected),
       code_requested: Boolean(state.codeRequested),
     }, undefined);
+  }
+
+  emitPromptAuthState(envelope, state) {
+    this.emitAuthState(envelope, state);
+    const tabId = requiredTabId(envelope);
+    if (state.state === 'session-expired') {
+      this.emit(envelope, 'session-expired', {
+        page_url: state.pageUrl,
+        reason: state.reason || 'session expired',
+      }, tabId);
+    } else if (state.manualAction) {
+      this.emit(envelope, 'auth-action-needed', state.manualAction, tabId);
+    } else if (state.state === 'auth-required' || state.state === 'code-requested') {
+      this.emit(envelope, 'auth-failed', {
+        reason: state.reason || state.state,
+        manual_browser_required: false,
+      }, tabId);
+    }
   }
 
   async stopGeneration(envelope) {
@@ -1684,6 +1862,45 @@ async function ensureManagedChromeRunning(options, logStartup = null) {
   return { cdpUrl: endpoint.origin, started: true, pid: child.pid, child, xvfbPid: displayState.pid ?? null };
 }
 
+async function restartManagedBrowserForConnectFailure(options, chrome, error, logStartup = null) {
+  const state = await readManagedBrowserState(options.stateDir).catch(() => null);
+  const endpoint = {
+    pid: chrome?.pid ?? state?.pid ?? null,
+    cdpUrl: chrome?.cdpUrl ?? state?.cdpUrl ?? options.cdpUrl,
+    profileDir: options.profileDir,
+    profileName: options.profileName ?? state?.profileName ?? '',
+    stateDir: options.stateDir,
+    display: state?.display ?? '',
+    xvfbPid: chrome?.xvfbPid ?? state?.xvfbPid ?? null,
+  };
+  logStartup?.('managed-chrome-restart', 'starting', 'restarting managed Chrome after CDP connect failure', {
+    cdp_url: endpoint.cdpUrl,
+    pid: String(endpoint.pid ?? ''),
+    reason: error?.message || String(error),
+  }, 'warn');
+  const termination = await terminateManagedBrowserProcess(endpoint).catch((terminationError) => ({
+    status: 'failed',
+    pid: endpoint.pid,
+    cdp_url: endpoint.cdpUrl,
+    error: terminationError?.message || String(terminationError),
+  }));
+  if (termination.status === 'ok' || termination.status === 'already-exited' || termination.status === 'skipped') {
+    await writeManagedBrowserStoppedState(options.stateDir, endpoint, termination).catch(() => undefined);
+  }
+  await clearProfileLockArtifacts(options.profileDir).catch(() => undefined);
+  return termination;
+}
+
+async function readManagedBrowserState(stateDir) {
+  const payload = await readFile(join(stateDir, 'managed-browser.json'), 'utf8');
+  return JSON.parse(payload);
+}
+
+function isRetryableCdpConnectError(error) {
+  const message = error?.message || String(error);
+  return /connectOverCDP|Timeout|timed out|ECONNREFUSED|ECONNRESET|socket hang up|WebSocket is not open|Target page, context or browser has been closed|browser has been closed|Target closed/i.test(message);
+}
+
 function managedBrowserRecordIsTerminable(record) {
   const pid = Number(record?.endpoint?.pid);
   return Boolean(record?.endpoint?.started) && Number.isInteger(pid) && pid > 0;
@@ -2118,12 +2335,18 @@ function resolveChromeExecutable(explicitPath) {
     }
   }
 
-  throw new Error('Could not find Google Chrome on this Mac. Install Google Chrome or set JAILGUN_CHROME_EXECUTABLE to the full executable path.');
+  throw new Error('Could not find Google Chrome or Chromium. Install Chrome/Chromium or set JAILGUN_CHROME_EXECUTABLE to the full executable path.');
 }
 
 function chromeExecutableCandidates() {
   const home = homedir();
   const candidates = [
+    '/usr/bin/google-chrome',
+    '/usr/bin/google-chrome-stable',
+    '/opt/google/chrome/google-chrome',
+    '/usr/bin/chromium',
+    '/usr/bin/chromium-browser',
+    '/snap/bin/chromium',
     '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',
     join(home, 'Applications/Google Chrome.app/Contents/MacOS/Google Chrome'),
     '/Applications/Google Chrome Beta.app/Contents/MacOS/Google Chrome Beta',
@@ -2305,6 +2528,9 @@ async function writeManagedBrowserPoolState(stateDir, profiles) {
 
 async function createSourceArchive(options) {
   validateArchiveOptions(options);
+  if (options.localArchivePath) {
+    return localSourceArchive(options.localArchivePath);
+  }
   const tmpParent = options.tmpParent ?? tmpdir();
   await mkdir(tmpParent, { recursive: true });
   const tempRoot = await mkdtemp(join(tmpParent, 'jailgun-source-'));
@@ -2345,6 +2571,25 @@ async function createSourceArchive(options) {
   }
 }
 
+async function localSourceArchive(localArchivePath) {
+  const archivePath = resolvePath(localArchivePath);
+  const archiveStat = await stat(archivePath);
+  if (!archiveStat.isFile() || archiveStat.size === 0) {
+    throw new Error(`local archive was not a non-empty file: ${archivePath}`);
+  }
+  if (!basename(archivePath).endsWith('.tar.gz')) {
+    throw new Error('local_archive_path must point to a .tar.gz file');
+  }
+  return {
+    tempRoot: '',
+    cloneDir: '',
+    freshSourceClone: false,
+    archivePath,
+    archiveFilename: basename(archivePath),
+    commit: 'local-archive',
+  };
+}
+
 async function localRepoPath(value) {
   if (value.startsWith('file://')) {
     return fileURLToPath(value);
@@ -2361,7 +2606,7 @@ async function localRepoPath(value) {
 }
 
 function validateArchiveOptions(options) {
-  if (!options.repoUrl?.trim()) {
+  if (!options.localArchivePath && !options.repoUrl?.trim()) {
     throw new Error('repoUrl is required');
   }
   if (options.tmpParent && !isAbsolute(options.tmpParent)) {
@@ -2539,13 +2784,7 @@ async function submitPromptToChat(page, prompt, timeoutMs, hooks = {}) {
   hooks.log?.('prompt-submit-wait', 'started', 'locating composer for prompt submission', {
     prompt_bytes: String(Buffer.byteLength(prompt, 'utf8')),
   });
-  const composer = await firstAvailableLocator(page, [
-    '#prompt-textarea',
-    '[data-testid="composer-text-input"]',
-    ['textarea[place', 'holder*="Message"]'].join(''),
-    '[contenteditable="true"][role="textbox"]',
-    'form [contenteditable="true"]',
-  ]);
+  const composer = await waitForChatComposer(page, timeoutMs, hooks, startedAt);
 
   await composer.fill(prompt, { timeout: timeoutMs });
   await assertComposerHasPrompt(composer, prompt, null);
@@ -2585,6 +2824,68 @@ async function submitPromptToChat(page, prompt, timeoutMs, hooks = {}) {
     await sleep(Math.min(250, Math.max(1, deadline - Date.now())));
   }
   throw new Error(`send button did not become enabled before timeout; last observed state: ${JSON.stringify(lastObserved)}`);
+}
+
+async function waitForChatComposer(page, timeoutMs, hooks = {}, startedAt = Date.now()) {
+  const deadline = startedAt + Math.max(1000, timeoutMs);
+  let lastState = null;
+  let lastLoggedState = '';
+  while (Date.now() <= deadline) {
+    await hooks.dismiss?.('prompt-composer-wait');
+    const composer = await firstVisibleLocatorOrNull(page, CHAT_COMPOSER_SELECTORS);
+    if (composer) {
+      hooks.log?.('prompt-submit-wait', 'composer-ready', 'composer is visible', {
+        elapsed_ms: String(Date.now() - startedAt),
+      });
+      return composer;
+    }
+    lastState = await detectChatAuthState(page);
+    if (lastState.state !== lastLoggedState) {
+      lastLoggedState = lastState.state;
+      hooks.log?.('prompt-submit-wait', 'waiting', 'waiting for ChatGPT composer', {
+        auth_state: lastState.state,
+        elapsed_ms: String(Date.now() - startedAt),
+      }, lastState.state === 'unknown' ? 'info' : 'warn');
+    }
+    if (composerAuthStateIsActionable(lastState)) {
+      hooks.authState?.(lastState);
+      throw composerAuthError(lastState);
+    }
+    await sleep(Math.min(500, Math.max(1, deadline - Date.now())));
+  }
+
+  lastState = await detectChatAuthState(page);
+  hooks.authState?.(lastState);
+  if (composerAuthStateIsActionable(lastState)) {
+    throw composerAuthError(lastState);
+  }
+  throw new Error(`ChatGPT composer did not appear before timeout; auth_state=${lastState.state}; reason=${lastState.reason || 'unknown'}`);
+}
+
+function composerAuthStateIsActionable(state) {
+  return ['auth-required', 'code-requested', 'manual-browser-required', 'session-expired'].includes(state?.state);
+}
+
+function composerAuthError(state) {
+  if (state.state === 'manual-browser-required') {
+    return manualBrowserRequired(`manual-browser-required: ${state.reason || 'manual browser action is required before prompt submission'}`);
+  }
+  const error = new Error(`${state.state}: ${state.reason || composerAuthReason(state.state)}`);
+  error.authState = state.state;
+  return error;
+}
+
+function composerAuthReason(state) {
+  switch (state) {
+    case 'auth-required':
+      return 'ChatGPT login is required before prompt submission';
+    case 'code-requested':
+      return 'ChatGPT verification code is required before prompt submission';
+    case 'session-expired':
+      return 'ChatGPT session expired before prompt submission';
+    default:
+      return 'ChatGPT composer was not available';
+  }
 }
 
 async function detectChatAuthState(page) {
@@ -2647,13 +2948,7 @@ async function detectChatAuthState(page) {
 }
 
 async function hasChatComposer(page) {
-  for (const selector of [
-    '#prompt-textarea',
-    '[data-testid="composer-text-input"]',
-    ['textarea[place', 'holder*="Message"]'].join(''),
-    '[contenteditable="true"][role="textbox"]',
-    'form [contenteditable="true"]',
-  ]) {
+  for (const selector of CHAT_COMPOSER_SELECTORS) {
     const locator = page.locator(selector).first();
     if (await locator.count().catch(() => 0) > 0 && await locator.isVisible().catch(() => false)) {
       return true;
@@ -3061,8 +3356,11 @@ function isTransientNavigationError(error) {
   return /Execution context was destroyed|most likely because of a navigation|Cannot find context with specified id/i.test(message);
 }
 
-async function discoverTarCandidates(page) {
-  return page.evaluate(() => {
+async function discoverTarCandidates(page, targetName = '') {
+  if (typeof page?.__jailgunDiscoverTarCandidates === 'function') {
+    return page.__jailgunDiscoverTarCandidates(targetName);
+  }
+  const discovery = await page.evaluate(({ targetName: target }) => {
     const controls = Array.from(document.querySelectorAll('a,button,[role="button"],[download],[href]'));
     const assistantRoots = Array.from(document.querySelectorAll('[data-message-author-role="assistant"]'));
     // Detect A/B feedback response containers
@@ -3084,19 +3382,26 @@ async function discoverTarCandidates(page) {
     const attr = (el, name) => el?.getAttribute?.(name) || '';
     const href = (el) => el?.href || attr(el, 'href');
     const closestAssistant = (el) => el?.closest?.('[data-message-author-role="assistant"]') || null;
+    const uploadChip = (el) => el?.closest?.('[data-testid*="upload-chip"]') || null;
     const visible = (el) => {
       const style = window.getComputedStyle(el);
       const rect = el.getBoundingClientRect();
       return style.visibility !== 'hidden' && style.display !== 'none' && rect.width > 0 && rect.height > 0;
     };
     const disabled = (el) => el.hasAttribute?.('disabled') || /^true$/i.test(attr(el, 'aria-disabled'));
-    const tar = (value) => /\.tar\.gz(?:$|[?#\s)]|\.tar\(\d+\)\.gz)/i.test(String(value || ''));
+    const tar = (value) => /\.tar(?:\(\d+\))?\.gz(?:$|[?#\s)])/i.test(String(value || ''));
+    const tex = (value) => /\.tex(?:$|[?#\s)])/i.test(String(value || ''));
+    const downloadAction = (value) => /\b(download|downloadable|save|export)\b/i.test(String(value || ''));
+    const archiveNoun = (value) => /\b(tarball|tar|archive|artifact)\b/i.test(String(value || ''));
+    const texNoun = (value) => /\b(tex|latex|chapter|file|artifact)\b/i.test(String(value || ''));
+    const clickable = (entry) => entry.tag === 'button' || entry.role === 'button' || Boolean(entry.href || entry.download);
+    const targetIsTex = /\.tex$/i.test(String(target || '').trim());
     const candidates = [];
     for (let index = 0; index < controls.length; index += 1) {
       const el = controls[index];
       const assistant = closestAssistant(el);
       const inABResponse = abResponseRoots.length > 0 && abResponseRoots.some((root) => root.contains(el));
-      if (assistantRoots.length > 0 && !assistant && !inABResponse) continue;
+      if ((assistantRoots.length > 0 && !assistant && !inABResponse) || uploadChip(el)) continue;
       if (!visible(el) || disabled(el)) continue;
       const tag = String(el.tagName || '').toLowerCase();
       const role = attr(el, 'role').toLowerCase();
@@ -3114,13 +3419,34 @@ async function discoverTarCandidates(page) {
         score: 0,
       };
       const haystack = `${entry.text} ${entry.href} ${entry.download} ${entry.aria} ${entry.title}`;
-      if (!tar(haystack)) continue;
+      const explicitTar = tar(haystack);
+      const explicitTex = tex(haystack);
+      const genericArchiveDownload = Boolean(
+        assistant
+          && downloadAction(haystack)
+          && archiveNoun(haystack)
+      );
+      const genericTexDownload = Boolean(
+        targetIsTex
+          && assistant
+          && downloadAction(haystack)
+          && texNoun(haystack)
+      );
+      if (!clickable(entry) || (!explicitTar && !explicitTex && !genericArchiveDownload && !genericTexDownload)) continue;
       entry.label = entry.text || entry.download || entry.href || entry.aria || entry.title;
-      entry.score += 200;
+      entry.fileKind = explicitTex ? 'downloaded-tex' : explicitTar || genericArchiveDownload ? 'downloaded-archive' : 'downloaded-file';
+      entry.score += explicitTex ? 260 : explicitTar ? 200 : 120;
       if (/download/i.test(haystack)) entry.score += 100;
       if (tar(entry.download)) entry.score += 90;
       if (tar(entry.href)) entry.score += 80;
       if (tar(entry.text)) entry.score += 60;
+      if (tex(entry.download)) entry.score += 120;
+      if (tex(entry.href)) entry.score += 100;
+      if (tex(entry.text)) entry.score += 80;
+      if (genericArchiveDownload) entry.score += 30;
+      if (genericTexDownload) entry.score += 80;
+      if (targetIsTex && explicitTex) entry.score += 200;
+      if (targetIsTex && explicitTar) entry.score -= 40;
       if (tag === 'button' || role === 'button') entry.score += 20;
       if (tag === 'a') entry.score += 10;
       if (assistant) entry.score += 30;
@@ -3138,22 +3464,220 @@ async function discoverTarCandidates(page) {
       abFeedbackActive,
       abResponseCount: abResponseRoots.length,
     };
-  });
+  }, { targetName });
+  try {
+    discovery.artifactConversationLinks = await discoverArtifactConversationLinks(page, '', page.url?.() || '');
+  } catch (error) {
+    discovery.artifactConversationLinks = [];
+    discovery.artifactConversationLinksError = error?.message || String(error);
+  }
+  return discovery;
+}
+
+async function discoverArtifactConversationLinks(page, targetName = '', currentUrl = '') {
+  if (typeof page?.__jailgunDiscoverArtifactConversationLinks === 'function') {
+    return page.__jailgunDiscoverArtifactConversationLinks(targetName, currentUrl);
+  }
+  return page.evaluate(({ targetName: target, currentUrl: current }) => {
+    const selector = 'a[href]';
+    const tarNamePattern = /\.tar(?:\(\d+\))?\.gz(?:$|[?#\s)])/i;
+    const chapterPattern = /\bchapter[\s_-]*0*(\d{1,4})\b/i;
+    const normalizeText = (value) => String(value || '').replace(/\s+/g, ' ').trim();
+    const normalizeComparable = (value) => normalizeText(value)
+      .replace(/\.tar\(\d+\)\.gz/gi, '.tar.gz')
+      .replace(/\.tgz/gi, '.tar.gz')
+      .replace(/[_-]+/g, ' ')
+      .toLowerCase();
+    const extractChapter = (value) => {
+      const match = String(value || '').match(chapterPattern);
+      return match ? String(Number(match[1])) : '';
+    };
+    const isLocaleSegment = (value) => /^[a-z]{2}(?:-[A-Za-z]{2})?$/.test(value);
+    const normalizeConversationUrl = (value, baseValue) => {
+      try {
+        const url = new URL(value, baseValue || 'https://chatgpt.com/');
+        const base = baseValue ? new URL(baseValue, 'https://chatgpt.com/') : null;
+        if (url.hostname !== 'chatgpt.com' || (base && base.hostname === 'chatgpt.com' && url.origin !== base.origin)) {
+          return null;
+        }
+        const parts = url.pathname.split('/').filter(Boolean);
+        let id = '';
+        if (parts[0] === 'c' && parts[1]) {
+          id = parts[1];
+        } else if (parts.length === 3 && isLocaleSegment(parts[0]) && parts[1] === 'c') {
+          id = parts[2];
+        }
+        if (!id || !/^[A-Za-z0-9-]+$/.test(id)) {
+          return null;
+        }
+        return {
+          url: `${url.origin}/c/${id}`,
+          conversationId: id,
+        };
+      } catch {
+        return null;
+      }
+    };
+    const artifactSignalsFor = (value) => {
+      const signals = [];
+      if (tarNamePattern.test(value)) signals.push('tar-name');
+      if (/\b(?:tarball|tar\.?gz|tar)\b/i.test(value)) signals.push('tar');
+      if (/\bartifacts?\b/i.test(value)) signals.push('artifact');
+      if (/\barchive\b/i.test(value)) signals.push('archive');
+      if (/\blatex\b/i.test(value) && /\b(?:creat(?:e|ed|es|ing|ion)|generat(?:e|ed|es|ing|ion)|build|export|download)\b/i.test(value)) {
+        signals.push('latex-creation');
+      }
+      return signals;
+    };
+    const baseUrl = current || document.location?.href || 'https://chatgpt.com/';
+    const currentConversation = normalizeConversationUrl(baseUrl, baseUrl);
+    const targetChapter = extractChapter(target);
+    const normalizedTarget = normalizeComparable(target);
+    const targetStem = normalizedTarget.replace(/\.tar\.gz$/i, '');
+    const byUrl = new Map();
+    const anchors = Array.from(document.querySelectorAll(selector));
+    anchors.forEach((anchor, index) => {
+      if (anchor.closest?.('[data-testid*="upload-chip"]')) {
+        return;
+      }
+      const href = anchor.href || anchor.getAttribute?.('href') || '';
+      const normalizedUrl = normalizeConversationUrl(href, baseUrl);
+      if (!normalizedUrl || normalizedUrl.url === currentConversation?.url) {
+        return;
+      }
+      const text = normalizeText(anchor.innerText || anchor.textContent || '');
+      const aria = normalizeText(anchor.getAttribute?.('aria-label') || '');
+      const title = normalizeText(anchor.getAttribute?.('title') || '');
+      const haystack = `${text} ${aria} ${title}`;
+      if (/open conversation options/i.test(haystack)) {
+        return;
+      }
+      const artifactSignals = artifactSignalsFor(haystack);
+      if (artifactSignals.length === 0) {
+        return;
+      }
+      const linkChapter = extractChapter(haystack);
+      const comparableHaystack = normalizeComparable(haystack);
+      const targetMatched = !normalizedTarget
+        || (targetChapter ? linkChapter === targetChapter : Boolean(
+          normalizedTarget && comparableHaystack.includes(normalizedTarget)
+          || targetStem && comparableHaystack.includes(targetStem)
+        ));
+      if (!targetMatched) {
+        return;
+      }
+      let score = 100 + artifactSignals.length * 25;
+      if (linkChapter) score += 20;
+      if (targetChapter && linkChapter === targetChapter) score += 120;
+      if (normalizedTarget && comparableHaystack.includes(normalizedTarget)) score += 100;
+      if (targetStem && comparableHaystack.includes(targetStem)) score += 60;
+      if (artifactSignals.includes('tar-name')) score += 60;
+      if (artifactSignals.includes('artifact')) score += 40;
+      if (artifactSignals.includes('latex-creation')) score += 30;
+      const candidate = {
+        index,
+        url: normalizedUrl.url,
+        href,
+        text,
+        aria,
+        title,
+        score,
+        selector,
+        tagName: String(anchor.tagName || 'a').toLowerCase(),
+        conversationId: normalizedUrl.conversationId,
+        chapter: linkChapter,
+        targetMatched,
+        artifactSignals,
+      };
+      const existing = byUrl.get(candidate.url);
+      if (!existing || candidate.score > existing.score || (candidate.score === existing.score && candidate.index < existing.index)) {
+        byUrl.set(candidate.url, candidate);
+      }
+    });
+    return Array.from(byUrl.values()).sort((left, right) => right.score - left.score || left.index - right.index);
+  }, { targetName, currentUrl });
 }
 
 function rankCandidates(candidates, targetName) {
-  const target = String(targetName || '').toLowerCase();
+  const target = normalizeArtifactComparable(targetName);
+  const targetStem = target
+    .replace(/\.tar\.gz$/i, '')
+    .replace(/\.tex$/i, '');
+  const targetIsTex = isTexNameLike(targetName);
   return [...candidates]
+    .filter((candidate) => !isDocumentTarLabelOnlyCandidate(candidate))
     .map((candidate) => {
+      const kind = candidateFileKind(candidate, targetName);
+      let scoreBonus = 0;
+      if (targetIsTex && kind === 'downloaded-tex') {
+        scoreBonus += 500;
+      } else if (targetIsTex && kind === 'downloaded-archive') {
+        scoreBonus += 20;
+      }
       if (target) {
-        const haystack = `${candidate.text} ${candidate.href} ${candidate.download} ${candidate.aria} ${candidate.title}`.toLowerCase();
+        const haystack = normalizeArtifactComparable(`${candidate.text} ${candidate.href} ${candidate.download} ${candidate.aria} ${candidate.title}`);
         if (haystack.includes(target)) {
-          return { ...candidate, score: candidate.score + 500 };
+          scoreBonus += 600;
+        } else if (targetStem && haystack.includes(targetStem)) {
+          scoreBonus += 120;
         }
       }
-      return candidate;
+      return scoreBonus === 0 ? candidate : { ...candidate, score: candidate.score + scoreBonus };
     })
     .sort((a, b) => b.score - a.score);
+}
+
+function isDocumentTarLabelOnlyCandidate(candidate) {
+  const href = String(candidate?.href || '');
+  if (candidate?.assistantIndex != null) {
+    return false;
+  }
+  if (tarNameLike(candidate?.download) || tarNameLike(href)) {
+    return false;
+  }
+  return tarNameLike(`${candidate?.text || ''} ${candidate?.aria || ''} ${candidate?.title || ''} ${candidate?.label || ''}`);
+}
+
+function tarNameLike(value) {
+  return /\.tar(?:\(\d+\))?\.gz(?:$|[?#\s)])/i.test(String(value || ''));
+}
+
+function texNameLike(value) {
+  return /\.tex(?:$|[?#\s)])/i.test(String(value || ''));
+}
+
+function isTexNameLike(value) {
+  return /\.tex$/i.test(String(value || '').trim());
+}
+
+function isTarGzNameLike(value) {
+  return /\.tar\.gz$/i.test(String(value || '').trim()) || /\.tgz$/i.test(String(value || '').trim());
+}
+
+function candidateFileKind(candidate, targetName = '') {
+  if (candidate?.fileKind) {
+    return candidate.fileKind;
+  }
+  const haystack = `${candidate?.text || ''} ${candidate?.href || ''} ${candidate?.download || ''} ${candidate?.aria || ''} ${candidate?.title || ''} ${candidate?.label || ''}`;
+  if (texNameLike(haystack) || (isTexNameLike(targetName) && /\b(tex|latex|chapter)\b/i.test(haystack))) {
+    return 'downloaded-tex';
+  }
+  if (tarNameLike(haystack)) {
+    return 'downloaded-archive';
+  }
+  return isTexNameLike(targetName) ? 'downloaded-tex' : 'downloaded-archive';
+}
+
+function normalizeTarComparable(value) {
+  return normalizeArtifactComparable(value);
+}
+
+function normalizeArtifactComparable(value) {
+  return String(value || '')
+    .replace(/\.tar\(\d+\)\.gz/gi, '.tar.gz')
+    .replace(/\.tgz/gi, '.tar.gz')
+    .replace(/\s+/g, ' ')
+    .toLowerCase();
 }
 
 async function readGenerationStatus(page) {
@@ -3245,81 +3769,678 @@ async function selectLongestABResponse(page) {
   });
 }
 
-async function retryMessageStreamError(page) {
-  try {
-    return await page.evaluate(() => {
-      const controls = Array.from(document.querySelectorAll('button,[role="button"],a,[aria-label],[title]'));
-      const textOf = (el) => String(el?.innerText || el?.textContent || '').replace(/\s+/g, ' ').trim();
-      const pageText = textOf(document.body);
-      const detected = /error in message stream/i.test(pageText);
-      const visible = (el) => {
-        const style = window.getComputedStyle(el);
-        const rect = el.getBoundingClientRect();
-        return style.visibility !== 'hidden' && style.display !== 'none' && rect.width > 0 && rect.height > 0;
-      };
-      const disabled = (el) => el.hasAttribute?.('disabled') || /^true$/i.test(el.getAttribute?.('aria-disabled') || '');
-      const label = (el) => [
-        el.innerText || el.textContent || '',
-        el.getAttribute?.('aria-label') || '',
-        el.getAttribute?.('title') || '',
-      ].join(' ').replace(/\s+/g, ' ').trim();
-      if (!detected) {
-        return { detected: false, clicked: false, buttonLabel: '', excerpt: '', reason: 'message-stream-error-not-detected' };
-      }
-      for (const el of controls) {
-        if (!visible(el) || disabled(el)) continue;
-        const text = label(el);
-        if (!/^\s*retry\s*$/i.test(text)) continue;
-        el.click();
-        return { detected: true, clicked: true, buttonLabel: text, excerpt: pageText.slice(0, 240), reason: '' };
-      }
-      return { detected: true, clicked: false, buttonLabel: '', excerpt: pageText.slice(0, 240), reason: 'retry-control-not-found' };
-    });
-  } catch (error) {
-    return {
-      detected: false,
-      clicked: false,
-      buttonLabel: '',
-      excerpt: '',
-      reason: `evaluate-failed: ${error.message}`,
+async function downloadCandidate(page, candidate, outputDir, timeoutMs = 120000, context = {}) {
+  const attempts = [];
+  let lastError = null;
+  const maxAttempts = 1;
+  const browserDownloadDir = join(outputDir, '.browser-downloads');
+  const diagnosticContext = { ...context, page: context.page ?? page, browserDownloadDir };
+  for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+    const diagnostics = {
+      attempt,
+      clicked_at: timestamp(),
+      candidate: downloadCandidateMetadata(candidate),
+      suggested: '',
+      target_path: '',
+      download_failure: '',
+      download_failure_error: '',
+      download_temp_path: '',
+      download_path_error: '',
+      save_as_status: 'not-run',
+      save_as_error: '',
+      fallback_copy_status: 'not-run',
+      fallback_copy_error: '',
+      fallback_stream_status: 'not-run',
+      fallback_stream_error: '',
+      browser_download_status: 'not-run',
+      browser_download_error: '',
+      browser_download_path: '',
+      browser_download_config_status: 'not-run',
+      browser_download_config_error: '',
+      persisted_by: '',
+      error: '',
     };
+    attempts.push(diagnostics);
+    try {
+      await configureBrowserDownloadDirectory(page, browserDownloadDir, diagnostics, diagnosticContext, candidate);
+      const download = await triggerCandidateDownload(page, candidate, timeoutMs);
+      const persisted = await persistPlaywrightDownload(download, candidate, outputDir, diagnostics, diagnosticContext);
+      const inspected = await inspectDownloadedArtifact(persisted.targetPath);
+      logDownloadDiagnostic(diagnosticContext, 'download-persisted', 'ok', 'download persisted and inspected', {
+        ...downloadCandidateLogFields(candidate),
+        attempt: String(attempt),
+        suggested_filename: persisted.suggested,
+        local_name: persisted.localName,
+        target_path: persisted.targetPath,
+        persisted_by: persisted.persistedBy,
+        file_kind: inspected.fileKind,
+        download_failure: diagnostics.download_failure,
+        download_failure_error: diagnostics.download_failure_error,
+        download_temp_path: diagnostics.download_temp_path,
+        download_path_error: diagnostics.download_path_error,
+        sha256: inspected.sha256,
+        size_bytes: String(inspected.sizeBytes),
+        entry_count: String(inspected.entryCount ?? ''),
+      });
+      return {
+        path: persisted.targetPath,
+        suggested: persisted.suggested,
+        localName: persisted.localName,
+        fileKind: inspected.fileKind,
+        sizeBytes: inspected.sizeBytes,
+        sha256: inspected.sha256,
+        entryCount: inspected.entryCount,
+        persistedBy: persisted.persistedBy,
+      };
+    } catch (error) {
+      lastError = error;
+      diagnostics.error = error?.message || String(error);
+      break;
+    }
   }
+
+  const bundlePath = await writeDownloadFailureBundle(diagnosticContext, {
+    kind: 'download-failed',
+    message: lastError?.message || String(lastError || 'download failed'),
+    output_dir: outputDir,
+    candidate: downloadCandidateMetadata(candidate),
+    attempts,
+    error: lastError?.message || String(lastError || 'download failed'),
+    created_at: timestamp(),
+  });
+  const error = lastError || new Error('download failed before a Playwright download was captured');
+  if (bundlePath) {
+    error.failureBundlePath = bundlePath;
+    error.message = `${error.message}; diagnostics: ${bundlePath}`;
+  }
+  throw error;
 }
 
-async function downloadCandidate(page, candidate, outputDir, timeoutMs = 120000) {
+async function triggerCandidateDownload(page, candidate, timeoutMs) {
   const downloadPromise = page.waitForEvent('download', { timeout: timeoutMs });
   const locator = page.locator('a,button,[role="button"],[download],[href]').nth(candidate.index);
   await locator.scrollIntoViewIfNeeded({ timeout: 5000 }).catch(() => undefined);
   await locator.click({ timeout: timeoutMs });
-  const download = await downloadPromise;
-  const suggested = normalizeTarName(download.suggestedFilename() || basename(candidate.href || '') || 'chatgpt-output.tar.gz');
-  const path = join(outputDir, suggested);
+  return downloadPromise;
+}
+
+async function configureBrowserDownloadDirectory(page, outputDir, diagnostics, context, candidate) {
   await mkdir(outputDir, { recursive: true });
-  await download.saveAs(path);
-  const failure = await download.failure();
-  if (failure) {
-    throw new Error(`download failed: ${failure}`);
+  const pageContext = typeof page?.context === 'function' ? page.context() : null;
+  if (!pageContext || typeof pageContext.newCDPSession !== 'function') {
+    diagnostics.browser_download_config_status = 'skipped';
+    diagnostics.browser_download_config_error = 'page context CDP session unavailable';
+    return;
   }
-  const fileStat = await stat(path);
+
+  let session = null;
+  try {
+    session = await pageContext.newCDPSession(page);
+    try {
+      await session.send('Browser.setDownloadBehavior', {
+        behavior: 'allow',
+        downloadPath: outputDir,
+        eventsEnabled: true,
+      });
+      diagnostics.browser_download_config_status = 'browser-ok';
+    } catch (browserError) {
+      await session.send('Page.setDownloadBehavior', {
+        behavior: 'allow',
+        downloadPath: outputDir,
+      });
+      diagnostics.browser_download_config_status = 'page-ok';
+      diagnostics.browser_download_config_error = browserError?.message || String(browserError);
+    }
+    logDownloadDiagnostic(context, 'download-directory-configured', diagnostics.browser_download_config_status, 'browser download directory configured', {
+      ...downloadCandidateLogFields(candidate),
+      attempt: String(diagnostics.attempt),
+      download_dir: outputDir,
+      fallback_reason: diagnostics.browser_download_config_error,
+    });
+  } catch (error) {
+    diagnostics.browser_download_config_status = 'failed';
+    diagnostics.browser_download_config_error = error?.message || String(error);
+    logDownloadDiagnostic(context, 'download-directory-configured', 'failed', 'browser download directory configuration failed', {
+      ...downloadCandidateLogFields(candidate),
+      attempt: String(diagnostics.attempt),
+      download_dir: outputDir,
+      reason: diagnostics.browser_download_config_error,
+    }, 'warn');
+  } finally {
+    if (session && typeof session.detach === 'function') {
+      await session.detach().catch(() => undefined);
+    }
+  }
+}
+
+async function persistPlaywrightDownload(download, candidate, outputDir, diagnostics, context) {
+  const suggested = normalizeArtifactName(download.suggestedFilename() || basename(candidate.href || '') || 'chatgpt-output.tar.gz');
+  const localName = context?.targetName ? normalizeArtifactName(context.targetName) : suggested;
+  const targetPath = join(outputDir, localName);
+  diagnostics.suggested = suggested;
+  diagnostics.target_path = targetPath;
+  await mkdir(outputDir, { recursive: true });
+  try {
+    await download.saveAs(targetPath);
+    const savedTarget = await persistExistingTargetIfUsable(targetPath, diagnostics, context, candidate, 'saveAs');
+    if (!savedTarget.ok) {
+      throw new Error(`artifact saveAs did not create a usable file: ${savedTarget.error}`);
+    }
+    diagnostics.save_as_status = 'ok';
+  } catch (error) {
+    diagnostics.save_as_status = 'failed';
+    diagnostics.save_as_error = error?.message || String(error);
+    const partialTargetPersist = await persistExistingTargetIfUsable(targetPath, diagnostics, context, candidate, 'saveAs-partial');
+    if (partialTargetPersist.ok) {
+      diagnostics.persisted_by = partialTargetPersist.method;
+      return { targetPath, suggested, localName, persistedBy: partialTargetPersist.method };
+    }
+    const failure = await safeDownloadFailure(download);
+    const tempPath = await safeDownloadPath(download);
+    diagnostics.download_failure = failure.value;
+    diagnostics.download_failure_error = failure.error;
+    diagnostics.download_temp_path = tempPath.value;
+    diagnostics.download_path_error = tempPath.error;
+    logDownloadDiagnostic(context, 'download-save-failed', 'failed', 'Playwright artifact saveAs failed', {
+      ...downloadCandidateLogFields(candidate),
+      attempt: String(diagnostics.attempt),
+      suggested_filename: suggested,
+      target_path: targetPath,
+      download_failure: diagnostics.download_failure,
+      download_failure_error: diagnostics.download_failure_error,
+      download_temp_path: diagnostics.download_temp_path,
+      download_path_error: diagnostics.download_path_error,
+      reason: diagnostics.save_as_error,
+    }, 'warn');
+    const tempPathPersist = await persistDownloadFromTempPath(tempPath.value, targetPath, diagnostics, context, candidate);
+    if (tempPathPersist.ok) {
+      diagnostics.persisted_by = tempPathPersist.method;
+      return { targetPath, suggested, localName, persistedBy: tempPathPersist.method };
+    }
+    const browserDownloadPersist = await persistDownloadFromBrowserDownloads(
+      suggested,
+      targetPath,
+      diagnostics,
+      context,
+      candidate,
+    );
+    if (browserDownloadPersist.ok) {
+      diagnostics.persisted_by = browserDownloadPersist.method;
+      return { targetPath, suggested, localName, persistedBy: browserDownloadPersist.method };
+    }
+    const finalTargetPersist = await persistExistingTargetIfUsable(targetPath, diagnostics, context, candidate, 'recovered-target');
+    if (finalTargetPersist.ok) {
+      diagnostics.persisted_by = finalTargetPersist.method;
+      return { targetPath, suggested, localName, persistedBy: finalTargetPersist.method };
+    }
+    const saveError = new Error([
+      'artifact saveAs failed',
+      `target-path recovery failed: ${[partialTargetPersist.error, finalTargetPersist.error].filter(Boolean).join('; ') || 'not usable'}`,
+      `temp-path recovery failed: ${tempPathPersist.error || diagnostics.save_as_error}`,
+      `browser-download recovery failed: ${browserDownloadPersist.error || diagnostics.browser_download_error || 'not found'}`,
+    ].join('; '));
+    saveError.saveAsFailed = true;
+    throw saveError;
+  }
+
+  const failure = await safeDownloadFailure(download);
+  const tempPath = await safeDownloadPath(download);
+  diagnostics.download_failure = failure.value;
+  diagnostics.download_failure_error = failure.error;
+  diagnostics.download_temp_path = tempPath.value;
+  diagnostics.download_path_error = tempPath.error;
+  diagnostics.persisted_by = 'saveAs';
+  if (failure.value) {
+    throw new Error(`download failed: ${failure.value}`);
+  }
+  return { targetPath, suggested, localName, persistedBy: 'saveAs' };
+}
+
+async function persistExistingTargetIfUsable(targetPath, diagnostics, context, candidate, method) {
+  let fileStat = null;
+  try {
+    fileStat = await stat(targetPath);
+  } catch (error) {
+    return { ok: false, method: '', error: error?.message || String(error) };
+  }
+
+  if (fileStat.isFile() && fileStat.size > 0) {
+    logDownloadDiagnostic(context, 'download-target-path-persist', 'accepted', 'existing artifact target path is usable', {
+      ...downloadCandidateLogFields(candidate),
+      attempt: String(diagnostics.attempt),
+      target_path: targetPath,
+      size_bytes: String(fileStat.size),
+      method,
+    });
+    return { ok: true, method, error: '' };
+  }
+
+  const reason = fileStat.isFile()
+    ? `target path is empty: ${targetPath}`
+    : `target path is not a file: ${targetPath}`;
+  try {
+    await rm(targetPath, { force: true });
+  } catch (error) {
+    const cleanupError = error?.message || String(error);
+    logDownloadDiagnostic(context, 'download-target-path-persist', 'cleanup-failed', 'unusable artifact target cleanup failed', {
+      ...downloadCandidateLogFields(candidate),
+      attempt: String(diagnostics.attempt),
+      target_path: targetPath,
+      reason,
+      cleanup_error: cleanupError,
+      method,
+    }, 'warn');
+    return { ok: false, method: '', error: `${reason}; cleanup failed: ${cleanupError}` };
+  }
+  logDownloadDiagnostic(context, 'download-target-path-persist', 'removed-empty', 'removed unusable artifact target path', {
+    ...downloadCandidateLogFields(candidate),
+    attempt: String(diagnostics.attempt),
+    target_path: targetPath,
+    reason,
+    method,
+  }, 'warn');
+  return { ok: false, method: '', error: reason };
+}
+
+async function persistDownloadFromTempPath(tempPath, targetPath, diagnostics, context, candidate) {
+  if (!tempPath) {
+    diagnostics.fallback_copy_status = 'skipped';
+    diagnostics.fallback_stream_status = 'skipped';
+    const error = diagnostics.download_path_error || 'download.path unavailable';
+    logDownloadDiagnostic(context, 'download-temp-path-persist', 'skipped', 'download temp path unavailable for persistence', {
+      ...downloadCandidateLogFields(candidate),
+      attempt: String(diagnostics.attempt),
+      target_path: targetPath,
+      download_path_error: error,
+    }, 'warn');
+    return { ok: false, method: '', error };
+  }
+
+  try {
+    await copyFile(tempPath, targetPath);
+    diagnostics.fallback_copy_status = 'ok';
+    logDownloadDiagnostic(context, 'download-temp-path-persist', 'copied', 'copied Playwright temp download to target path', {
+      ...downloadCandidateLogFields(candidate),
+      attempt: String(diagnostics.attempt),
+      target_path: targetPath,
+      download_temp_path: tempPath,
+      method: 'copyFile',
+    }, 'warn');
+    return { ok: true, method: 'temp-path-copy', error: '' };
+  } catch (error) {
+    diagnostics.fallback_copy_status = 'failed';
+    diagnostics.fallback_copy_error = error?.message || String(error);
+    logDownloadDiagnostic(context, 'download-temp-path-persist', 'copy-failed', 'copying Playwright temp download failed', {
+      ...downloadCandidateLogFields(candidate),
+      attempt: String(diagnostics.attempt),
+      target_path: targetPath,
+      download_temp_path: tempPath,
+      reason: diagnostics.fallback_copy_error,
+      method: 'copyFile',
+    }, 'warn');
+  }
+
+  try {
+    await pipeline(createReadStream(tempPath), createWriteStream(targetPath));
+    diagnostics.fallback_stream_status = 'ok';
+    logDownloadDiagnostic(context, 'download-temp-path-persist', 'streamed', 'streamed Playwright temp download to target path', {
+      ...downloadCandidateLogFields(candidate),
+      attempt: String(diagnostics.attempt),
+      target_path: targetPath,
+      download_temp_path: tempPath,
+      method: 'stream',
+    }, 'warn');
+    return { ok: true, method: 'temp-path-stream', error: '' };
+  } catch (error) {
+    diagnostics.fallback_stream_status = 'failed';
+    diagnostics.fallback_stream_error = error?.message || String(error);
+    logDownloadDiagnostic(context, 'download-temp-path-persist', 'stream-failed', 'streaming Playwright temp download failed', {
+      ...downloadCandidateLogFields(candidate),
+      attempt: String(diagnostics.attempt),
+      target_path: targetPath,
+      download_temp_path: tempPath,
+      reason: diagnostics.fallback_stream_error,
+      method: 'stream',
+    }, 'warn');
+  }
+
+  return {
+    ok: false,
+    method: '',
+    error: [diagnostics.fallback_copy_error, diagnostics.fallback_stream_error].filter(Boolean).join('; '),
+  };
+}
+
+async function persistDownloadFromBrowserDownloads(suggested, targetPath, diagnostics, context, candidate) {
+  const sinceMs = Date.parse(diagnostics.clicked_at || '') || 0;
+  const profileDownloadsDir = context?.browserProfileDir ? join(context.browserProfileDir, 'Downloads') : '';
+  const dirs = browserDownloadRecoveryDirs([
+    context?.browserDownloadDir || '',
+    dirname(targetPath),
+    context?.downloadsDir || '',
+    profileDownloadsDir,
+  ]);
+  const matches = [];
+  for (const dir of dirs) {
+    let entries = [];
+    try {
+      entries = await readdir(dir, { withFileTypes: true });
+    } catch (error) {
+      diagnostics.browser_download_error = diagnostics.browser_download_error || `${dir}: ${error?.message || String(error)}`;
+      continue;
+    }
+    for (const entry of entries) {
+      if (!entry.isFile() || !isSuggestedDownloadName(entry.name, suggested)) {
+        continue;
+      }
+      const candidatePath = join(dir, entry.name);
+      try {
+        const fileStat = await stat(candidatePath);
+        if (fileStat.size <= 0) {
+          continue;
+        }
+        if (sinceMs && fileStat.mtimeMs + 5000 < sinceMs) {
+          continue;
+        }
+        matches.push({ path: candidatePath, size: fileStat.size, mtimeMs: fileStat.mtimeMs });
+      } catch (error) {
+        diagnostics.browser_download_error = diagnostics.browser_download_error || `${candidatePath}: ${error?.message || String(error)}`;
+      }
+    }
+  }
+
+  matches.sort((a, b) => b.mtimeMs - a.mtimeMs);
+  const match = matches[0];
+  if (!match) {
+    diagnostics.browser_download_status = 'missing';
+    const error = diagnostics.browser_download_error || `no fresh ${suggested} found in browser download dirs`;
+    diagnostics.browser_download_error = error;
+    logDownloadDiagnostic(context, 'download-browser-download-persist', 'missing', 'browser download file unavailable for persistence', {
+      ...downloadCandidateLogFields(candidate),
+      attempt: String(diagnostics.attempt),
+      target_path: targetPath,
+      suggested_filename: suggested,
+      searched_dirs: dirs.join(','),
+      reason: error,
+    }, 'warn');
+    return { ok: false, method: '', error };
+  }
+
+  try {
+    await copyFile(match.path, targetPath);
+    diagnostics.browser_download_status = 'copied';
+    diagnostics.browser_download_path = match.path;
+    logDownloadDiagnostic(context, 'download-browser-download-persist', 'copied', 'copied browser download file to target path', {
+      ...downloadCandidateLogFields(candidate),
+      attempt: String(diagnostics.attempt),
+      target_path: targetPath,
+      browser_download_path: match.path,
+      size_bytes: String(match.size),
+      method: 'copyFile',
+    }, 'warn');
+    return { ok: true, method: 'browser-download-copy', error: '' };
+  } catch (error) {
+    diagnostics.browser_download_status = 'copy-failed';
+    diagnostics.browser_download_path = match.path;
+    diagnostics.browser_download_error = error?.message || String(error);
+    logDownloadDiagnostic(context, 'download-browser-download-persist', 'copy-failed', 'copying browser download file failed', {
+      ...downloadCandidateLogFields(candidate),
+      attempt: String(diagnostics.attempt),
+      target_path: targetPath,
+      browser_download_path: match.path,
+      reason: diagnostics.browser_download_error,
+      method: 'copyFile',
+    }, 'warn');
+    return { ok: false, method: '', error: diagnostics.browser_download_error };
+  }
+}
+
+function browserDownloadRecoveryDirs(extraDirs = []) {
+  const dirs = [
+    ...extraDirs,
+    process.env.JAILGUN_BROWSER_DOWNLOADS_DIR || '',
+    process.env.XDG_DOWNLOAD_DIR || '',
+    join(homedir(), 'Downloads'),
+  ].filter(Boolean);
+  return [...new Set(dirs.map((dir) => resolvePath(dir)))];
+}
+
+function isSuggestedDownloadName(name, suggested) {
+  if (name === suggested) {
+    return true;
+  }
+  if (suggested.endsWith('.tar.gz')) {
+    const stem = suggested.slice(0, -'.tar.gz'.length);
+    return new RegExp(`^${escapeRegExp(stem)} \\(\\d+\\)\\.tar\\.gz$`).test(name);
+  }
+  const extension = extname(suggested);
+  const stem = extension ? suggested.slice(0, -extension.length) : suggested;
+  return new RegExp(`^${escapeRegExp(stem)} \\(\\d+\\)${escapeRegExp(extension)}$`).test(name);
+}
+
+function escapeRegExp(value) {
+  return String(value).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+async function safeDownloadFailure(download) {
+  try {
+    return { value: await download.failure() || '', error: '' };
+  } catch (error) {
+    return { value: '', error: error?.message || String(error) };
+  }
+}
+
+async function safeDownloadPath(download) {
+  try {
+    return { value: await download.path() || '', error: '' };
+  } catch (error) {
+    return { value: '', error: error?.message || String(error) };
+  }
+}
+
+async function inspectDownloadedArtifact(filePath) {
+  const fileStat = await stat(filePath);
   if (!fileStat.isFile() || fileStat.size === 0) {
-    throw new Error(`downloaded file was empty or not a file: ${path}`);
+    throw new Error(`downloaded file was empty or not a file: ${filePath}`);
   }
-  const sha256 = await sha256File(path);
-  const tarList = spawnSync('tar', ['-tzf', path], { encoding: 'utf8' });
+  const sha256 = await sha256File(filePath);
+  if (!String(filePath).toLowerCase().endsWith('.tar.gz')) {
+    return {
+      sizeBytes: fileStat.size,
+      sha256,
+      entryCount: null,
+      fileKind: String(filePath).toLowerCase().endsWith('.tex') ? 'downloaded-tex' : 'downloaded-file',
+    };
+  }
+  const tarList = spawnSync('tar', ['-tzf', filePath], { encoding: 'utf8' });
   if (tarList.status !== 0) {
     throw new Error(`downloaded file is not a valid tar.gz: ${tarList.stderr.trim()}`);
   }
   const entryCount = tarList.stdout.split(/\r?\n/).map((line) => line.trim()).filter(Boolean).length;
   if (entryCount === 0) {
-    throw new Error(`downloaded file has zero tar entries: ${path}`);
+    throw new Error(`downloaded file has zero tar entries: ${filePath}`);
   }
   return {
-    path,
-    suggested,
     sizeBytes: fileStat.size,
     sha256,
     entryCount,
+    fileKind: 'downloaded-archive',
   };
+}
+
+function downloadCandidateMetadata(candidate) {
+  return {
+    index: candidate?.index ?? null,
+    score: candidate?.score ?? null,
+    label: compact(candidate?.label || '', 240),
+    text: compact(candidate?.text || '', 240),
+    href: compact(candidate?.href || '', 240),
+    download: compact(candidate?.download || '', 240),
+    aria: compact(candidate?.aria || '', 160),
+    title: compact(candidate?.title || '', 160),
+    tag: candidate?.tag || '',
+    role: candidate?.role || '',
+    assistantIndex: candidate?.assistantIndex ?? null,
+    fileKind: candidate?.fileKind || '',
+  };
+}
+
+function downloadCandidateLogFields(candidate) {
+  const meta = downloadCandidateMetadata(candidate);
+  return {
+    candidate_index: String(meta.index ?? ''),
+    candidate_score: String(meta.score ?? ''),
+    candidate_label: meta.label,
+    candidate_href: meta.href,
+    candidate_download: meta.download,
+    candidate_tag: meta.tag,
+    candidate_role: meta.role,
+    candidate_assistant_index: meta.assistantIndex == null ? '' : String(meta.assistantIndex),
+    candidate_file_kind: meta.fileKind,
+  };
+}
+
+function logDownloadDiagnostic(context, phase, status, message, fields = {}, level = 'info') {
+  if (!context?.bridge || !context?.envelope) {
+    return;
+  }
+  context.bridge.bridgeLog(context.envelope, phase, status, message, fields, level);
+}
+
+async function writeDownloadFailureBundle(context, payload) {
+  const bundle = await writeDownloadTroubleshootingBundle(context, payload, {
+    logPhase: 'download-failure-bundle',
+    logMessage: 'download failure diagnostics bundle written',
+  });
+  return bundle.bundleDir;
+}
+
+async function writeNoLinkBundle(context, payload) {
+  const bundle = await writeDownloadTroubleshootingBundle(context, payload, {
+    logPhase: 'no-link-bundle',
+    logMessage: 'no-link page bundle written',
+  });
+  return bundle.bundleDir;
+}
+
+async function writeDownloadTroubleshootingBundle(context, payload, options = {}) {
+  const artifactsDir = context?.artifactsDir;
+  if (!artifactsDir) {
+    return { bundleDir: '', snapshotPath: '' };
+  }
+  const runId = sanitizePathSegment(context?.envelope?.run_id || 'unknown-run');
+  const tabName = `tab-${String(context?.tabId ?? 'unknown').padStart(2, '0')}`;
+  const kind = sanitizePathSegment(payload?.kind || 'download-failed');
+  const bundleDir = join(artifactsDir, 'download-failures', runId, tabName, `${pathTimestamp()}-${kind}`);
+  const snapshotPath = join(bundleDir, 'snapshot.json');
+  const htmlPath = join(bundleDir, 'page.html');
+  const textPath = join(bundleDir, 'page.txt');
+  const screenshotPath = join(bundleDir, 'page.png');
+  const discoveryPath = join(bundleDir, 'candidate-discovery.json');
+  const attemptsPath = join(bundleDir, 'download-attempts.json');
+  const logPhase = options.logPhase || 'download-failure-bundle';
+  try {
+    await mkdir(bundleDir, { recursive: true });
+    const page = context?.page;
+    const pageUrl = payload?.pageUrl || (page && !page.isClosed() && typeof page.url === 'function' ? page.url() : '');
+    let pageTitle = '';
+    let pageHtml = '';
+    let pageText = '';
+    let discovery = null;
+    let screenshotError = '';
+    if (page && !page.isClosed()) {
+      try {
+        pageTitle = await page.title();
+      } catch {
+        pageTitle = '';
+      }
+      try {
+        pageHtml = await page.content();
+      } catch {
+        pageHtml = '';
+      }
+      try {
+        const rawText = await page.evaluate(() => String(document.body?.innerText || ''));
+        pageText = typeof rawText === 'string' ? rawText : JSON.stringify(rawText, null, 2);
+      } catch {
+        pageText = '';
+      }
+      try {
+        discovery = await discoverTarCandidates(page, artifactTargetName(context?.bridge?.options || {}));
+      } catch (error) {
+        discovery = {
+          error: error?.message || String(error),
+        };
+      }
+      try {
+        await page.screenshot({ path: screenshotPath, fullPage: true });
+      } catch (error) {
+        screenshotError = error?.message || String(error);
+      }
+    }
+    const attempts = payload?.attempts || payload?.downloadAttempts || [];
+    await writeFile(htmlPath, pageHtml);
+    await writeFile(textPath, pageText);
+    await writeFile(discoveryPath, JSON.stringify(redactDiagnosticJson(discovery || {}), null, 2));
+    await writeFile(attemptsPath, JSON.stringify(redactDiagnosticJson(attempts), null, 2));
+    const snapshot = {
+      captured_at: timestamp(),
+      run_id: context?.envelope?.run_id || '',
+      tab_id: context?.tabId ?? null,
+      kind: payload?.kind || '',
+      message: payload?.message || '',
+      error: payload?.error || '',
+      page_url: pageUrl,
+      page_title: pageTitle,
+      bundle_dir: bundleDir,
+      html_path: htmlPath,
+      text_path: textPath,
+      screenshot_path: existsSync(screenshotPath) ? screenshotPath : '',
+      candidate_discovery_path: discoveryPath,
+      download_attempts_path: attemptsPath,
+      html_bytes: Buffer.byteLength(pageHtml, 'utf8'),
+      text_bytes: Buffer.byteLength(pageText, 'utf8'),
+      discovery_bytes: Buffer.byteLength(JSON.stringify(discovery || {}), 'utf8'),
+      download_attempt_count: Array.isArray(attempts) ? attempts.length : 0,
+      candidate: redactDiagnosticJson(payload?.candidate || null),
+      output_dir: payload?.output_dir || '',
+      details: redactDiagnosticJson(payload?.details || {}),
+      screenshot_error: screenshotError,
+    };
+    await writeFile(snapshotPath, JSON.stringify(snapshot, null, 2));
+    logDownloadDiagnostic(context, logPhase, 'written', options.logMessage || 'download troubleshooting bundle written', {
+      path: bundleDir,
+      bundle_dir: bundleDir,
+      snapshot_path: snapshotPath,
+      html_path: htmlPath,
+      text_path: textPath,
+    }, 'warn');
+    return { bundleDir, snapshotPath };
+  } catch (error) {
+    logDownloadDiagnostic(context, logPhase, 'failed', 'failed to write download troubleshooting bundle', {
+      path: bundleDir,
+      snapshot_path: snapshotPath,
+      reason: error?.message || String(error),
+    }, 'error');
+    return { bundleDir: '', snapshotPath: '' };
+  }
+}
+
+function pathTimestamp() {
+  return timestamp().replace(/[:.]/g, '-');
+}
+
+function redactDiagnosticJson(value) {
+  if (Array.isArray(value)) {
+    return value.map((item) => redactDiagnosticJson(item));
+  }
+  if (value && typeof value === 'object') {
+    return Object.fromEntries(Object.entries(value).map(([key, item]) => [key, redactDiagnosticJson(item)]));
+  }
+  if (typeof value === 'string') {
+    return redactSensitiveText(value);
+  }
+  return value;
 }
 
 async function dismissRateLimitModal(page) {
@@ -3641,18 +4762,24 @@ async function finalizeTabAfterDownload(bridge, tab, envelope, reason) {
   return { stopMethod, closed, errors };
 }
 
-async function emitNoTarErrorAndCleanup(bridge, tab, envelope, kind, message) {
-  const cleanup = await finalizeTabAfterDownload(bridge, tab, envelope, kind);
+async function emitDownloadErrorAndCleanup(bridge, tab, envelope, error, details = {}) {
+  const cleanup = await finalizeTabAfterDownload(bridge, tab, envelope, 'download-failed');
+  const message = `failed to persist ${artifactLabelForFailure(details)}: ${error?.message || String(error)}`;
+  const failedDownloadBundlePath = details.failed_download_bundle_path || details.failure_bundle_path || '';
   bridge.emit(envelope, 'error', {
-    kind,
+    kind: 'download-failed',
     message,
     recoverable: false,
     stack: null,
+    ...details,
+    failed_download_bundle_path: failedDownloadBundlePath,
     cleanup_stop_method: cleanup.stopMethod,
     tab_closed: cleanup.closed,
     cleanup_errors: cleanup.errors.join(';'),
   });
-  bridge.bridgeLog(envelope, kind, 'failed', message, {
+  bridge.bridgeLog(envelope, 'download-failed', 'failed', message, {
+    ...details,
+    failed_download_bundle_path: failedDownloadBundlePath,
     cleanup_stop_method: cleanup.stopMethod,
     tab_closed: String(Boolean(cleanup.closed)),
     cleanup_errors: cleanup.errors.join(';'),
@@ -3660,15 +4787,365 @@ async function emitNoTarErrorAndCleanup(bridge, tab, envelope, kind, message) {
   return cleanup;
 }
 
+function artifactLabelForFailure(details = {}) {
+  const kind = String(details.file_kind || details.fileKind || '').toLowerCase();
+  const target = String(details.target_name || details.target_path || '').toLowerCase();
+  if (kind === 'downloaded-tex' || target.endsWith('.tex')) {
+    return '.tex artifact';
+  }
+  if (kind === 'downloaded-file') {
+    return 'downloaded artifact';
+  }
+  if (kind === 'downloaded-archive' || target.endsWith('.tar.gz') || target.endsWith('.tgz')) {
+    return 'tar.gz artifact';
+  }
+  return 'artifact';
+}
+
+async function emitNoTarErrorAndCleanup(bridge, tab, envelope, kind, message, details = {}) {
+  const page = tab?.page;
+  const pageUrl = page && !page.isClosed() && typeof page.url === 'function' ? page.url() : '';
+  const noLinkBundlePath = await writeNoLinkBundle({
+    bridge,
+    envelope,
+    tabId: envelope?.tab_id ?? tab?.browserSlot ?? tab?.tabId ?? null,
+    artifactsDir: bridge?.options?.artifactsDir,
+    page,
+  }, {
+    kind,
+    message,
+    pageUrl,
+    details,
+  });
+  const cleanup = await finalizeTabAfterDownload(bridge, tab, envelope, kind);
+  bridge.emit(envelope, 'error', {
+    kind,
+    message,
+    recoverable: false,
+    stack: null,
+    ...details,
+    failed_download_bundle_path: noLinkBundlePath,
+    no_link_bundle_path: noLinkBundlePath,
+    cleanup_stop_method: cleanup.stopMethod,
+    tab_closed: cleanup.closed,
+    cleanup_errors: cleanup.errors.join(';'),
+  });
+  bridge.bridgeLog(envelope, kind, 'failed', message, {
+    ...details,
+    failed_download_bundle_path: noLinkBundlePath,
+    no_link_bundle_path: noLinkBundlePath,
+    cleanup_stop_method: cleanup.stopMethod,
+    tab_closed: String(Boolean(cleanup.closed)),
+    cleanup_errors: cleanup.errors.join(';'),
+  }, 'error');
+  return cleanup;
+}
+
+async function recoverArtifactConversationDownload(bridge, tab, envelope, options = {}) {
+  const page = tab?.page;
+  const result = {
+    downloaded: false,
+    links: [],
+    attempts: [],
+    error: '',
+  };
+  if (!page || page.isClosed?.()) {
+    result.error = 'source-page-closed';
+    return result;
+  }
+  const phase = 'artifact-conversation-recovery';
+  const targetName = artifactTargetName(bridge?.options || {}) || options.targetName || '';
+  const state = options.state || { attempts: 0, visitedUrls: new Set() };
+  const limit = Math.max(0, Math.floor(Number(bridge?.options?.artifactConversationRecoveryLimit ?? DEFAULT_ARTIFACT_CONVERSATION_RECOVERY_LIMIT)));
+  const pageUrl = typeof page.url === 'function' ? page.url() : '';
+  const normalizedCurrent = normalizeChatGptUrl(pageUrl);
+  if (normalizedCurrent && state.visitedUrls?.add) {
+    state.visitedUrls.add(normalizedCurrent);
+  }
+
+  try {
+    result.links = await discoverArtifactConversationLinks(page, targetName, pageUrl);
+  } catch (error) {
+    result.error = error?.message || String(error);
+    bridge.bridgeLog(envelope, phase, 'scan-failed', 'failed to collect artifact conversation links before no-tar', {
+      source_reason: options.kind || '',
+      page_url: pageUrl,
+      reason: result.error,
+    }, 'warn');
+    return result;
+  }
+
+  if (result.links.length === 0) {
+    bridge.bridgeLog(envelope, phase, 'no-links', 'no artifact conversation links found before no-tar', {
+      source_reason: options.kind || '',
+      page_url: pageUrl,
+      target_name: targetName,
+    }, 'warn');
+    return result;
+  }
+
+  for (const link of result.links) {
+    const attempt = {
+      url: link.url || '',
+      text: compact(link.text || link.aria || link.title || '', 200),
+      score: link.score ?? null,
+      status: '',
+      reason: '',
+      candidate_count: 0,
+      downloaded_path: '',
+    };
+    result.attempts.push(attempt);
+
+    if (!link.url) {
+      attempt.status = 'skipped';
+      attempt.reason = 'missing-url';
+      bridge.bridgeLog(envelope, phase, 'skipped', 'skipped artifact conversation link without URL', artifactConversationAttemptLogFields(options, link, attempt), 'warn');
+      continue;
+    }
+    if (state.visitedUrls?.has?.(link.url)) {
+      attempt.status = 'skipped';
+      attempt.reason = 'visited';
+      bridge.bridgeLog(envelope, phase, 'skipped', 'skipped already visited artifact conversation link', artifactConversationAttemptLogFields(options, link, attempt), 'warn');
+      continue;
+    }
+    if ((state.attempts ?? 0) >= limit) {
+      attempt.status = 'skipped';
+      attempt.reason = 'attempt-limit';
+      bridge.bridgeLog(envelope, phase, 'skipped', 'skipped artifact conversation link because recovery attempt limit was reached', {
+        ...artifactConversationAttemptLogFields(options, link, attempt),
+        attempt_limit: String(limit),
+        attempts_used: String(state.attempts ?? 0),
+      }, 'warn');
+      continue;
+    }
+
+    state.attempts = (state.attempts ?? 0) + 1;
+    state.visitedUrls?.add?.(link.url);
+    let recoveryPage = null;
+    try {
+      recoveryPage = await openArtifactConversationPage(page, link.url, bridge?.options?.browserTimeoutMs);
+      attempt.status = 'opened';
+      bridge.bridgeLog(envelope, phase, 'opened', 'opened artifact conversation link for artifact recovery', {
+        ...artifactConversationAttemptLogFields(options, link, attempt),
+        attempt: String(state.attempts),
+        attempt_limit: String(limit),
+      }, 'warn');
+
+      if (typeof bridge.runDismissals === 'function') {
+        await bridge.runDismissals(recoveryPage, envelope, 'artifact-conversation-recovery-dismissals');
+      } else {
+        await dismissPopups(recoveryPage).catch(() => undefined);
+        await dismissRateLimitModal(recoveryPage).catch(() => undefined);
+      }
+
+      const discovery = await discoverTarCandidates(recoveryPage, targetName);
+      const ranked = rankCandidates(discovery.candidates || [], targetName);
+      attempt.candidate_count = ranked.length;
+      if (ranked.length === 0) {
+        attempt.status = 'no-candidate';
+        bridge.bridgeLog(envelope, phase, 'no-candidate', 'artifact conversation page had no artifact download candidate', {
+          ...artifactConversationAttemptLogFields(options, link, attempt),
+          scanned_control_count: String(discovery.scannedControlCount ?? 0),
+          assistant_roots: String(discovery.assistantRootCount ?? 0),
+        }, 'warn');
+        continue;
+      }
+
+      const candidate = ranked[0];
+      const recovered = await downloadRecoveredArtifactConversationCandidate(bridge, tab, envelope, {
+        recoveryPage,
+        link,
+        candidate,
+        ranked,
+        outputDir: options.outputDir,
+        tabId: options.tabId,
+      });
+      attempt.status = 'downloaded';
+      attempt.downloaded_path = recovered.completePayload.local_path;
+      result.downloaded = true;
+      result.download = recovered.completePayload;
+      bridge.bridgeLog(envelope, phase, 'downloaded', 'downloaded artifact from artifact conversation page', {
+        ...artifactConversationAttemptLogFields(options, link, attempt),
+        local_path: recovered.completePayload.local_path,
+        receipt_path: recovered.completePayload.receipt_path,
+        sha256: recovered.completePayload.sha256,
+        size_bytes: String(recovered.completePayload.size_bytes),
+        entry_count: String(recovered.completePayload.entry_count ?? ''),
+        file_kind: recovered.completePayload.file_kind,
+      }, 'warn');
+      return result;
+    } catch (error) {
+      attempt.status = attempt.status === 'opened' ? 'failed' : 'open-failed';
+      attempt.reason = error?.message || String(error);
+      bridge.bridgeLog(envelope, phase, attempt.status, 'artifact conversation recovery attempt failed', {
+        ...artifactConversationAttemptLogFields(options, link, attempt),
+        failure_bundle_path: error?.failureBundlePath || '',
+      }, 'warn');
+    } finally {
+      if (recoveryPage && !recoveryPage.isClosed?.()) {
+        try {
+          await recoveryPage.close({ runBeforeUnload: false });
+          bridge.bridgeLog(envelope, phase, 'closed', 'closed artifact conversation recovery page', {
+            url: link.url || '',
+            downloaded: String(result.downloaded),
+          }, 'warn');
+        } catch (error) {
+          bridge.bridgeLog(envelope, phase, 'close-failed', 'failed to close artifact conversation recovery page', {
+            url: link.url || '',
+            reason: error?.message || String(error),
+          }, 'warn');
+        }
+      }
+    }
+  }
+
+  return result;
+}
+
+async function openArtifactConversationPage(sourcePage, url, timeoutMs = DEFAULT_BROWSER_TIMEOUT_MS) {
+  const context = typeof sourcePage.context === 'function' ? sourcePage.context() : null;
+  if (!context || typeof context.newPage !== 'function') {
+    throw new Error('source page did not expose a browser context for artifact conversation recovery');
+  }
+  const page = await context.newPage();
+  await page.goto(url, { waitUntil: 'domcontentloaded', timeout: Math.max(1000, timeoutMs || DEFAULT_BROWSER_TIMEOUT_MS) });
+  await page.waitForLoadState?.('networkidle', { timeout: 5000 }).catch(() => undefined);
+  return page;
+}
+
+async function downloadRecoveredArtifactConversationCandidate(bridge, tab, envelope, values) {
+  const outputDir = values.outputDir || join(bridge.options.downloadsDir, envelope.run_id, `tab-${String(values.tabId).padStart(2, '0')}`);
+  await mkdir(outputDir, { recursive: true });
+  const candidate = values.candidate;
+  const targetName = artifactTargetName(bridge.options);
+  const candidateTargetName = downloadTargetNameForCandidate(bridge.options, candidate, targetName);
+  const startedDownloadAt = timestamp();
+  const targetPath = join(outputDir, candidateTargetName ? normalizeArtifactName(candidateTargetName) : normalizeArtifactName(candidate.label || candidate.download || candidate.href || 'chatgpt-output.tar.gz'));
+  bridge.emit(envelope, 'tar-discovered', {
+    candidates: values.ranked.slice(0, 5),
+    selected_index: candidate.index,
+    file_kind: candidateFileKind(candidate, candidateTargetName),
+    recovered_from_artifact_conversation_url: values.link.url,
+  });
+  bridge.emit(envelope, 'download-started', {
+    candidate_index: candidate.index,
+    remote_url: candidate.href || '',
+    target_path: targetPath,
+    started_at: startedDownloadAt,
+    recovered_from_artifact_conversation_url: values.link.url,
+  });
+  bridge.bridgeLog(envelope, 'download-started', 'started', 'clicking selected artifact download candidate from artifact conversation page', {
+    candidate_index: String(candidate.index),
+    candidate_count: String(values.ranked.length),
+    candidate_score: String(candidate.score ?? ''),
+    target_path: targetPath,
+    target_name: candidateTargetName,
+    label: compact(candidate.label || candidate.download || candidate.href || '', 160),
+    artifact_conversation_url: values.link.url,
+  }, 'warn');
+  const file = await downloadCandidate(values.recoveryPage, candidate, outputDir, 120000, {
+    bridge,
+    envelope,
+    tabId: values.tabId,
+    artifactsDir: bridge.options.artifactsDir,
+    page: values.recoveryPage,
+    targetName: candidateTargetName,
+  });
+  const receiptPath = join(bridge.options.artifactsDir, 'receipts', envelope.run_id, `tab-${String(values.tabId).padStart(2, '0')}-download.json`);
+  await mkdir(resolve(receiptPath, '..'), { recursive: true });
+  const finishedDownloadAt = timestamp();
+  const downloadLatencyMs = Math.max(0, Date.parse(finishedDownloadAt) - Date.parse(startedDownloadAt)) || 0;
+  const completePayload = {
+    sha256: file.sha256,
+    size_bytes: file.sizeBytes,
+    local_path: file.path,
+    receipt_path: receiptPath,
+    original_name: file.suggested,
+    local_name: file.localName,
+    file_kind: file.fileKind,
+    download_url: candidate.href || null,
+    entry_count: file.entryCount,
+    started_at: startedDownloadAt,
+    finished_at: finishedDownloadAt,
+    download_latency_ms: downloadLatencyMs,
+    recovered_from_artifact_conversation_url: values.link.url,
+  };
+  await writeFile(receiptPath, JSON.stringify(completePayload, null, 2));
+  const cleanup = await finalizeTabAfterDownload(bridge, tab, envelope, 'download-complete');
+  bridge.emit(envelope, 'download-complete', completePayload);
+  bridge.bridgeLog(envelope, 'download-complete', 'ok', 'download receipt written after artifact conversation recovery and original tab closed', {
+    sha256: completePayload.sha256,
+    size_bytes: String(completePayload.size_bytes),
+    entry_count: String(completePayload.entry_count),
+    receipt_path: completePayload.receipt_path,
+    local_path: completePayload.local_path,
+    artifact_conversation_url: values.link.url,
+    generation_stop_method: cleanup?.stopMethod || '',
+    tab_closed: String(Boolean(cleanup?.closed)),
+    cleanup_errors: (cleanup?.errors || []).join(';'),
+  }, 'warn');
+  if (!cleanup?.closed || cleanup.errors.length > 0) {
+    bridge.bridgeLog(envelope, 'download-complete', 'cleanup-failed', 'artifact conversation download completed but original tab cleanup failed', {
+      artifact_conversation_url: values.link.url,
+      cleanup_stop_method: cleanup?.stopMethod || '',
+      tab_closed: String(Boolean(cleanup?.closed)),
+      cleanup_errors: (cleanup?.errors || []).join(';'),
+    }, 'error');
+  }
+  return { completePayload, cleanup };
+}
+
+function artifactConversationRecoveryDetails(recovery) {
+  const links = (recovery?.links || []).map((link) => ({
+    url: link.url || '',
+    text: compact(link.text || link.aria || link.title || '', 200),
+    score: link.score ?? null,
+    chapter: link.chapter || '',
+    artifact_signals: link.artifactSignals || [],
+  }));
+  const attempts = (recovery?.attempts || []).map((attempt) => ({
+    url: attempt.url || '',
+    text: compact(attempt.text || '', 200),
+    score: attempt.score ?? null,
+    status: attempt.status || '',
+    reason: compact(attempt.reason || '', 240),
+    candidate_count: attempt.candidate_count ?? 0,
+    downloaded_path: attempt.downloaded_path || '',
+  }));
+  return {
+    artifact_conversation_links: links,
+    artifact_conversation_attempts: attempts,
+    artifact_conversation_link_count: String(links.length),
+    artifact_conversation_attempt_count: String(attempts.length),
+    artifact_conversation_recovery_error: recovery?.error || '',
+  };
+}
+
+function artifactConversationAttemptLogFields(options, link, attempt) {
+  return {
+    source_reason: options.kind || '',
+    url: link?.url || attempt?.url || '',
+    label: compact(link?.text || link?.aria || link?.title || attempt?.text || '', 180),
+    score: String(link?.score ?? attempt?.score ?? ''),
+    chapter: link?.chapter || '',
+    status: attempt?.status || '',
+    reason: compact(attempt?.reason || '', 200),
+    candidate_count: String(attempt?.candidate_count ?? 0),
+  };
+}
+
 function terminalCleanupContext(reason) {
   if (reason === 'download-complete') {
     return 'after tar receipt';
   }
   if (reason === 'download-failed') {
-    return 'after failed tar download';
+    return 'after failed artifact download';
   }
   if (reason === 'done-no-tar') {
     return 'after assistant finished without a tar';
+  }
+  if (reason === 'artifact-stall-no-tar') {
+    return 'after stalled artifact generation without a tar';
   }
   if (reason === 'timeout-no-tar') {
     return 'after tar wait timed out';
@@ -3741,10 +5218,12 @@ async function recoverKnownRunPage(bridge, page, envelope, source, phase) {
   try {
     await dismissPopups(page).catch(() => undefined);
     await dismissRateLimitModal(page).catch(() => undefined);
-    const discovery = await discoverTarCandidates(page);
-    const ranked = rankCandidates(discovery.candidates, bridge.options.tarTargetName);
+    const targetName = artifactTargetName(bridge.options);
+    const discovery = await discoverTarCandidates(page, targetName);
+    const ranked = rankCandidates(discovery.candidates, targetName);
     if (ranked.length > 0) {
       const candidate = ranked[0];
+      const candidateTargetName = downloadTargetNameForCandidate(bridge.options, candidate, targetName);
       bridge.bridgeLog(envelope, phase, 'download-started', 'recovering download from known abandoned run tab', {
         source_run_id: source.runId || '',
         source_tab_id: source.tabId == null ? '' : String(source.tabId),
@@ -3753,7 +5232,14 @@ async function recoverKnownRunPage(bridge, page, envelope, source, phase) {
         candidate_count: String(ranked.length),
         output_dir: outputDir,
       }, 'warn');
-      const file = await downloadCandidate(page, candidate, outputDir, 30000);
+      const file = await downloadCandidate(page, candidate, outputDir, 30000, {
+        bridge,
+        envelope,
+        tabId: source.tabId ?? 'orphan',
+        artifactsDir: bridge.options.artifactsDir,
+        page,
+        targetName: candidateTargetName,
+      });
       localPath = file.path;
       downloaded = true;
       const receiptPath = join(
@@ -3769,13 +5255,14 @@ async function recoverKnownRunPage(bridge, page, envelope, source, phase) {
         page_url: pageUrl,
         local_path: file.path,
         original_name: file.suggested,
-        local_name: file.suggested,
+        local_name: file.localName,
+        file_kind: file.fileKind,
         sha256: file.sha256,
         size_bytes: file.sizeBytes,
         entry_count: file.entryCount,
         recovered_at: timestamp(),
       }, null, 2));
-      bridge.bridgeLog(envelope, phase, 'downloaded', 'recovered tar download from known abandoned run tab', {
+      bridge.bridgeLog(envelope, phase, 'downloaded', 'recovered artifact download from known abandoned run tab', {
         source_run_id: source.runId || '',
         source_tab_id: source.tabId == null ? '' : String(source.tabId),
         page_url: pageUrl,
@@ -3783,10 +5270,11 @@ async function recoverKnownRunPage(bridge, page, envelope, source, phase) {
         receipt_path: receiptPath,
         sha256: file.sha256,
         size_bytes: String(file.sizeBytes),
-        entry_count: String(file.entryCount),
+        entry_count: String(file.entryCount ?? ''),
+        file_kind: file.fileKind,
       }, 'warn');
     } else {
-      bridge.bridgeLog(envelope, phase, 'no-candidate', 'known abandoned run tab had no tar candidate during recovery', {
+      bridge.bridgeLog(envelope, phase, 'no-candidate', 'known abandoned run tab had no artifact candidate during recovery', {
         source_run_id: source.runId || '',
         source_tab_id: source.tabId == null ? '' : String(source.tabId),
         page_url: pageUrl,
@@ -3794,7 +5282,7 @@ async function recoverKnownRunPage(bridge, page, envelope, source, phase) {
       }, 'warn');
     }
   } catch (error) {
-    bridge.bridgeLog(envelope, phase, 'download-failed', 'failed to recover tar from known abandoned run tab', {
+    bridge.bridgeLog(envelope, phase, 'download-failed', 'failed to recover artifact from known abandoned run tab', {
       source_run_id: source.runId || '',
       source_tab_id: source.tabId == null ? '' : String(source.tabId),
       page_url: pageUrl,
@@ -3920,6 +5408,50 @@ function firstSetting(entries) {
     }
   }
   return null;
+}
+
+function loadGlobalJailgunConfig() {
+  const configuredPath = process.env.JAILGUN_GLOBAL_CONFIG
+    ? resolvePath(process.env.JAILGUN_GLOBAL_CONFIG)
+    : join(homedir(), '.jailgun', 'config.json');
+  if (!existsSync(configuredPath)) {
+    return {};
+  }
+  try {
+    const parsed = JSON.parse(readFileSync(configuredPath, 'utf8'));
+    const profiles = Array.isArray(parsed.profiles) ? parsed.profiles : [];
+    const profilePool = profiles
+      .map((profile) => {
+        const id = String(profile.id || profile.name || '').trim();
+        const profileDir = String(profile.profile_dir || profile.profileDir || '').trim();
+        if (!id || !profileDir) return '';
+        return `${id}=${profileDir}`;
+      })
+      .filter(Boolean)
+      .join(delimiter);
+    const profilePorts = profiles
+      .map((profile) => {
+        const id = String(profile.id || profile.name || '').trim();
+        const port = Number(profile.cdp_port ?? profile.cdpPort ?? 0);
+        if (!id || !Number.isInteger(port) || port <= 0 || port > 65535) return '';
+        return `${id}=${port}`;
+      })
+      .filter(Boolean)
+      .join(delimiter);
+    return {
+      cdpUrl: parsed.cdp_url ?? parsed.cdpUrl ?? '',
+      cdpHost: parsed.cdp_host ?? parsed.cdpHost ?? '',
+      cdpPort: parsed.cdp_port ?? parsed.cdpPort ?? '',
+      chromeExecutable: parsed.chrome_executable ?? parsed.chromeExecutable ?? '',
+      profileDir: parsed.profile_dir ?? parsed.profileDir ?? '',
+      stateDir: parsed.state_dir ?? parsed.stateDir ?? '',
+      profilePool,
+      profilePorts,
+    };
+  } catch (error) {
+    process.stderr.write(`[chrome-bridge] global-config: ignoring ${configuredPath}: ${error?.message || String(error)}\n`);
+    return {};
+  }
 }
 
 function numberFrom(value, defaultValue) {
@@ -4083,12 +5615,41 @@ function cssAttr(value) {
 }
 
 function normalizeTarName(value) {
+  return normalizeArtifactName(value);
+}
+
+function normalizeArtifactName(value) {
   const safe = String(value || 'chatgpt-output.tar.gz').replace(/[/\\]/g, '-');
   const normalized = safe
     .replace(/\.tar\(\d+\)\.gz$/i, '.tar.gz')
     .replace(/\.tgz$/i, '.tar.gz')
     .replace(/\.gz\.tar\.gz$/i, '.gz');
-  return /\.tar\.gz$/i.test(normalized) ? normalized : `${normalized}.tar.gz`;
+  if (/\.tar\.gz$/i.test(normalized) || /\.tex$/i.test(normalized)) {
+    return normalized;
+  }
+  return `${normalized}.tar.gz`;
+}
+
+function artifactTargetName(options = {}) {
+  return (options.downloadTargetName || options.tarTargetName || '').trim();
+}
+
+function downloadTargetNameForCandidate(options = {}, candidate = {}, targetName = artifactTargetName(options)) {
+  const kind = candidateFileKind(candidate, targetName);
+  if (kind === 'downloaded-archive' && isTexNameLike(targetName)) {
+    return (options.tarTargetName || targetName.replace(/\.tex$/i, '.tar.gz')).trim();
+  }
+  return targetName;
+}
+
+function artifactWaitLabel(targetName = '') {
+  if (isTexNameLike(targetName)) {
+    return '.tex artifact';
+  }
+  if (isTarGzNameLike(targetName)) {
+    return '.tar.gz artifact';
+  }
+  return 'artifact';
 }
 
 async function sha256File(path) {
@@ -4164,7 +5725,7 @@ async function assertDownloadCleanupSequencing() {
   }
 }
 
-async function assertNoTarCleanupSequencing() {
+async function assertNoTarCleanupSequencing(kind, message) {
   const calls = [];
   const envelope = {
     v: PROTOCOL_VERSION,
@@ -4190,7 +5751,7 @@ async function assertNoTarCleanupSequencing() {
     bridgeLog: () => undefined,
     closeTabAfterReceipt: async () => {
       calls.push('closeTabAfterReceipt');
-      bridge.emit(envelope, 'tab-closed', { page_url: 'https://chatgpt.com/c/test', reason: 'done-no-tar' });
+      bridge.emit(envelope, 'tab-closed', { page_url: 'https://chatgpt.com/c/test', reason: kind });
       tab.page = null;
       return true;
     },
@@ -4200,8 +5761,8 @@ async function assertNoTarCleanupSequencing() {
     bridge,
     tab,
     envelope,
-    'done-no-tar',
-    'assistant finished but no tar.gz download candidate was found',
+    kind,
+    message,
   );
   const expected = [
     'stopIfGenerating',
@@ -4211,14 +5772,666 @@ async function assertNoTarCleanupSequencing() {
     'emit:error',
   ];
   if (JSON.stringify(calls) !== JSON.stringify(expected)) {
-    throw new Error(`no-tar cleanup sequence failed: ${JSON.stringify(calls)}`);
+    throw new Error(`${kind} cleanup sequence failed: ${JSON.stringify(calls)}`);
   }
   if (!cleanup.closed || cleanup.stopMethod !== 'not-active:not-found' || cleanup.errors.length > 0) {
-    throw new Error(`no-tar cleanup result failed: ${JSON.stringify(cleanup)}`);
+    throw new Error(`${kind} cleanup result failed: ${JSON.stringify(cleanup)}`);
   }
 }
 
-async function assertMessageStreamRetryClicksRetry() {
+async function assertNoLinkBundleCapture(kind, message) {
+  const root = await mkdtemp(join(tmpdir(), 'jailgun-no-link-bundle-'));
+  try {
+    const logs = [];
+    const events = [];
+    let evaluateCount = 0;
+    const envelope = {
+      v: PROTOCOL_VERSION,
+      type: 'monitor-tab',
+      run_id: 'run-test',
+      tab_id: 7,
+      ts: timestamp(),
+      payload: {},
+    };
+    const tab = {
+      browserSlot: 7,
+      page: {
+        isClosed: () => false,
+        url: () => 'https://chatgpt.com/c/self-test',
+        title: async () => 'Self Test',
+        content: async () => '<html><body>Self test source</body></html>',
+        evaluate: async () => {
+          evaluateCount += 1;
+          if (evaluateCount === 1) {
+            return {
+              assistantRootCount: 1,
+              scannedControlCount: 2,
+              candidates: [],
+              lastTextLength: 18,
+              lastTextPreview: 'Self test source',
+              abFeedbackActive: false,
+              abResponseCount: 0,
+            };
+          }
+          return { clicked: false, reason: 'not-found' };
+        },
+        screenshot: async ({ path }) => {
+          await writeFile(path, 'fake screenshot');
+        },
+      },
+    };
+    const bridge = {
+      options: {
+        artifactsDir: root,
+      },
+      emit: (_envelope, type, payload) => {
+        events.push({ type, payload });
+      },
+      bridgeLog: (_envelope, phase, status, message, fields, level) => {
+        logs.push({ phase, status, message, fields, level });
+      },
+      closeTabAfterReceipt: async () => {
+        bridge.emit(envelope, 'tab-closed', { page_url: 'https://chatgpt.com/c/self-test', reason: kind });
+        tab.page = null;
+        return true;
+      },
+    };
+
+    const cleanup = await emitNoTarErrorAndCleanup(
+      bridge,
+      tab,
+      envelope,
+      kind,
+      message,
+    );
+
+    if (!cleanup.closed || cleanup.errors.length > 0) {
+      throw new Error(`no-link cleanup result failed: ${JSON.stringify(cleanup)}`);
+    }
+    const noLinkLog = logs.find((log) => log.phase === 'no-link-bundle' && log.status === 'written');
+    if (!noLinkLog?.fields?.path) {
+      throw new Error(`no-link bundle path was not logged: ${JSON.stringify(logs)}`);
+    }
+    if (!noLinkLog.fields.path.includes('download-failures/run-test/tab-07')) {
+      throw new Error(`${kind} bundle was not written under download-failures: ${JSON.stringify(noLinkLog.fields)}`);
+    }
+    const snapshotPath = join(noLinkLog.fields.path, 'snapshot.json');
+    const snapshot = JSON.parse(await readFile(snapshotPath, 'utf8'));
+    if (!snapshot.html_path || !snapshot.text_path || !snapshot.candidate_discovery_path || !snapshot.download_attempts_path) {
+      throw new Error(`no-link snapshot missing fields: ${JSON.stringify(snapshot)}`);
+    }
+    const htmlStat = await stat(snapshot.html_path);
+    const textStat = await stat(snapshot.text_path);
+    const discoveryStat = await stat(snapshot.candidate_discovery_path);
+    const attemptsStat = await stat(snapshot.download_attempts_path);
+    const screenshotStat = await stat(snapshot.screenshot_path);
+    if (!htmlStat.isFile() || !textStat.isFile() || !discoveryStat.isFile() || !attemptsStat.isFile() || !screenshotStat.isFile()) {
+      throw new Error(`no-link bundle files were not written: ${JSON.stringify(snapshot)}`);
+    }
+    const errorEvent = events.find((event) => event.type === 'error');
+    if (!errorEvent?.payload?.failed_download_bundle_path || !errorEvent?.payload?.no_link_bundle_path) {
+      throw new Error(`${kind} error payload missed bundle path: ${JSON.stringify(events)}`);
+    }
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+}
+
+async function assertDownloadSaveAsTempPathCopySucceeds() {
+  const root = await mkdtemp(join(tmpdir(), 'jailgun-download-temp-path-'));
+  try {
+    const tempArchive = await createSelfTestTarGz(root);
+    const logs = [];
+    const page = fakeDownloadPage([
+      {
+        suggestedFilename: () => 'chapter-7-output.tar.gz',
+        saveAs: async () => {
+          const error = new Error('ENOENT: no such file or directory, copyfile');
+          error.code = 'ENOENT';
+          throw error;
+        },
+        failure: async () => null,
+        path: async () => tempArchive,
+      },
+    ]);
+    const outputDir = join(root, 'downloads');
+    const file = await downloadCandidate(
+      page,
+      selfTestDownloadCandidate(),
+      outputDir,
+      1000,
+      selfTestDownloadContext(logs, root),
+    );
+    if (file.persistedBy !== 'temp-path-copy' || !file.path.startsWith(outputDir) || file.entryCount < 1) {
+      throw new Error(`download temp-path copy did not return valid file metadata: ${JSON.stringify(file)}`);
+    }
+    if (!logs.some((log) => log.phase === 'download-save-failed') || !logs.some((log) => log.phase === 'download-temp-path-persist' && log.status === 'copied')) {
+      throw new Error(`download temp-path copy did not emit expected diagnostics: ${JSON.stringify(logs)}`);
+    }
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+}
+
+async function assertDownloadSaveAsBrowserDownloadCopySucceeds() {
+  const root = await mkdtemp(join(tmpdir(), 'jailgun-download-browser-dir-'));
+  const oldBrowserDownloadsDir = process.env.JAILGUN_BROWSER_DOWNLOADS_DIR;
+  try {
+    const suggested = 'chapter-7-output.tar.gz';
+    const browserDownloadsDir = join(root, 'browser-downloads');
+    await mkdir(browserDownloadsDir, { recursive: true });
+    process.env.JAILGUN_BROWSER_DOWNLOADS_DIR = browserDownloadsDir;
+    const tempArchive = await createSelfTestTarGz(root);
+    await copyFile(tempArchive, join(browserDownloadsDir, suggested));
+    const missingTempPath = join(root, 'missing-playwright-temp.tar.gz');
+    const logs = [];
+    const page = fakeDownloadPage([
+      {
+        suggestedFilename: () => suggested,
+        saveAs: async () => {
+          const error = new Error('ENOENT: no such file or directory, copyfile');
+          error.code = 'ENOENT';
+          throw error;
+        },
+        failure: async () => null,
+        path: async () => missingTempPath,
+      },
+    ]);
+    const outputDir = join(root, 'downloads');
+    const file = await downloadCandidate(
+      page,
+      selfTestDownloadCandidate(),
+      outputDir,
+      1000,
+      selfTestDownloadContext(logs, root),
+    );
+    if (file.persistedBy !== 'browser-download-copy' || !file.path.startsWith(outputDir) || file.entryCount < 1) {
+      throw new Error(`download browser-dir copy did not return valid file metadata: ${JSON.stringify(file)}`);
+    }
+    if (!logs.some((log) => log.phase === 'download-browser-download-persist' && log.status === 'copied')) {
+      throw new Error(`download browser-dir copy did not emit expected diagnostics: ${JSON.stringify(logs)}`);
+    }
+  } finally {
+    if (oldBrowserDownloadsDir == null) {
+      delete process.env.JAILGUN_BROWSER_DOWNLOADS_DIR;
+    } else {
+      process.env.JAILGUN_BROWSER_DOWNLOADS_DIR = oldBrowserDownloadsDir;
+    }
+    await rm(root, { recursive: true, force: true });
+  }
+}
+
+async function assertDownloadFailureDiagnosticsAndCleanup() {
+  const root = await mkdtemp(join(tmpdir(), 'jailgun-download-failure-'));
+  try {
+    const logs = [];
+    const events = [];
+    const missingTempPath = join(root, 'missing-playwright-temp.tar.gz');
+    const failingDownload = () => ({
+      suggestedFilename: () => 'chapter-7-output.tar.gz',
+      saveAs: async () => {
+        const error = new Error('ENOENT: no such file or directory, copyfile');
+        error.code = 'ENOENT';
+        throw error;
+      },
+      failure: async () => null,
+      path: async () => missingTempPath,
+    });
+    let downloadError = null;
+    const failurePage = fakeDownloadPage([failingDownload(), failingDownload()]);
+    try {
+      await downloadCandidate(
+        failurePage,
+        selfTestDownloadCandidate(),
+        join(root, 'downloads'),
+        1000,
+        selfTestDownloadContext(logs, root),
+      );
+    } catch (error) {
+      downloadError = error;
+    }
+    if (!downloadError?.failureBundlePath) {
+      throw new Error(`download failure did not include diagnostics bundle path: ${downloadError?.message || downloadError}`);
+    }
+    if (failurePage.clickCount() !== 1) {
+      throw new Error(`failed download clicked candidate more than once: ${failurePage.clickCount()}`);
+    }
+    const bundleStat = await stat(downloadError.failureBundlePath);
+    const htmlStat = await stat(join(downloadError.failureBundlePath, 'page.html'));
+    const attempts = JSON.parse(await readFile(join(downloadError.failureBundlePath, 'download-attempts.json'), 'utf8'));
+    if (!bundleStat.isDirectory() || !htmlStat.isFile() || !Array.isArray(attempts) || attempts.length !== 1) {
+      throw new Error(`download failure diagnostics bundle was not written: ${downloadError.failureBundlePath}`);
+    }
+    for (const phase of ['download-save-failed', 'download-failure-bundle']) {
+      if (!logs.some((log) => log.phase === phase)) {
+        throw new Error(`download failure missed ${phase} diagnostic: ${JSON.stringify(logs)}`);
+      }
+    }
+    if (logs.some((log) => log.phase === 'download-retry')) {
+      throw new Error(`download failure should not retry candidate click: ${JSON.stringify(logs)}`);
+    }
+
+    let closeCalled = false;
+    const tab = {
+      browserSlot: 1,
+      browserProfile: 'self-test-profile',
+      browserProfileDir: join(root, 'profile'),
+      browserCdpUrl: 'http://127.0.0.1:9224',
+      page: {
+        isClosed: () => false,
+        url: () => 'https://chatgpt.com/c/self-test',
+        evaluate: async () => ({ clicked: false, reason: 'not-found' }),
+      },
+    };
+    const bridge = {
+      options: {},
+      emit: (_envelope, type, payload) => {
+        events.push({ type, payload });
+      },
+      bridgeLog: (_envelope, phase, status, message, fields, level) => {
+        logs.push({ phase, status, message, fields, level });
+      },
+      closeTabAfterReceipt: async () => {
+        closeCalled = true;
+        return true;
+      },
+    };
+    const cleanup = await emitDownloadErrorAndCleanup(bridge, tab, selfTestEnvelope(), downloadError, {
+      failure_bundle_path: downloadError.failureBundlePath,
+      failed_download_bundle_path: downloadError.failureBundlePath,
+    });
+    if (!closeCalled || !cleanup.closed || cleanup.errors.length > 0) {
+      throw new Error(`download failure cleanup did not close the tab: ${JSON.stringify({ closeCalled, cleanup })}`);
+    }
+    const errorEvent = events.find((event) => event.type === 'error');
+    if (
+      errorEvent?.payload?.failure_bundle_path !== downloadError.failureBundlePath
+      || errorEvent.payload.failed_download_bundle_path !== downloadError.failureBundlePath
+    ) {
+      throw new Error(`download error payload missed diagnostics bundle paths: ${JSON.stringify(events)}`);
+    }
+    if (!logs.some((log) => log.phase === 'download-failed' && log.fields?.failed_download_bundle_path === downloadError.failureBundlePath)) {
+      throw new Error(`download failure log missed diagnostics bundle path: ${JSON.stringify(logs)}`);
+    }
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+}
+
+async function assertDirectTexDownloadFailureIsArtifactScoped() {
+  const root = await mkdtemp(join(tmpdir(), 'jailgun-download-tex-failure-'));
+  try {
+    const logs = [];
+    const events = [];
+    const targetName = 'chapter-7-output.tex';
+    const targetPath = join(root, 'downloads', targetName);
+    const missingTempPath = join(root, 'missing-playwright-temp.tex');
+    const failurePage = fakeDownloadPage([
+      {
+        suggestedFilename: () => targetName,
+        saveAs: async (nextTargetPath) => {
+          await writeFile(nextTargetPath, '');
+          const error = new Error('ENOENT: no such file or directory, copyfile');
+          error.code = 'ENOENT';
+          throw error;
+        },
+        failure: async () => null,
+        path: async () => missingTempPath,
+      },
+    ]);
+    let downloadError = null;
+    try {
+      await downloadCandidate(
+        failurePage,
+        selfTestTexDownloadCandidate(targetName),
+        join(root, 'downloads'),
+        1000,
+        {
+          ...selfTestDownloadContext(logs, root),
+          targetName,
+          downloadsDir: join(root, 'downloads'),
+        },
+      );
+    } catch (error) {
+      downloadError = error;
+    }
+    if (!downloadError?.failureBundlePath) {
+      throw new Error(`direct tex failure did not include diagnostics bundle path: ${downloadError?.message || downloadError}`);
+    }
+    if (/failed to persist tar\.gz download|download saveAs failed/.test(downloadError.message)) {
+      throw new Error(`direct tex failure used stale tar/download wording: ${downloadError.message}`);
+    }
+    try {
+      await stat(targetPath);
+      throw new Error(`direct tex failure left an unusable target file behind: ${targetPath}`);
+    } catch (error) {
+      if (error?.code !== 'ENOENT') {
+        throw error;
+      }
+    }
+    if (!logs.some((log) => log.phase === 'download-target-path-persist' && log.status === 'removed-empty')) {
+      throw new Error(`direct tex failure did not remove empty target path: ${JSON.stringify(logs)}`);
+    }
+
+    let closeCalled = false;
+    const tab = {
+      browserSlot: 1,
+      browserProfile: 'self-test-profile',
+      browserProfileDir: join(root, 'profile'),
+      browserCdpUrl: 'http://127.0.0.1:9224',
+      page: {
+        isClosed: () => false,
+        url: () => 'https://chatgpt.com/c/self-test',
+        evaluate: async () => ({ clicked: false, reason: 'not-found' }),
+      },
+    };
+    const bridge = {
+      options: {},
+      emit: (_envelope, type, payload) => {
+        events.push({ type, payload });
+      },
+      bridgeLog: (_envelope, phase, status, message, fields, level) => {
+        logs.push({ phase, status, message, fields, level });
+      },
+      closeTabAfterReceipt: async () => {
+        closeCalled = true;
+        return true;
+      },
+    };
+    await emitDownloadErrorAndCleanup(bridge, tab, selfTestEnvelope(), downloadError, {
+      target_name: targetName,
+      target_path: targetPath,
+      file_kind: 'downloaded-tex',
+      failure_bundle_path: downloadError.failureBundlePath,
+      failed_download_bundle_path: downloadError.failureBundlePath,
+    });
+    if (!closeCalled) {
+      throw new Error('direct tex failure cleanup did not close the tab');
+    }
+    const errorEvent = events.find((event) => event.type === 'error');
+    if (!errorEvent?.payload?.message?.startsWith('failed to persist .tex artifact:')) {
+      throw new Error(`direct tex failure emitted wrong message: ${JSON.stringify(events)}`);
+    }
+    if (/failed to persist tar\.gz download|download saveAs failed/.test(errorEvent.payload.message)) {
+      throw new Error(`direct tex failure payload used stale wording: ${errorEvent.payload.message}`);
+    }
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+}
+
+async function createSelfTestTarGz(root) {
+  const sourceDir = join(root, 'tar-source');
+  const archivePath = join(root, 'self-test.tar.gz');
+  await mkdir(sourceDir, { recursive: true });
+  await writeFile(join(sourceDir, 'README.md'), '# self test\n');
+  const result = spawnSync('tar', ['-czf', archivePath, '-C', sourceDir, '.'], { encoding: 'utf8' });
+  if (result.status !== 0) {
+    throw new Error(`failed to create self-test tar.gz: ${result.stderr || result.stdout}`);
+  }
+  return archivePath;
+}
+
+function fakeDownloadPage(downloads) {
+  let waitIndex = 0;
+  let clickCount = 0;
+  const pageText = 'Self test download page';
+  return {
+    clickCount: () => clickCount,
+    isClosed: () => false,
+    url: () => 'https://chatgpt.com/c/self-test-download',
+    title: async () => 'Self Test Download',
+    content: async () => `<html><body>${pageText}</body></html>`,
+    evaluate: async (fn) => {
+      const previousDocument = globalThis.document;
+      const previousWindow = globalThis.window;
+      globalThis.document = {
+        body: {
+          innerText: pageText,
+          textContent: pageText,
+        },
+        querySelectorAll: () => [],
+      };
+      globalThis.window = {
+        getComputedStyle: () => ({ visibility: 'visible', display: 'block' }),
+      };
+      try {
+        return fn();
+      } finally {
+        if (previousDocument === undefined) {
+          delete globalThis.document;
+        } else {
+          globalThis.document = previousDocument;
+        }
+        if (previousWindow === undefined) {
+          delete globalThis.window;
+        } else {
+          globalThis.window = previousWindow;
+        }
+      }
+    },
+    screenshot: async ({ path }) => {
+      await writeFile(path, 'fake screenshot');
+    },
+    waitForEvent: async (eventName) => {
+      if (eventName !== 'download') {
+        throw new Error(`unexpected event wait: ${eventName}`);
+      }
+      const download = downloads[waitIndex];
+      waitIndex += 1;
+      if (!download) {
+        throw new Error('no fake download available');
+      }
+      return download;
+    },
+    locator: () => ({
+      nth: () => ({
+        scrollIntoViewIfNeeded: async () => undefined,
+        click: async () => {
+          clickCount += 1;
+        },
+      }),
+    }),
+  };
+}
+
+function fakeArtifactRecoverySourcePage(links, linkedPages = []) {
+  let closed = false;
+  return {
+    isClosed: () => closed,
+    url: () => 'https://chatgpt.com/c/current-conversation',
+    title: async () => 'Self Test Source',
+    content: async () => '<html><body>Chapter 027 source page</body></html>',
+    screenshot: async ({ path }) => {
+      await writeFile(path, 'fake screenshot');
+    },
+    close: async () => {
+      closed = true;
+    },
+    context: () => ({
+      newPage: async () => {
+        const page = linkedPages.shift();
+        if (!page) {
+          throw new Error('no fake artifact conversation page available');
+        }
+        return page;
+      },
+    }),
+    evaluate: async () => ({ clicked: false, reason: 'not-found' }),
+    __jailgunDiscoverArtifactConversationLinks: async () => links,
+    __jailgunDiscoverTarCandidates: async () => ({
+      assistantRootCount: 1,
+      scannedControlCount: 1,
+      candidates: [],
+      lastTextLength: 28,
+      lastTextPreview: 'Chapter 027 source page',
+      abFeedbackActive: false,
+      abResponseCount: 0,
+      artifactConversationLinks: links,
+    }),
+  };
+}
+
+function fakeArtifactRecoveryConversationPage({ url, downloads = [], candidates = [] }) {
+  const page = fakeDownloadPage(downloads);
+  let currentUrl = url;
+  let closed = false;
+  return {
+    ...page,
+    clickCount: page.clickCount,
+    isClosed: () => closed,
+    url: () => currentUrl,
+    goto: async (nextUrl) => {
+      currentUrl = nextUrl;
+    },
+    waitForLoadState: async () => undefined,
+    close: async () => {
+      closed = true;
+    },
+    __jailgunDiscoverTarCandidates: async () => ({
+      assistantRootCount: candidates.length > 0 ? 1 : 0,
+      scannedControlCount: candidates.length,
+      candidates,
+      lastTextLength: candidates.length > 0 ? 42 : 18,
+      lastTextPreview: candidates.length > 0 ? 'Download chapter archive' : 'No archive yet',
+      abFeedbackActive: false,
+      abResponseCount: 0,
+      artifactConversationLinks: [],
+    }),
+    __jailgunDiscoverArtifactConversationLinks: async () => [],
+  };
+}
+
+function fakeSuccessfulDownload(archivePath, suggested = 'chapter-027-epoch-02.tar.gz') {
+  return {
+    suggestedFilename: () => suggested,
+    saveAs: async (targetPath) => {
+      await copyFile(archivePath, targetPath);
+    },
+    failure: async () => null,
+    path: async () => archivePath,
+  };
+}
+
+function fakeArtifactRecoveryBridge(root, logs, events) {
+  const bridge = {
+    options: {
+      downloadsDir: join(root, 'downloads-root'),
+      artifactsDir: join(root, 'artifacts'),
+      tarTargetName: 'chapter-027-epoch-02.tar.gz',
+      browserTimeoutMs: 1000,
+      artifactConversationRecoveryLimit: 3,
+    },
+    emit: (_envelope, type, payload) => {
+      events.push({ type, payload });
+    },
+    bridgeLog: (_envelope, phase, status, message, fields, level) => {
+      logs.push({ phase, status, message, fields, level });
+    },
+    runDismissals: async () => undefined,
+    closeTabAfterReceipt: async (tab, envelope, reason) => {
+      const pageUrl = tab.page?.url?.() || '';
+      await tab.page?.close?.();
+      tab.page = null;
+      bridge.emit(envelope, 'tab-closed', { page_url: pageUrl, reason });
+      return true;
+    },
+  };
+  return bridge;
+}
+
+function selfTestDownloadCandidate() {
+  return {
+    index: 0,
+    score: 500,
+    label: 'Download chapter-7-output.tar.gz',
+    text: 'Download chapter-7-output.tar.gz',
+    href: '',
+    download: 'chapter-7-output.tar.gz',
+    aria: '',
+    title: '',
+    tag: 'a',
+    role: '',
+    assistantIndex: 0,
+  };
+}
+
+function selfTestTexDownloadCandidate(targetName = 'chapter-7-output.tex') {
+  return {
+    index: 0,
+    score: 700,
+    label: `Download ${targetName}`,
+    text: `Download ${targetName}`,
+    href: '',
+    download: targetName,
+    aria: '',
+    title: '',
+    tag: 'button',
+    role: '',
+    assistantIndex: 0,
+    fileKind: 'downloaded-tex',
+  };
+}
+
+function selfTestArtifactConversationLink() {
+  return {
+    index: 0,
+    url: 'https://chatgpt.com/c/chapter-027-artifact',
+    href: 'https://chatgpt.com/c/chapter-027-artifact?model=gpt-5',
+    text: 'Chapter 027 Tar.gz',
+    aria: '',
+    title: '',
+    score: 330,
+    selector: 'a[href]',
+    tagName: 'a',
+    conversationId: 'chapter-027-artifact',
+    chapter: '27',
+    targetMatched: true,
+    artifactSignals: ['tar'],
+  };
+}
+
+function selfTestArtifactDownloadCandidate() {
+  return {
+    index: 0,
+    score: 700,
+    label: 'Download chapter-027-epoch-02.tar.gz',
+    text: 'Download chapter-027-epoch-02.tar.gz',
+    href: 'blob:https://chatgpt.com/chapter-027',
+    download: 'chapter-027-epoch-02.tar.gz',
+    aria: '',
+    title: '',
+    tag: 'a',
+    role: '',
+    assistantIndex: 0,
+  };
+}
+
+function selfTestDownloadContext(logs, root) {
+  return {
+    bridge: {
+      bridgeLog: (_envelope, phase, status, message, fields, level) => {
+        logs.push({ phase, status, message, fields, level });
+      },
+    },
+    envelope: selfTestEnvelope(),
+    tabId: 1,
+    artifactsDir: join(root, 'artifacts'),
+  };
+}
+
+function selfTestEnvelope() {
+  return {
+    v: PROTOCOL_VERSION,
+    type: 'monitor-tab',
+    run_id: 'run-test',
+    tab_id: 1,
+    ts: timestamp(),
+    payload: {},
+  };
+}
+
+async function assertMessageStreamRetryHardDisabled() {
   let clicked = false;
   const retryButton = {
     innerText: 'Retry',
@@ -4267,9 +6480,212 @@ async function assertMessageStreamRetryClicksRetry() {
   if (!status.messageStreamError || !status.retryAvailable) {
     throw new Error(`message stream status detection failed: ${JSON.stringify(status)}`);
   }
-  const retry = await retryMessageStreamError(page);
-  if (!retry.clicked || !clicked || retry.buttonLabel !== 'Retry') {
-    throw new Error(`message stream retry click failed: ${JSON.stringify({ retry, clicked })}`);
+  if (DEFAULT_MESSAGE_STREAM_RETRY_LIMIT !== 0 || settings.messageStreamRetryLimit !== 0) {
+    throw new Error(`message stream retry limit must be hard-disabled: ${JSON.stringify({
+      default: DEFAULT_MESSAGE_STREAM_RETRY_LIMIT,
+      setting: settings.messageStreamRetryLimit,
+    })}`);
+  }
+  if (DEFAULT_ARTIFACT_REPAIR_ATTEMPT_LIMIT !== 0 || settings.artifactRepairAttemptLimit !== 0) {
+    throw new Error(`artifact repair attempts must be hard-disabled: ${JSON.stringify({
+      default: DEFAULT_ARTIFACT_REPAIR_ATTEMPT_LIMIT,
+      setting: settings.artifactRepairAttemptLimit,
+    })}`);
+  }
+  if (clicked) {
+    throw new Error('message stream Retry button was clicked even though retries are disabled');
+  }
+}
+
+async function assertArtifactConversationLinkCollection() {
+  const anchors = [
+    fakeArtifactAnchor({
+      href: 'https://chatgpt.com/c/chapter-027-artifact?model=gpt-5',
+      text: 'Chapter 027 Tar.gz',
+    }),
+    fakeArtifactAnchor({
+      href: 'https://chatgpt.com/c/chapter-028-artifact',
+      text: 'Chapter 028 Tar.gz',
+    }),
+    fakeArtifactAnchor({
+      href: 'https://chatgpt.com/c/chapter-027-review',
+      text: 'Chapter 027 Editorial Review',
+    }),
+    fakeArtifactAnchor({
+      href: 'https://chatgpt.com/c/current-conversation?locale=en-US',
+      text: 'Chapter 027 Artifact',
+    }),
+    fakeArtifactAnchor({
+      href: 'https://chatgpt.com/c/chapter-027-upload',
+      text: 'Chapter 027 Tar.gz',
+      uploadChip: true,
+    }),
+  ];
+  const page = fakeArtifactDomPage(anchors, 'https://chatgpt.com/c/current-conversation');
+  const links = await discoverArtifactConversationLinks(page, 'chapter-027-epoch-02.tar.gz', page.url());
+  if (links.length !== 1 || links[0].url !== 'https://chatgpt.com/c/chapter-027-artifact') {
+    throw new Error(`artifact conversation link collection failed: ${JSON.stringify(links)}`);
+  }
+  const tarDiscovery = await discoverTarCandidates(page);
+  if (tarDiscovery.candidates.length !== 0) {
+    throw new Error(`artifact conversation link was discovered as a direct tar candidate: ${JSON.stringify(tarDiscovery.candidates)}`);
+  }
+}
+
+function fakeArtifactAnchor({ href, text, aria = '', title = '', uploadChip = false }) {
+  return {
+    href,
+    innerText: text,
+    textContent: text,
+    tagName: 'A',
+    hasAttribute: () => false,
+    getBoundingClientRect: () => ({ width: 120, height: 24 }),
+    getAttribute: (name) => ({
+      href,
+      'aria-label': aria,
+      title,
+    })[name] || '',
+    closest: (selector) => (uploadChip && /\[data-testid\*="upload-chip"\]/.test(selector) ? {} : null),
+  };
+}
+
+function fakeArtifactDomPage(anchors, currentUrl) {
+  return {
+    url: () => currentUrl,
+    evaluate: async (fn, arg) => {
+      const previousDocument = globalThis.document;
+      const previousWindow = globalThis.window;
+      globalThis.document = {
+        location: { href: currentUrl },
+        body: {
+          innerText: anchors.map((anchor) => anchor.textContent).join(' '),
+          textContent: anchors.map((anchor) => anchor.textContent).join(' '),
+        },
+        querySelectorAll: (selector) => {
+          if (selector === 'a[href]' || selector === 'a,button,[role="button"],[download],[href]') {
+            return anchors;
+          }
+          return [];
+        },
+      };
+      globalThis.window = {
+        getComputedStyle: () => ({ visibility: 'visible', display: 'block' }),
+      };
+      try {
+        return fn(arg);
+      } finally {
+        if (previousDocument === undefined) {
+          delete globalThis.document;
+        } else {
+          globalThis.document = previousDocument;
+        }
+        if (previousWindow === undefined) {
+          delete globalThis.window;
+        } else {
+          globalThis.window = previousWindow;
+        }
+      }
+    },
+  };
+}
+
+async function assertArtifactConversationRecoveryDownloadsFromLinkedPage() {
+  const root = await mkdtemp(join(tmpdir(), 'jailgun-artifact-recovery-download-'));
+  try {
+    const logs = [];
+    const events = [];
+    const archivePath = await createSelfTestTarGz(root);
+    const linkedPage = fakeArtifactRecoveryConversationPage({
+      url: 'https://chatgpt.com/c/chapter-027-artifact',
+      downloads: [fakeSuccessfulDownload(archivePath)],
+      candidates: [selfTestArtifactDownloadCandidate()],
+    });
+    const sourcePage = fakeArtifactRecoverySourcePage([selfTestArtifactConversationLink()], [linkedPage]);
+    const tab = { browserSlot: 1, page: sourcePage };
+    const bridge = fakeArtifactRecoveryBridge(root, logs, events);
+    const recovery = await recoverArtifactConversationDownload(bridge, tab, selfTestEnvelope(), {
+      kind: 'done-no-tar',
+      message: 'assistant finished but no tar.gz download candidate was found',
+      outputDir: join(root, 'downloads'),
+      tabId: 1,
+      targetName: bridge.options.tarTargetName,
+      state: { attempts: 0, visitedUrls: new Set(['https://chatgpt.com/c/current-conversation']) },
+    });
+
+    if (!recovery.downloaded || !recovery.download?.local_path) {
+      throw new Error(`artifact conversation recovery did not download: ${JSON.stringify(recovery)}`);
+    }
+    if (linkedPage.clickCount() !== 1) {
+      throw new Error(`artifact conversation recovery clicked the tar candidate ${linkedPage.clickCount()} times`);
+    }
+    if (tab.page !== null || !events.some((event) => event.type === 'download-complete')) {
+      throw new Error(`artifact conversation recovery did not close original tab and emit completion: ${JSON.stringify({ tabPage: tab.page, events })}`);
+    }
+    if (!logs.some((log) => log.phase === 'artifact-conversation-recovery' && log.status === 'downloaded')) {
+      throw new Error(`artifact conversation recovery did not log downloaded result: ${JSON.stringify(logs)}`);
+    }
+    const receiptStat = await stat(recovery.download.receipt_path);
+    if (!receiptStat.isFile()) {
+      throw new Error(`artifact conversation recovery receipt was not written: ${recovery.download.receipt_path}`);
+    }
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+}
+
+async function assertArtifactConversationRecoveryNoCandidateDiagnostics() {
+  const root = await mkdtemp(join(tmpdir(), 'jailgun-artifact-recovery-no-candidate-'));
+  try {
+    const logs = [];
+    const events = [];
+    const linkedPage = fakeArtifactRecoveryConversationPage({
+      url: 'https://chatgpt.com/c/chapter-027-artifact',
+      downloads: [],
+      candidates: [],
+    });
+    const sourcePage = fakeArtifactRecoverySourcePage([selfTestArtifactConversationLink()], [linkedPage]);
+    const tab = { browserSlot: 2, page: sourcePage };
+    const bridge = fakeArtifactRecoveryBridge(root, logs, events);
+    const recovery = await recoverArtifactConversationDownload(bridge, tab, selfTestEnvelope(), {
+      kind: 'done-no-tar',
+      message: 'assistant finished but no tar.gz download candidate was found',
+      outputDir: join(root, 'downloads'),
+      tabId: 2,
+      targetName: bridge.options.tarTargetName,
+      state: { attempts: 0, visitedUrls: new Set(['https://chatgpt.com/c/current-conversation']) },
+    });
+
+    if (recovery.downloaded) {
+      throw new Error(`artifact conversation recovery unexpectedly downloaded: ${JSON.stringify(recovery)}`);
+    }
+    if (linkedPage.clickCount() !== 0) {
+      throw new Error(`artifact conversation no-candidate recovery clicked a link as a download: ${linkedPage.clickCount()}`);
+    }
+    if (!logs.some((log) => log.phase === 'artifact-conversation-recovery' && log.status === 'no-candidate')) {
+      throw new Error(`artifact conversation recovery missed no-candidate log: ${JSON.stringify(logs)}`);
+    }
+
+    await emitNoTarErrorAndCleanup(
+      bridge,
+      tab,
+      selfTestEnvelope(),
+      'done-no-tar',
+      'assistant finished but no tar.gz download candidate was found',
+      artifactConversationRecoveryDetails(recovery),
+    );
+    const noLinkLog = logs.find((log) => log.phase === 'no-link-bundle' && log.status === 'written');
+    if (!noLinkLog?.fields?.path) {
+      throw new Error(`artifact conversation no-tar diagnostics bundle was not written: ${JSON.stringify(logs)}`);
+    }
+    const snapshot = JSON.parse(await readFile(join(noLinkLog.fields.path, 'snapshot.json'), 'utf8'));
+    if (snapshot.details?.artifact_conversation_links?.[0]?.url !== 'https://chatgpt.com/c/chapter-027-artifact') {
+      throw new Error(`artifact conversation links missing from no-link diagnostics: ${JSON.stringify(snapshot.details)}`);
+    }
+    if (!events.some((event) => event.type === 'error' && event.payload?.kind === 'done-no-tar')) {
+      throw new Error(`artifact conversation no-candidate path did not continue to no-tar error: ${JSON.stringify(events)}`);
+    }
+  } finally {
+    await rm(root, { recursive: true, force: true });
   }
 }
 
@@ -4689,6 +7105,60 @@ async function assertEmailCodeSelectionAndManualAuthFallbacks() {
   }
 }
 
+async function assertComposerWaitAndAuthClassification() {
+  let composerChecks = 0;
+  const delayedComposer = {
+    url: () => 'https://chatgpt.com/',
+    locator: (selector) => fakeComposerLocator(selector, () => {
+      if (selector === '#prompt-textarea') {
+        composerChecks += 1;
+        return composerChecks >= 2;
+      }
+      return false;
+    }, ''),
+  };
+  const composer = await waitForChatComposer(delayedComposer, 1500, {
+    dismiss: async () => undefined,
+    log: () => undefined,
+  });
+  if (!composer || composerChecks < 2) {
+    throw new Error('delayed composer should be returned before timeout');
+  }
+
+  const states = [];
+  const loginPage = {
+    url: () => 'https://chatgpt.com/auth/login',
+    locator: (selector) => fakeComposerLocator(selector, () => (
+      selector === 'button:has-text("Log in")'
+    ), 'Log in to continue'),
+  };
+  let authRequired = false;
+  try {
+    await waitForChatComposer(loginPage, 1000, {
+      dismiss: async () => undefined,
+      authState: (state) => states.push(state.state),
+      log: () => undefined,
+    });
+  } catch (error) {
+    authRequired = String(error?.message || error).startsWith('auth-required:');
+  }
+  if (!authRequired || !states.includes('auth-required')) {
+    throw new Error(`auth-required composer wait classification failed: ${JSON.stringify(states)}`);
+  }
+}
+
+function fakeComposerLocator(selector, visibleForSelector, bodyText) {
+  const visible = () => Boolean(visibleForSelector(selector));
+  return {
+    first() {
+      return this;
+    },
+    count: async () => visible() ? 1 : 0,
+    isVisible: async () => visible(),
+    innerText: async () => selector === 'body' ? bodyText : '',
+  };
+}
+
 async function assertKeepAliveCleanup() {
   const bridge = new ChromeBridge({ profilePool: [] });
   const calls = [];
@@ -4725,11 +7195,36 @@ async function runSelfTest() {
     throw new Error(`normalizeTarName failed: ${name}`);
   }
   const ranked = rankCandidates([
-    { score: 1, text: 'other.tar.gz', href: '', download: '', aria: '', title: '' },
-    { score: 1, text: 'Download jekko-fixes.tar.gz', href: '', download: '', aria: '', title: '' },
+    { score: 1, text: 'other.tar.gz', href: '', download: '', aria: '', title: '', assistantIndex: 0 },
+    { score: 1, text: 'Download jekko-fixes.tar.gz', href: '', download: '', aria: '', title: '', assistantIndex: 0 },
   ], 'jekko-fixes.tar.gz');
   if (!ranked[0].text.includes('jekko-fixes')) {
     throw new Error('target tar ranking failed');
+  }
+  const filteredHistoryTarLabel = rankCandidates([
+    {
+      score: 270,
+      text: 'Missing .tar(289).gz Archive',
+      href: 'https://chatgpt.com/c/6a224b5f-25f0-83e8-8556-b960941c7551',
+      download: '',
+      aria: 'Missing .tar(289).gz Archive, unread',
+      title: '',
+      tag: 'a',
+      assistantIndex: null,
+    },
+    {
+      score: 220,
+      text: '',
+      href: '',
+      download: '',
+      aria: 'Open conversation options for Missing .tar(289).gz Archive',
+      title: '',
+      tag: 'button',
+      assistantIndex: null,
+    },
+  ], '');
+  if (filteredHistoryTarLabel.length !== 0) {
+    throw new Error(`chat history tar label candidate was not filtered: ${JSON.stringify(filteredHistoryTarLabel)}`);
   }
   const legacyFallback = planCdpEndpointRecovery(
     parseCdpEndpoint('http://127.0.0.1:922'),
@@ -4804,14 +7299,31 @@ async function runSelfTest() {
   assertErrorPayloadRedaction();
   assertBridgeLogProfileFieldRedaction();
   assertManagedChromeLaunchPlanning();
+  assertArtifactStallDefaultDisabled();
   await assertProfileLockCleanup();
   await assertSessionExpiredFailFast();
   await assertEmailCodeSelectionAndManualAuthFallbacks();
+  await assertComposerWaitAndAuthClassification();
   await assertKeepAliveCleanup();
+  await assertLocalArchivePathSkipsGitArchive();
   await assertFreshSourceCloneArchivesLocalRepos();
   await assertDownloadCleanupSequencing();
-  await assertNoTarCleanupSequencing();
-  await assertMessageStreamRetryClicksRetry();
+  await assertNoTarCleanupSequencing('done-no-tar', 'assistant finished but no tar.gz download candidate was found');
+  await assertNoTarCleanupSequencing('artifact-stall-no-tar', 'assistant stalled without a tar.gz download candidate');
+  await assertNoTarCleanupSequencing('message-stream-no-tar', 'assistant hit message stream error without tar.gz after 0 retry attempts');
+  await assertNoTarCleanupSequencing('timeout-no-tar', 'timed out after 30 minutes waiting for tar.gz download candidate');
+  await assertNoLinkBundleCapture('done-no-tar', 'assistant finished but no tar.gz download candidate was found');
+  await assertNoLinkBundleCapture('artifact-stall-no-tar', 'assistant stalled without a tar.gz download candidate');
+  await assertNoLinkBundleCapture('message-stream-no-tar', 'assistant hit message stream error without tar.gz after 0 retry attempts');
+  await assertNoLinkBundleCapture('timeout-no-tar', 'timed out after 30 minutes waiting for tar.gz download candidate');
+  await assertDownloadSaveAsTempPathCopySucceeds();
+  await assertDownloadSaveAsBrowserDownloadCopySucceeds();
+  await assertDownloadFailureDiagnosticsAndCleanup();
+  await assertDirectTexDownloadFailureIsArtifactScoped();
+  await assertMessageStreamRetryHardDisabled();
+  await assertArtifactConversationLinkCollection();
+  await assertArtifactConversationRecoveryDownloadsFromLinkedPage();
+  await assertArtifactConversationRecoveryNoCandidateDiagnostics();
   await assertKnownRunUrlCollection();
   await assertBrowserProfilePoolPlanning();
   await assertManagedBrowserTerminationSequence();
@@ -4863,11 +7375,47 @@ async function assertFreshSourceCloneArchivesLocalRepos() {
   }
 }
 
+async function assertLocalArchivePathSkipsGitArchive() {
+  const root = await mkdtemp(join(tmpdir(), 'jailgun-bridge-selftest-local-archive-'));
+  try {
+    const archivePath = await createSelfTestTarGz(root);
+    const archive = await createSourceArchive({
+      repoUrl: '',
+      refName: 'HEAD',
+      prefix: 'source/',
+      archiveFilename: 'source.tar.gz',
+      tmpParent: root,
+      mode: 'full',
+      freshSourceClone: false,
+      localArchivePath: archivePath,
+    });
+    if (archive.archivePath !== archivePath || archive.tempRoot !== '' || archive.cloneDir !== '' || archive.commit !== 'local-archive') {
+      throw new Error(`local_archive_path should use the supplied file directly: ${JSON.stringify(archive)}`);
+    }
+  } finally {
+    await rm(root, { recursive: true, force: true }).catch(() => undefined);
+  }
+}
+
+function assertArtifactStallDefaultDisabled() {
+  if (DEFAULT_ARTIFACT_STALL_REPAIR_SECONDS !== 0) {
+    throw new Error(`artifact stall cutoff should be opt-in, got ${DEFAULT_ARTIFACT_STALL_REPAIR_SECONDS}`);
+  }
+}
+
 const SEND_BUTTON_SELECTORS = [
   'button[data-testid="send-button"]',
   'button[aria-label*="Send"]',
   '[data-testid*="send"]',
   'button:has-text("Send")',
+];
+
+const CHAT_COMPOSER_SELECTORS = [
+  '#prompt-textarea',
+  '[data-testid="composer-text-input"]',
+  ['textarea[place', 'holder*="Message"]'].join(''),
+  '[contenteditable="true"][role="textbox"]',
+  'form [contenteditable="true"]',
 ];
 
 const AUTH_CONTROL_SELECTOR = [

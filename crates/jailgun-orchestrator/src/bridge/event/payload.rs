@@ -103,6 +103,8 @@ pub struct DownloadCompletePayload {
     pub original_name: String,
     pub local_name: String,
     #[serde(default)]
+    pub file_kind: Option<String>,
+    #[serde(default)]
     pub download_url: Option<String>,
     #[serde(default)]
     pub entry_count: Option<u64>,

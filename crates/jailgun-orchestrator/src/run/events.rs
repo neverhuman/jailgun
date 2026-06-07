@@ -51,11 +51,17 @@ pub fn map_bridge_event(
             .with_field("remote_url", payload.remote_url.clone())
             .with_field("target_path", payload.target_path.clone()),
         BridgeEvent::DownloadComplete(payload) => {
-            base(EventKind::DownloadReceipt, "download complete")
+            let mut event = base(EventKind::DownloadReceipt, "download complete")
                 .with_field("sha256", payload.sha256.clone())
                 .with_field("size_bytes", payload.size_bytes.to_string())
                 .with_field("local_path", payload.local_path.clone())
                 .with_field("receipt_path", payload.receipt_path.clone())
+                .with_field("original_name", payload.original_name.clone())
+                .with_field("local_name", payload.local_name.clone());
+            if let Some(file_kind) = payload.file_kind.as_ref() {
+                event = event.with_field("file_kind", file_kind.clone());
+            }
+            event
         }
         BridgeEvent::ToolPromptDetected(_) => return None,
         BridgeEvent::PromptPolicyApplied(payload) => {
@@ -192,6 +198,7 @@ mod tests {
             receipt_path: "/tmp/r/x.tar.gz".into(),
             original_name: "x.tar.gz".into(),
             local_name: "x.tar.gz".into(),
+            file_kind: Some("downloaded-archive".into()),
             download_url: None,
             entry_count: None,
             download_latency_ms: None,

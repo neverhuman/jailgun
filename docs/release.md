@@ -31,6 +31,8 @@ The expected release artifacts are:
 
 ## Release Process
 
+This release process is the tracked control surface for release readiness.
+
 1. Start from a clean worktree except for intentional release artifacts.
 2. Regenerate contracts and audit artifacts through the documented CI scripts;
    do not hand-edit generated outputs.

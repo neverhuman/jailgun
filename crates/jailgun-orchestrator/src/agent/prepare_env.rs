@@ -34,6 +34,26 @@ pub(super) fn apply_profile_env(
     Ok(())
 }
 
+pub(super) fn clear_profile_routing_env(
+    bridge_env: &mut BTreeMap<String, String>,
+    config: &JailgunConfig,
+) {
+    for key in [
+        "JAILGUN_CHROME_PROFILE_POOL",
+        "JAILGUN_CHROME_PROFILE_DIRS",
+        "JAILGUN_CHROME_PROFILE_PORTS",
+        "JAILGUN_CDP_URL",
+        "JAILGUN_CDP_HOST",
+        "JAILGUN_CDP_PORT",
+        "GOOGLE_AUTOMATION_REMOTE_DEBUG_HOST",
+        "GOOGLE_AUTOMATION_REMOTE_DEBUG_PORT",
+        config.browser.profile_dir_env.as_str(),
+        config.browser.state_dir_env.as_str(),
+    ] {
+        bridge_env.remove(key);
+    }
+}
+
 fn apply_account_profile_env(
     bridge_env: &mut BTreeMap<String, String>,
     config: &JailgunConfig,

@@ -37,10 +37,10 @@ fn explicit_account_ids_build_profile_pool_and_port_map() {
         downloads_root: temp.path().join("downloads"),
     };
     let mut registry = jailgun_core::BrowserProfileRegistry::default();
-    let first = registry
+    let _first = registry
         .upsert_account("a@example.com", Some("acct-a".into()), &roots, 9224, 2)
         .expect("first");
-    let second = registry
+    let _second = registry
         .upsert_account("b@example.com", Some("acct-b".into()), &roots, 9301, 2)
         .expect("second");
     for account in &mut registry.accounts {
@@ -64,24 +64,18 @@ fn explicit_account_ids_build_profile_pool_and_port_map() {
     )
     .expect("prepared");
 
+    let lease = prepared.browser_lease.expect("browser lease prepared");
     assert_eq!(
-        prepared.opts.profile_pool,
-        vec![first.profile_dir, second.profile_dir]
+        lease.request.account_ids,
+        vec!["acct-a".to_string(), "acct-b".to_string()]
     );
-    assert!(prepared
+    assert_eq!(lease.request.tabs, 2);
+    assert_eq!(lease.registry_path, registry_path);
+    assert_eq!(prepared.opts.profile_pool, Vec::<std::path::PathBuf>::new());
+    assert!(!prepared
         .opts
         .bridge_env
-        .get("JAILGUN_CHROME_PROFILE_POOL")
-        .unwrap()
-        .contains("acct-b="));
-    assert_eq!(
-        prepared
-            .opts
-            .bridge_env
-            .get("JAILGUN_CHROME_PROFILE_PORTS")
-            .map(String::as_str),
-        Some("acct-a=9224:acct-b=9301")
-    );
+        .contains_key("JAILGUN_CHROME_PROFILE_POOL"));
 }
 
 #[test]
@@ -96,7 +90,7 @@ fn account_ids_override_request_bridge_profile_env() {
         downloads_root: temp.path().join("downloads"),
     };
     let mut registry = jailgun_core::BrowserProfileRegistry::default();
-    let account = registry
+    let _account = registry
         .upsert_account("a@example.com", Some("acct-a".into()), &roots, 9224, 2)
         .expect("account");
     registry.accounts[0].status = jailgun_core::BrowserAccountStatus::Ready;
@@ -138,40 +132,19 @@ fn account_ids_override_request_bridge_profile_env() {
     )
     .expect("prepared");
 
-    let expected_pool = format!("acct-a={}", account.profile_dir.display());
-    let expected_profile_dir = account.profile_dir.display().to_string();
-    assert_eq!(
-        prepared
-            .opts
-            .bridge_env
-            .get("JAILGUN_CHROME_PROFILE_POOL")
-            .map(String::as_str),
-        Some(expected_pool.as_str())
-    );
-    assert_eq!(
-        prepared
-            .opts
-            .bridge_env
-            .get("JAILGUN_CHROME_PROFILE_PORTS")
-            .map(String::as_str),
-        Some("acct-a=9224")
-    );
-    assert_eq!(
-        prepared
-            .opts
-            .bridge_env
-            .get("JAILGUN_CDP_URL")
-            .map(String::as_str),
-        Some("http://127.0.0.1:9224")
-    );
-    assert_eq!(
-        prepared
-            .opts
-            .bridge_env
-            .get("JAILGUN_CHROME_PROFILE_DIR")
-            .map(String::as_str),
-        Some(expected_profile_dir.as_str())
-    );
+    assert!(prepared.browser_lease.is_some());
+    for key in [
+        "JAILGUN_CHROME_PROFILE_POOL",
+        "JAILGUN_CHROME_PROFILE_PORTS",
+        "JAILGUN_CDP_URL",
+        "JAILGUN_CDP_PORT",
+        "JAILGUN_CHROME_PROFILE_DIR",
+    ] {
+        assert!(
+            !prepared.opts.bridge_env.contains_key(key),
+            "{key} should be scrubbed before lease acquisition"
+        );
+    }
 }
 
 #[test]

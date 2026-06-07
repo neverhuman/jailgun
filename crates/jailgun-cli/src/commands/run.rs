@@ -59,7 +59,10 @@ pub(super) async fn run(
 
     let prompt_text = fs::read_to_string(&prompt_file)
         .with_context(|| format!("reading prompt file {}", prompt_file.display()))?;
-    let artifacts_dir = artifacts_dir.unwrap_or_else(|| PathBuf::from(&config.paths.artifacts_dir));
+    let artifacts_dir = match artifacts_dir {
+        Some(artifacts_dir) => artifacts_dir,
+        None => PathBuf::from(&config.paths.artifacts_dir),
+    };
     let downloads_dir = path_arg_or_env_or_default(
         downloads_dir,
         &config.paths.downloads_dir_env,
@@ -70,10 +73,17 @@ pub(super) async fn run(
         &config.browser.profile_dir_env,
         default_managed_chrome_profile_dir(),
     )?;
-    let repo_url = source_repo_url
-        .or_else(|| env::var(&config.source_archive.repo_url_env).ok())
-        .unwrap_or_else(|| config.project.repository.clone());
-    let ci_repo = ci_repo.or_else(|| infer_github_repo(&repo_url));
+    let repo_url = match source_repo_url {
+        Some(repo_url) => repo_url,
+        None => match env::var(&config.source_archive.repo_url_env) {
+            Ok(repo_url) => repo_url,
+            Err(_) => config.project.repository.clone(),
+        },
+    };
+    let ci_repo = match ci_repo {
+        Some(ci_repo) => Some(ci_repo),
+        None => infer_github_repo(&repo_url),
+    };
     let deploy_remote_host = if config.deploy.enabled {
         Some(arg_or_env(
             remote_host,
@@ -129,11 +139,13 @@ pub(super) async fn run(
         dry_run,
         profile_dir: profile_dir.clone(),
         profile_pool: Vec::new(),
+        tab_profile_dirs: Default::default(),
         downloads_dir,
         artifacts_dir,
         bridge_cmd,
         bridge_env,
         repo_url,
+        local_archive_path: None,
         deploy_remote_host,
         deploy_remote_dir,
         deploy_remote_command,
@@ -175,7 +187,10 @@ fn parse_env_overrides(values: Vec<String>) -> Result<std::collections::BTreeMap
 }
 
 pub(super) fn validated_run_id(run_id: Option<String>) -> Result<String> {
-    let run_id = run_id.unwrap_or_else(default_run_id);
+    let run_id = match run_id {
+        Some(run_id) => run_id,
+        None => default_run_id(),
+    };
     validate_run_id(&run_id).map_err(anyhow::Error::msg)?;
     Ok(run_id)
 }

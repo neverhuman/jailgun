@@ -56,11 +56,13 @@ fn run_deadline_honors_explicit_runtime_cap() {
         dry_run: true,
         profile_dir: PathBuf::from("/tmp/profile"),
         profile_pool: Vec::new(),
+        tab_profile_dirs: Default::default(),
         downloads_dir: PathBuf::from("/tmp/downloads"),
         artifacts_dir: PathBuf::from("/tmp/artifacts"),
         bridge_cmd: vec!["bridge".into()],
         bridge_env: Default::default(),
         repo_url: "git@example.com:org/repo.git".into(),
+        local_archive_path: None,
         deploy_remote_host: None,
         deploy_remote_dir: None,
         deploy_remote_command: None,
@@ -92,11 +94,13 @@ async fn run_orchestration_rejects_path_like_run_id() {
         dry_run: true,
         profile_dir: PathBuf::from("/tmp/profile"),
         profile_pool: Vec::new(),
+        tab_profile_dirs: Default::default(),
         downloads_dir: PathBuf::from("/tmp/downloads"),
         artifacts_dir: PathBuf::from("/tmp/artifacts"),
         bridge_cmd: vec!["bridge".into()],
         bridge_env: Default::default(),
         repo_url: "git@example.com:org/repo.git".into(),
+        local_archive_path: None,
         deploy_remote_host: None,
         deploy_remote_dir: None,
         deploy_remote_command: None,
@@ -132,11 +136,13 @@ fn open_tab_profile_dir_is_omitted_for_profile_pool() {
             PathBuf::from("/tmp/profile-a"),
             PathBuf::from("/tmp/profile-b"),
         ],
+        tab_profile_dirs: Default::default(),
         downloads_dir: PathBuf::from("/tmp/downloads"),
         artifacts_dir: PathBuf::from("/tmp/artifacts"),
         bridge_cmd: vec!["bridge".into()],
         bridge_env: Default::default(),
         repo_url: "git@example.com:org/repo.git".into(),
+        local_archive_path: None,
         deploy_remote_host: None,
         deploy_remote_dir: None,
         deploy_remote_command: None,
@@ -151,12 +157,18 @@ fn open_tab_profile_dir_is_omitted_for_profile_pool() {
         event_buffer: 64,
         deploy_concurrency: 1,
     };
-    assert_eq!(open_tab_profile_dir(&opts), None);
+    assert_eq!(open_tab_profile_dir(&opts, 1), None);
 
     opts.profile_pool.clear();
     assert_eq!(
-        open_tab_profile_dir(&opts),
+        open_tab_profile_dir(&opts, 1),
         Some("/tmp/profile-a".to_string())
+    );
+    opts.tab_profile_dirs
+        .insert(2, PathBuf::from("/tmp/profile-b"));
+    assert_eq!(
+        open_tab_profile_dir(&opts, 2),
+        Some("/tmp/profile-b".to_string())
     );
 }
 
