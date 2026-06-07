@@ -116,7 +116,13 @@ const settings = {
     args.artifactStallRepairSeconds ?? process.env.JAILGUN_ARTIFACT_STALL_REPAIR_SECONDS,
     DEFAULT_ARTIFACT_STALL_REPAIR_SECONDS,
   ) * 1000),
-  artifactRepairAttemptLimit: DEFAULT_ARTIFACT_REPAIR_ATTEMPT_LIMIT,
+  artifactRepairAttemptLimit: Math.max(0, Math.floor(numberFrom(
+    args.artifactRepairAttempts
+      ?? args.artifactRepairAttemptLimit
+      ?? process.env.JAILGUN_ARTIFACT_REPAIR_ATTEMPTS
+      ?? process.env.JAILGUN_ARTIFACT_REPAIR_ATTEMPT_LIMIT,
+    DEFAULT_ARTIFACT_REPAIR_ATTEMPT_LIMIT,
+  ))),
   artifactConversationRecoveryLimit: Math.max(0, Math.floor(numberFrom(
     args.artifactConversationRecoveryLimit ?? process.env.JAILGUN_ARTIFACT_CONVERSATION_RECOVERY_LIMIT,
     DEFAULT_ARTIFACT_CONVERSATION_RECOVERY_LIMIT,
@@ -951,6 +957,13 @@ class ChromeBridge {
             throw new Error(`text artifact materialized but tab cleanup failed for tab ${tabId}: ${(cleanup?.errors || ['tab-not-closed']).join('; ')}`);
           }
           return;
+        }
+        const repair = await submitArtifactRepairIfNeeded(this, tab, envelope, targetName, artifactRepairState, discovery);
+        if (repair.submitted) {
+          lastProgressSignature = '';
+          lastProgressChangedAt = Date.now();
+          await sleep(Math.min(completionMs, 1000));
+          continue;
         }
         await failNoTar(
           noArtifactKind('done-no-tar'),
@@ -4085,6 +4098,117 @@ async function materializeVisibleTextArtifact(page, targetName, outputDir, conte
   };
 }
 
+async function submitArtifactRepairIfNeeded(bridge, tab, envelope, targetName, state, discovery = {}) {
+  const limit = Math.max(0, Math.floor(Number(bridge.options.artifactRepairAttemptLimit) || 0));
+  if (!targetName || limit <= 0 || state.attempts >= limit || tab.page?.isClosed?.()) {
+    return { submitted: false, reason: limit <= 0 ? 'disabled' : 'limit-reached' };
+  }
+  const signal = await detectArtifactRepairSignal(tab.page, targetName, discovery).catch((error) => ({
+    shouldRepair: false,
+    reason: `detect-error:${error?.message || String(error)}`,
+  }));
+  if (!signal.shouldRepair) {
+    return { submitted: false, reason: signal.reason || 'no-signal' };
+  }
+  const prompt = artifactRepairPrompt(targetName, signal);
+  state.attempts += 1;
+  bridge.bridgeLog(envelope, 'artifact-repair-submit', 'started', 'submitting artifact repair prompt', {
+    target_name: targetName,
+    attempt: String(state.attempts),
+    max_attempts: String(limit),
+    reason: signal.reason,
+    preview: compact(signal.preview || '', 160),
+  }, 'warn');
+  try {
+    await bridge.runDismissals(tab.page, envelope, 'artifact-repair-preflight');
+    const result = await submitPromptToChat(tab.page, prompt, 45000, {
+      dismiss: async (phase) => bridge.runDismissals(tab.page, envelope, phase),
+      log: (phase, status, message, fields = {}, level = 'info') => {
+        bridge.bridgeLog(envelope, phase, status, message, fields, level);
+      },
+      authState: (authState) => bridge.emitPromptAuthState(envelope, authState),
+    });
+    state.submitted = true;
+    bridge.emit(envelope, 'artifact-repair-submitted', {
+      target_name: targetName,
+      attempt: state.attempts,
+      reason: signal.reason,
+    });
+    bridge.bridgeLog(envelope, 'artifact-repair-submit', 'submitted', 'artifact repair prompt accepted by ChatGPT', {
+      target_name: targetName,
+      attempt: String(state.attempts),
+      reason: signal.reason,
+      acceptance_reason: result.acceptanceReason || '',
+    }, 'warn');
+    return { submitted: true, reason: signal.reason };
+  } catch (error) {
+    state.lastError = error?.message || String(error);
+    bridge.bridgeLog(envelope, 'artifact-repair-submit', 'failed', 'artifact repair prompt failed', {
+      target_name: targetName,
+      attempt: String(state.attempts),
+      reason: signal.reason,
+      error: state.lastError,
+    }, 'warn');
+    return { submitted: false, reason: 'submit-failed', error: state.lastError };
+  }
+}
+
+async function detectArtifactRepairSignal(page, targetName, discovery = {}) {
+  const extraction = await extractVisibleTextArtifact(page, targetName);
+  return artifactRepairSignalFromText(targetName, extraction.assistantText || discovery.lastTextPreview || '', extraction.candidates || []);
+}
+
+function artifactRepairSignalFromText(targetName, assistantText, candidates = []) {
+  const target = normalizeArtifactComparable(targetName);
+  const text = String(assistantText || '').trim();
+  if (!target || !text || !normalizeArtifactComparable(text).includes(target)) {
+    return { shouldRepair: false, reason: 'target-not-mentioned' };
+  }
+  if (selectMaterializableTextContent(targetName, { candidates: [...candidates, text] })) {
+    return { shouldRepair: false, reason: 'valid-materializable-content' };
+  }
+  const escaped = escapeRegExp(targetName);
+  const sandboxPattern = new RegExp(`sandbox:\\s*/?/?mnt/data/${escaped}`, 'i');
+  const markdownPattern = new RegExp(`\\[\\s*${escaped}\\s*\\]\\s*\\(`, 'i');
+  const compactText = text
+    .replace(/\b(extended|copy response|good response|bad response|more actions)\b/gi, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+  const bareFilenamePattern = new RegExp(`^${escaped}\\.?$`, 'i');
+  let reason = '';
+  if (sandboxPattern.test(text)) {
+    reason = 'malformed-sandbox-link';
+  } else if (markdownPattern.test(text)) {
+    reason = 'markdown-link-without-download';
+  } else if (bareFilenamePattern.test(compactText)) {
+    reason = 'filename-without-content';
+  } else if (compactText.length <= targetName.length + 80) {
+    reason = 'target-mentioned-without-content';
+  }
+  if (!reason) {
+    return { shouldRepair: false, reason: 'no-repairable-artifact-intent' };
+  }
+  return {
+    shouldRepair: true,
+    reason,
+    preview: compact(text, 240),
+  };
+}
+
+function artifactRepairPrompt(targetName, signal) {
+  const kind = artifactKindForPath(targetName);
+  const textFallback = isTextSafeArtifactName(targetName)
+    ? `If the UI cannot attach the file, provide the complete valid ${kind} contents in one fenced code block only.`
+    : 'Attach the actual downloadable file; do not provide a filename, markdown link, or prose-only response.';
+  return [
+    `The previous response did not expose a clickable/downloadable artifact for ${targetName}.`,
+    `Reason detected by automation: ${signal.reason}.`,
+    `Create the artifact again with filename exactly ${targetName}.`,
+    'Do not answer with a sandbox:/mnt/data markdown link or the filename alone.',
+    textFallback,
+  ].join('\n');
+}
+
 async function extractVisibleTextArtifact(page, targetName) {
   return page.evaluate(({ target }) => {
     const normalize = (value) => String(value || '').replace(/\s+/g, ' ').trim();
@@ -6425,6 +6549,22 @@ function assertTextMaterializationValidation() {
   });
   if (bareFilename !== '') {
     throw new Error(`bare filename should not materialize: ${JSON.stringify(bareFilename)}`);
+  }
+  const sandboxRepair = artifactRepairSignalFromText(
+    targetName,
+    `[${targetName}](sandbox:/mnt/data/${targetName}`,
+    [`[${targetName}](sandbox:/mnt/data/${targetName}`],
+  );
+  if (!sandboxRepair.shouldRepair || sandboxRepair.reason !== 'malformed-sandbox-link') {
+    throw new Error(`sandbox artifact repair signal was not detected: ${JSON.stringify(sandboxRepair)}`);
+  }
+  const validContentRepair = artifactRepairSignalFromText(
+    targetName,
+    '```json\n{"ok":true}\n```',
+    ['```json\n{"ok":true}\n```'],
+  );
+  if (validContentRepair.shouldRepair) {
+    throw new Error(`valid materializable content should not request repair: ${JSON.stringify(validContentRepair)}`);
   }
 }
 
