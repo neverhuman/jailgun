@@ -1,6 +1,6 @@
 {
-  "report_fingerprint": "sha256:799e202a7d9b2fac00859066b42ac69239b3797f32b898c0c06e3a9a69a62b87",
-  "input_fingerprint": "sha256:de87910b394b323ed507f556e3c82b176c5152ad00be7e6a3f89e0c068de4a06",
+  "report_fingerprint": "sha256:d75d14f1e1a011a18be7914da1d2a04a4991ff42d2dd6f15dd0c0181a5a88e31",
+  "input_fingerprint": "sha256:20e82bbebd041946a0a7a76ca6fbac056c19e56a12293e7b5cc5a8c8d9654958",
   "policy_fingerprint": "sha256:2e02fe1c1919de94a47a99164c962683a934c73ca5bb30bec62384f7b17fe742",
   "manifest_fingerprints": {
     "owner_map": "sha256:c5d6ff65c3420d96e00ff0232f7d382635d4e54169dc799c4c14d8602d9491ef",
@@ -11,7 +11,7 @@
     "standard_version": "sha256:e89e3b08c1e1ab55b195b4041787100956f3888aaba37595bce4403606dcb996"
   },
   "dirty_worktree": false,
-  "generated_at": "1780819693",
+  "generated_at": "1780844286",
   "schema_url": "schemas/repo-score.schema.json",
   "standard": "jankurai",
   "standard_version": "0.9.0",
@@ -25,9 +25,9 @@
   "conformance_decision": "pass",
   "conformance_blockers": [],
   "repo": ".",
-  "run_id": "1780819693",
-  "started_at": "1780819693",
-  "elapsed_ms": 38622,
+  "run_id": "1780844286",
+  "started_at": "1780844286",
+  "elapsed_ms": 41524,
   "scope": {
     "mode": "full",
     "paths": []
@@ -54,7 +54,7 @@
     }
   },
   "git": {
-    "head": "cfe21a6",
+    "head": "7f7f243",
     "base": null,
     "changed_files": 0,
     "mode": "full",
@@ -482,6 +482,7 @@
         "apps/browser-adapter/src/domContracts/rateLimit.ts"
       ],
       "layout_stability": [
+        "artifacts/download-failures/openqg-live-g0050-04-repair-genes-hard_stage_repair-a1-f306642f84d8/tab-01/2026-06-07T13-35-10-545Z-done-no-tar/page.html",
         "ops/ci/ux-qa.sh",
         "scripts/render-dashboard-ux-qa.mjs"
       ],
@@ -491,7 +492,8 @@
         "scripts/render-dashboard-ux-qa.mjs"
       ],
       "storybook": [
-        "agent/repo-score.json"
+        "agent/repo-score.json",
+        "artifacts/download-failures/openqg-live-g0001-04-repair-genes-hard_stage_repair-a2-4dac464c314a/tab-01/2026-06-07T13-20-44-192Z-timeout-no-tar/page.html"
       ],
       "visual_review": [
         "ops/ci/ux-qa.sh",
@@ -1098,7 +1100,7 @@
   "copy_code": {
     "schema_version": "1.1.0",
     "generated_by": "jankurai copy-code",
-    "generated_at": "2026-06-07T08:07:35.976137043+00:00",
+    "generated_at": "2026-06-07T14:57:25.738362514+00:00",
     "repo": ".",
     "auditor_version": "1.6.10",
     "status": "review",
@@ -1136,7 +1138,7 @@
       ]
     },
     "summary": {
-      "files_scanned": 354,
+      "files_scanned": 583,
       "files_considered": 175,
       "active_files": 175,
       "exact_file_classes": 0,
