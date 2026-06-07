@@ -2,7 +2,7 @@
 import { createHash } from 'node:crypto';
 import http from 'node:http';
 import net from 'node:net';
-import { createReadStream, createWriteStream, existsSync, readFileSync } from 'node:fs';
+import { createReadStream, createWriteStream, existsSync, readFileSync, unlinkSync } from 'node:fs';
 import { copyFile, mkdir, mkdtemp, readFile, readdir, rm, stat, writeFile } from 'node:fs/promises';
 import { createRequire } from 'node:module';
 import { homedir, tmpdir } from 'node:os';
@@ -2543,14 +2543,43 @@ async function startManagedDisplayIfNeeded(env = process.env) {
 }
 
 function chooseXvfbDisplayNumber() {
-  for (let number = 99; number < 150; number += 1) {
+  for (let number = 99; number < 200; number += 1) {
     const socketPath = join('/tmp/.X11-unix', `X${number}`);
     const lockPath = `/tmp/.X${number}-lock`;
     if (!existsSync(socketPath) && !existsSync(lockPath)) {
       return number;
     }
+    // Reclaim a display whose owning X server is no longer alive. Crashed/abandoned runs leave
+    // stale /tmp/.X{n}-lock files behind; without reclamation the pool is exhausted after ~50
+    // runs, which was the root cause of the "could not find a free Xvfb display number" failures.
+    if (isStaleXvfbDisplay(lockPath)) {
+      try { unlinkSync(lockPath); } catch {}
+      try { unlinkSync(socketPath); } catch {}
+      return number;
+    }
   }
   throw new Error('could not find a free Xvfb display number');
+}
+
+function isStaleXvfbDisplay(lockPath) {
+  if (!existsSync(lockPath)) {
+    return true; // only a leftover socket lingered; safe to reclaim
+  }
+  let pid = 0;
+  try {
+    pid = parseInt(String(readFileSync(lockPath, 'utf8')).trim(), 10);
+  } catch {
+    return false;
+  }
+  if (!Number.isInteger(pid) || pid <= 0) {
+    return true;
+  }
+  try {
+    process.kill(pid, 0); // signal 0 only probes liveness, does not kill
+    return false; // owner is alive -> display is genuinely in use
+  } catch (error) {
+    return error?.code === 'ESRCH'; // no such process -> stale lock
+  }
 }
 
 async function startManagedDisplay(displayNumber) {
@@ -4599,6 +4628,8 @@ async function persistDownloadFromTempPath(tempPath, targetPath, diagnostics, co
 async function persistDownloadFromBrowserDownloads(suggested, targetPath, diagnostics, context, candidate) {
   const sinceMs = Date.parse(diagnostics.clicked_at || '') || 0;
   const profileDownloadsDir = context?.browserProfileDir ? join(context.browserProfileDir, 'Downloads') : '';
+  const targetName = basename(targetPath);
+  const expectedKind = artifactKindForPath(targetName || suggested);
   const dirs = browserDownloadRecoveryDirs([
     context?.browserDownloadDir || '',
     dirname(targetPath),
@@ -4606,7 +4637,7 @@ async function persistDownloadFromBrowserDownloads(suggested, targetPath, diagno
     profileDownloadsDir,
   ]);
   const matches = [];
-  for (const dir of dirs) {
+  for (const [dirIndex, dir] of dirs.entries()) {
     let entries = [];
     try {
       entries = await readdir(dir, { withFileTypes: true });
@@ -4615,7 +4646,11 @@ async function persistDownloadFromBrowserDownloads(suggested, targetPath, diagno
       continue;
     }
     for (const entry of entries) {
-      if (!entry.isFile() || !isSuggestedDownloadName(entry.name, suggested)) {
+      if (!entry.isFile()) {
+        continue;
+      }
+      const matchStrategy = browserDownloadNameMatchStrategy(entry.name, suggested, targetName, expectedKind);
+      if (!matchStrategy) {
         continue;
       }
       const candidatePath = join(dir, entry.name);
@@ -4627,14 +4662,21 @@ async function persistDownloadFromBrowserDownloads(suggested, targetPath, diagno
         if (sinceMs && fileStat.mtimeMs + 5000 < sinceMs) {
           continue;
         }
-        matches.push({ path: candidatePath, size: fileStat.size, mtimeMs: fileStat.mtimeMs });
+        matches.push({
+          path: candidatePath,
+          size: fileStat.size,
+          mtimeMs: fileStat.mtimeMs,
+          dirIndex,
+          matchStrategy,
+          matchRank: matchStrategy === 'same-artifact-kind' ? 1 : 0,
+        });
       } catch (error) {
         diagnostics.browser_download_error = diagnostics.browser_download_error || `${candidatePath}: ${error?.message || String(error)}`;
       }
     }
   }
 
-  matches.sort((a, b) => b.mtimeMs - a.mtimeMs);
+  matches.sort((a, b) => a.matchRank - b.matchRank || a.dirIndex - b.dirIndex || b.mtimeMs - a.mtimeMs);
   const match = matches[0];
   if (!match) {
     diagnostics.browser_download_status = 'missing';
@@ -4645,6 +4687,8 @@ async function persistDownloadFromBrowserDownloads(suggested, targetPath, diagno
       attempt: String(diagnostics.attempt),
       target_path: targetPath,
       suggested_filename: suggested,
+      target_name: targetName,
+      expected_artifact_kind: expectedKind,
       searched_dirs: dirs.join(','),
       reason: error,
     }, 'warn');
@@ -4661,6 +4705,7 @@ async function persistDownloadFromBrowserDownloads(suggested, targetPath, diagno
       target_path: targetPath,
       browser_download_path: match.path,
       size_bytes: String(match.size),
+      match_strategy: match.matchStrategy,
       method: 'copyFile',
     }, 'warn');
     return { ok: true, method: 'browser-download-copy', error: '' };
@@ -4673,11 +4718,25 @@ async function persistDownloadFromBrowserDownloads(suggested, targetPath, diagno
       attempt: String(diagnostics.attempt),
       target_path: targetPath,
       browser_download_path: match.path,
+      match_strategy: match.matchStrategy,
       reason: diagnostics.browser_download_error,
       method: 'copyFile',
     }, 'warn');
     return { ok: false, method: '', error: diagnostics.browser_download_error };
   }
+}
+
+function browserDownloadNameMatchStrategy(name, suggested, targetName, expectedKind) {
+  if (suggested && isSuggestedDownloadName(name, suggested)) {
+    return 'suggested-name';
+  }
+  if (targetName && targetName !== suggested && isSuggestedDownloadName(name, targetName)) {
+    return 'target-name';
+  }
+  if (expectedKind && expectedKind !== 'unknown' && artifactKindForPath(name) === expectedKind) {
+    return 'same-artifact-kind';
+  }
+  return '';
 }
 
 function browserDownloadRecoveryDirs(extraDirs = []) {
@@ -6668,6 +6727,55 @@ async function assertDownloadSaveAsBrowserDownloadCopySucceeds() {
   }
 }
 
+async function assertDownloadSaveAsSameKindBrowserDownloadCopySucceeds() {
+  const root = await mkdtemp(join(tmpdir(), 'jailgun-download-browser-kind-'));
+  const oldBrowserDownloadsDir = process.env.JAILGUN_BROWSER_DOWNLOADS_DIR;
+  try {
+    const expected = 'chapter-7-output.tar.gz';
+    const actual = 'download.tar.gz';
+    const browserDownloadsDir = join(root, 'browser-downloads');
+    await mkdir(browserDownloadsDir, { recursive: true });
+    process.env.JAILGUN_BROWSER_DOWNLOADS_DIR = browserDownloadsDir;
+    const tempArchive = await createSelfTestTarGz(root);
+    const missingTempPath = join(root, 'missing-playwright-temp.tar.gz');
+    const logs = [];
+    const page = fakeDownloadPage([
+      {
+        suggestedFilename: () => expected,
+        saveAs: async () => {
+          await copyFile(tempArchive, join(browserDownloadsDir, actual));
+          const error = new Error('ENOENT: no such file or directory, copyfile');
+          error.code = 'ENOENT';
+          throw error;
+        },
+        failure: async () => null,
+        path: async () => missingTempPath,
+      },
+    ]);
+    const outputDir = join(root, 'downloads');
+    const file = await downloadCandidate(
+      page,
+      selfTestDownloadCandidate(),
+      outputDir,
+      1000,
+      selfTestDownloadContext(logs, root),
+    );
+    if (file.persistedBy !== 'browser-download-copy' || basename(file.path) !== expected || file.entryCount < 1) {
+      throw new Error(`same-kind browser-dir copy did not return valid file metadata: ${JSON.stringify(file)}`);
+    }
+    if (!logs.some((log) => log.phase === 'download-browser-download-persist' && log.status === 'copied' && log.fields?.match_strategy === 'same-artifact-kind')) {
+      throw new Error(`same-kind browser-dir copy did not emit expected diagnostics: ${JSON.stringify(logs)}`);
+    }
+  } finally {
+    if (oldBrowserDownloadsDir == null) {
+      delete process.env.JAILGUN_BROWSER_DOWNLOADS_DIR;
+    } else {
+      process.env.JAILGUN_BROWSER_DOWNLOADS_DIR = oldBrowserDownloadsDir;
+    }
+    await rm(root, { recursive: true, force: true });
+  }
+}
+
 async function assertDirectJsonDownloadPreservesTargetName() {
   const root = await mkdtemp(join(tmpdir(), 'jailgun-json-download-'));
   try {
@@ -8411,6 +8519,7 @@ async function runSelfTest() {
   await assertNoLinkBundleCapture('timeout-no-tar', 'timed out after 30 minutes waiting for tar.gz download candidate');
   await assertDownloadSaveAsTempPathCopySucceeds();
   await assertDownloadSaveAsBrowserDownloadCopySucceeds();
+  await assertDownloadSaveAsSameKindBrowserDownloadCopySucceeds();
   await assertDirectJsonDownloadPreservesTargetName();
   assertTextMaterializationValidation();
   await assertDownloadFailureDiagnosticsAndCleanup();
