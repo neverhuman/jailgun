@@ -34,6 +34,9 @@ export function collectTarDownloadCandidatesFromDom(
   const targetIsTex = /\.tex$/i.test(comparableTarget);
   const targetIsTar = /\.tar\.gz$/i.test(comparableTarget);
   const targetIsGenericFile = comparableTarget !== '' && !targetIsTar && !targetIsTex;
+  const abFeedbackActive = /giving feedback on a new version|which response do you prefer/i.test(
+    normalizedText(document.body)
+  );
   const candidates: DomTarCandidate[] = [];
   for (const element of controls) {
     const assistant = closestElement(element, '[data-message-author-role="assistant"]');
@@ -58,6 +61,14 @@ export function collectTarDownloadCandidatesFromDom(
     const artifactSources = artifactSourcesFor(sourceValues, comparableTarget);
     const clickable = isClickableControl(element);
     const visible = isVisible(element);
+    if (
+      abFeedbackActive
+      && !href
+      && !download
+      && /^\s*[A-Za-z0-9][A-Za-z0-9._-]*\.tar(?:\(\d+\))?\.gz\s*$/i.test(text)
+    ) {
+      continue;
+    }
     const genericArchiveDownload = Boolean(
       assistant
         && visible

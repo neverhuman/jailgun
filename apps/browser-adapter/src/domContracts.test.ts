@@ -456,6 +456,35 @@ it('detects assistant download controls that name a tarball without a filename',
   });
 });
 
+it('ignores filename-only A/B feedback buttons until a response is selected', () => {
+  document.body.innerHTML = `
+    <div data-message-author-role="assistant">
+      <div>You're giving feedback on a new version of ChatGPT.</div>
+      <div>Which response do you prefer?</div>
+      <div data-paragen-root="true">
+        <button>03-agent-arrives-job-004-zyal.tar.gz</button>
+        <button>I prefer this response</button>
+      </div>
+      <div data-paragen-root="true">
+        <p>I prefer this response</p>
+      </div>
+    </div>
+  `;
+  expect(collectTarDownloadCandidatesFromDom(document, '03-agent-arrives-job-004-zyal.tar.gz')).toEqual([]);
+});
+
+it('ignores filename-only A/B feedback buttons without relying on paragen markup', () => {
+  document.body.innerHTML = `
+    <div data-message-author-role="assistant">
+      <div>Which response do you prefer?</div>
+      <div data-testid="response-turn-1">
+        <button>03-agent-arrives-job-004-zyal.tar.gz</button>
+      </div>
+    </div>
+  `;
+  expect(collectTarDownloadCandidatesFromDom(document, '03-agent-arrives-job-004-zyal.tar.gz')).toEqual([]);
+});
+
 it('ranks explicit .tar.gz links above generic archive download buttons', () => {
   document.body.innerHTML = `
     <div data-message-author-role="assistant">

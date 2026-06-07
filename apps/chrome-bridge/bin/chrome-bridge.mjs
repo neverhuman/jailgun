@@ -3432,6 +3432,7 @@ async function discoverTarCandidates(page, targetName = '') {
     let abResponseRoots = [];
     if (abFeedbackActive) {
       const abSelectors = [
+        '[data-paragen-root="true"]',
         '[data-testid*="response-turn"]',
         '[data-testid*="response-option"]',
         '[class*="response-turn"]',
@@ -3501,6 +3502,14 @@ async function discoverTarCandidates(page, targetName = '') {
       const tag = String(el.tagName || '').toLowerCase();
       const role = attr(el, 'role').toLowerCase();
       const text = textOf(el);
+      if (
+        abFeedbackActive
+        && !href(el)
+        && !attr(el, 'download')
+        && /^\s*[A-Za-z0-9][A-Za-z0-9._-]*\.tar(?:\(\d+\))?\.gz\s*$/i.test(text)
+      ) {
+        continue;
+      }
       const entry = {
         index,
         text,
@@ -3902,6 +3911,7 @@ async function selectLongestABResponse(page) {
     }
     // Find response containers
     const abSelectors = [
+      '[data-paragen-root="true"]',
       '[data-testid*="response-turn"]',
       '[data-testid*="response-option"]',
       '[class*="response-turn"]',
@@ -3912,10 +3922,16 @@ async function selectLongestABResponse(page) {
       responseRoots = Array.from(document.querySelectorAll(sel));
       if (responseRoots.length >= 2) break;
     }
+    const textOf = (el) => String(el?.innerText || el?.textContent || '').replace(/\s+/g, ' ').trim();
     if (responseRoots.length < 2) {
+      const preferButtons = Array.from(document.querySelectorAll('button,[role="button"]'))
+        .filter((el) => /i prefer this response/i.test(textOf(el)));
+      if (preferButtons.length > 0) {
+        preferButtons[0].click();
+        return { detected: true, selected: true, selectedIndex: 0, responseLengths: [], reason: 'ab-prefer-button' };
+      }
       return { detected: true, selected: false, selectedIndex: -1, responseLengths: [], reason: 'response-containers-not-found' };
     }
-    const textOf = (el) => String(el?.innerText || el?.textContent || '').replace(/\s+/g, ' ').trim();
     const responseLengths = responseRoots.map((root) => textOf(root).length);
     // Find the longest response
     let longestIndex = 0;
@@ -7213,6 +7229,108 @@ function fakeArtifactDomPage(anchors, currentUrl) {
   };
 }
 
+function fakeTarCandidateControl({ tagName = 'BUTTON', text = '', href = '', download = '', aria = '', title = '' }) {
+  const element = {
+    href,
+    innerText: text,
+    textContent: text,
+    tagName,
+    hasAttribute: () => false,
+    getBoundingClientRect: () => ({ width: 120, height: 24 }),
+    getAttribute: (name) => ({
+      href,
+      download,
+      'aria-label': aria,
+      title,
+    })[name] || '',
+    closest: (selector) => {
+      if (selector === '[data-message-author-role="assistant"]') return element.__assistantRoot;
+      if (selector === '[data-paragen-root="true"]') return element.__abRoot;
+      return null;
+    },
+  };
+  return element;
+}
+
+function fakeTarCandidateRoot(elements) {
+  return {
+    innerText: elements.map((element) => element.textContent).join(' '),
+    textContent: elements.map((element) => element.textContent).join(' '),
+    getBoundingClientRect: () => ({ width: 120, height: 24 }),
+    contains: (element) => elements.includes(element),
+  };
+}
+
+function fakeTarCandidateDomPage({ controls, assistantRootCount = 1, abRootCount = 0, bodyText, currentUrl }) {
+  const assistantRoots = Array.from({ length: assistantRootCount }, () => fakeTarCandidateRoot(controls));
+  const abRoots = Array.from({ length: abRootCount }, () => fakeTarCandidateRoot(controls));
+  for (const control of controls) {
+    control.__assistantRoot = assistantRoots[0] || null;
+    control.__abRoot = abRoots[0] || null;
+  }
+  return {
+    url: () => currentUrl,
+    evaluate: async (fn, arg) => {
+      const previousDocument = globalThis.document;
+      const previousWindow = globalThis.window;
+      globalThis.document = {
+        location: { href: currentUrl },
+        body: {
+          innerText: bodyText,
+          textContent: bodyText,
+        },
+        querySelectorAll: (selector) => {
+          if (selector === 'a,button,[role="button"],[download],[href]') return controls;
+          if (selector === '[data-message-author-role="assistant"]') return assistantRoots;
+          if (selector === '[data-paragen-root="true"]') return abRoots;
+          return [];
+        },
+      };
+      globalThis.window = {
+        getComputedStyle: () => ({ visibility: 'visible', display: 'block' }),
+      };
+      try {
+        return fn(arg);
+      } finally {
+        if (previousDocument === undefined) {
+          delete globalThis.document;
+        } else {
+          globalThis.document = previousDocument;
+        }
+        if (previousWindow === undefined) {
+          delete globalThis.window;
+        } else {
+          globalThis.window = previousWindow;
+        }
+      }
+    },
+  };
+}
+
+async function assertABFeedbackFilenameOnlyTarButtonIgnored() {
+  const targetName = '03-agent-arrives-job-004-zyal.tar.gz';
+  const falseButton = fakeTarCandidateControl({
+    text: targetName,
+  });
+  const realLink = fakeTarCandidateControl({
+    tagName: 'A',
+    text: `Download ${targetName}`,
+    href: `https://example.invalid/${targetName}`,
+    download: targetName,
+  });
+  const page = fakeTarCandidateDomPage({
+    controls: [falseButton, realLink],
+    assistantRootCount: 1,
+    abRootCount: 2,
+    bodyText: `Which response do you prefer? Response 1 ${targetName} I prefer this response`,
+    currentUrl: 'https://chatgpt.com/c/self-test',
+  });
+  const discovery = await discoverTarCandidates(page, targetName);
+  if (discovery.candidates.length !== 1 || discovery.candidates[0].tag !== 'a') {
+    throw new Error(`A/B feedback filename-only tar button was not filtered: ${JSON.stringify(discovery.candidates)}`);
+  }
+}
+
 async function assertArtifactConversationRecoveryDownloadsFromLinkedPage() {
   const root = await mkdtemp(join(tmpdir(), 'jailgun-artifact-recovery-download-'));
   try {
@@ -7963,6 +8081,7 @@ async function runSelfTest() {
   await assertDownloadFailureDiagnosticsAndCleanup();
   await assertDirectTexDownloadFailureIsArtifactScoped();
   await assertMessageStreamRetryHardDisabled();
+  await assertABFeedbackFilenameOnlyTarButtonIgnored();
   await assertArtifactConversationLinkCollection();
   await assertArtifactConversationRecoveryDownloadsFromLinkedPage();
   await assertArtifactConversationRecoveryNoCandidateDiagnostics();
