@@ -5492,6 +5492,62 @@ async function recoverArtifactConversationDownload(bridge, tab, envelope, option
     return result;
   }
 
+  const currentPageAttempt = {
+    url: pageUrl,
+    text: '',
+    score: null,
+    status: '',
+    reason: '',
+    candidate_count: 0,
+    downloaded_path: '',
+  };
+  try {
+    const discovery = await discoverTarCandidates(page, targetName);
+    const ranked = rankCandidates(discovery.candidates || [], targetName);
+    currentPageAttempt.candidate_count = ranked.length;
+    if (ranked.length > 0) {
+      const candidate = ranked[0];
+      currentPageAttempt.text = compact(candidate.label || candidate.text || candidate.download || candidate.href || '', 200);
+      currentPageAttempt.score = candidate.score ?? null;
+      result.attempts.push(currentPageAttempt);
+      bridge.bridgeLog(envelope, phase, 'current-page-candidate', 'found artifact candidate on current page during no-tar recovery', {
+        ...artifactConversationAttemptLogFields(options, { url: pageUrl, text: currentPageAttempt.text, score: currentPageAttempt.score }, currentPageAttempt),
+        scanned_control_count: String(discovery.scannedControlCount ?? 0),
+        assistant_roots: String(discovery.assistantRootCount ?? 0),
+      }, 'warn');
+      const recovered = await downloadRecoveredArtifactConversationCandidate(bridge, tab, envelope, {
+        recoveryPage: page,
+        link: { url: pageUrl || '', text: currentPageAttempt.text },
+        candidate,
+        ranked,
+        outputDir: options.outputDir,
+        tabId: options.tabId,
+      });
+      currentPageAttempt.status = 'downloaded';
+      currentPageAttempt.downloaded_path = recovered.completePayload.local_path;
+      result.downloaded = true;
+      result.download = recovered.completePayload;
+      bridge.bridgeLog(envelope, phase, 'downloaded-current-page', 'downloaded artifact candidate from current page during no-tar recovery', {
+        ...artifactConversationAttemptLogFields(options, { url: pageUrl, text: currentPageAttempt.text, score: currentPageAttempt.score }, currentPageAttempt),
+        local_path: recovered.completePayload.local_path,
+        receipt_path: recovered.completePayload.receipt_path,
+        sha256: recovered.completePayload.sha256,
+        size_bytes: String(recovered.completePayload.size_bytes),
+        entry_count: String(recovered.completePayload.entry_count ?? ''),
+        file_kind: recovered.completePayload.file_kind,
+      }, 'warn');
+      return result;
+    }
+  } catch (error) {
+    currentPageAttempt.status = 'failed';
+    currentPageAttempt.reason = error?.message || String(error);
+    result.attempts.push(currentPageAttempt);
+    bridge.bridgeLog(envelope, phase, 'current-page-failed', 'current page artifact recovery attempt failed', {
+      ...artifactConversationAttemptLogFields(options, { url: pageUrl, text: currentPageAttempt.text, score: currentPageAttempt.score }, currentPageAttempt),
+      failure_bundle_path: error?.failureBundlePath || '',
+    }, 'warn');
+  }
+
   if (result.links.length === 0) {
     bridge.bridgeLog(envelope, phase, 'no-links', 'no artifact conversation links found before no-tar', {
       source_reason: options.kind || '',
@@ -6999,6 +7055,36 @@ function fakeArtifactRecoveryConversationPage({ url, downloads = [], candidates 
   };
 }
 
+function fakeCurrentPageArtifactCandidatePage({ downloads = [], candidates = [] }) {
+  const page = fakeDownloadPage(downloads);
+  let closed = false;
+  return {
+    ...page,
+    clickCount: page.clickCount,
+    isClosed: () => closed,
+    url: () => 'https://chatgpt.com/c/current-conversation',
+    close: async () => {
+      closed = true;
+    },
+    context: () => ({
+      newPage: async () => {
+        throw new Error('current page recovery should not open a linked artifact conversation');
+      },
+    }),
+    __jailgunDiscoverTarCandidates: async () => ({
+      assistantRootCount: 3,
+      scannedControlCount: 533,
+      candidates,
+      lastTextLength: 558,
+      lastTextPreview: candidates[0]?.label || candidates[0]?.text || '',
+      abFeedbackActive: false,
+      abResponseCount: 0,
+      artifactConversationLinks: [],
+    }),
+    __jailgunDiscoverArtifactConversationLinks: async () => [],
+  };
+}
+
 function fakeSuccessfulDownload(archivePath, suggested = 'chapter-027-epoch-02.tar.gz') {
   return {
     suggestedFilename: () => suggested,
@@ -7101,6 +7187,24 @@ function selfTestArtifactDownloadCandidate() {
     tag: 'a',
     role: '',
     assistantIndex: 0,
+  };
+}
+
+function selfTestTextOnlyArtifactDownloadCandidate(targetName = 'chapter-027-epoch-02.tar.gz') {
+  return {
+    index: 0,
+    score: 530,
+    label: targetName,
+    text: targetName,
+    href: '',
+    download: '',
+    aria: '',
+    title: '',
+    tag: 'button',
+    role: '',
+    assistantIndex: 2,
+    fileKind: 'downloaded-archive',
+    artifactSources: ['text'],
   };
 }
 
@@ -7443,6 +7547,48 @@ async function assertArtifactConversationRecoveryDownloadsFromLinkedPage() {
     const receiptStat = await stat(recovery.download.receipt_path);
     if (!receiptStat.isFile()) {
       throw new Error(`artifact conversation recovery receipt was not written: ${recovery.download.receipt_path}`);
+    }
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+}
+
+async function assertNoTarRecoveryDownloadsCurrentPageTextOnlyButton() {
+  const root = await mkdtemp(join(tmpdir(), 'jailgun-current-page-artifact-download-'));
+  try {
+    const logs = [];
+    const events = [];
+    const archivePath = await createSelfTestTarGz(root);
+    const sourcePage = fakeCurrentPageArtifactCandidatePage({
+      downloads: [fakeSuccessfulDownload(archivePath, 'chapter-027-epoch-02.tar.gz')],
+      candidates: [selfTestTextOnlyArtifactDownloadCandidate('chapter-027-epoch-02.tar.gz')],
+    });
+    const tab = { browserSlot: 3, page: sourcePage };
+    const bridge = fakeArtifactRecoveryBridge(root, logs, events);
+    const recovery = await recoverArtifactConversationDownload(bridge, tab, selfTestEnvelope(), {
+      kind: 'done-no-tar',
+      message: 'assistant finished but no tar.gz download candidate was found',
+      outputDir: join(root, 'downloads'),
+      tabId: 3,
+      targetName: bridge.options.tarTargetName,
+      state: { attempts: 0, visitedUrls: new Set(['https://chatgpt.com/c/current-conversation']) },
+    });
+
+    if (!recovery.downloaded || !recovery.download?.local_path) {
+      throw new Error(`current page no-tar recovery did not download: ${JSON.stringify(recovery)}`);
+    }
+    if (sourcePage.clickCount() !== 1) {
+      throw new Error(`current page no-tar recovery clicked the candidate ${sourcePage.clickCount()} times`);
+    }
+    if (tab.page !== null || !events.some((event) => event.type === 'download-complete')) {
+      throw new Error(`current page no-tar recovery did not close tab and emit completion: ${JSON.stringify({ tabPage: tab.page, events })}`);
+    }
+    if (!logs.some((log) => log.phase === 'artifact-conversation-recovery' && log.status === 'downloaded-current-page')) {
+      throw new Error(`current page no-tar recovery did not log downloaded-current-page: ${JSON.stringify(logs)}`);
+    }
+    const receiptStat = await stat(recovery.download.receipt_path);
+    if (!receiptStat.isFile()) {
+      throw new Error(`current page no-tar recovery receipt was not written: ${recovery.download.receipt_path}`);
     }
   } finally {
     await rm(root, { recursive: true, force: true });
@@ -8201,6 +8347,7 @@ async function runSelfTest() {
   await assertABFeedbackFilenameOnlyTarButtonIgnored();
   await assertArtifactConversationLinkCollection();
   await assertArtifactConversationRecoveryDownloadsFromLinkedPage();
+  await assertNoTarRecoveryDownloadsCurrentPageTextOnlyButton();
   await assertArtifactConversationRecoveryNoCandidateDiagnostics();
   await assertKnownRunUrlCollection();
   await assertBrowserProfilePoolPlanning();
