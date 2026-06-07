@@ -33,6 +33,8 @@ const DEFAULT_MESSAGE_STREAM_RETRY_DELAY_MS = 10000;
 const DEFAULT_ARTIFACT_STALL_REPAIR_SECONDS = 0;
 const DEFAULT_ARTIFACT_REPAIR_ATTEMPT_LIMIT = 0;
 const DEFAULT_ARTIFACT_CONVERSATION_RECOVERY_LIMIT = 3;
+const DEFAULT_MOUSE_HUMANIZE_MIN_MS = 15000;
+const DEFAULT_MOUSE_HUMANIZE_MAX_MS = 30000;
 
 const args = parseArgs(process.argv.slice(2));
 const shouldSelfTest = args.selfTest === 'true';
@@ -126,6 +128,15 @@ const settings = {
   artifactConversationRecoveryLimit: Math.max(0, Math.floor(numberFrom(
     args.artifactConversationRecoveryLimit ?? process.env.JAILGUN_ARTIFACT_CONVERSATION_RECOVERY_LIMIT,
     DEFAULT_ARTIFACT_CONVERSATION_RECOVERY_LIMIT,
+  ))),
+  mouseHumanize: booleanFrom(args.mouseHumanize ?? process.env.JAILGUN_MOUSE_HUMANIZE, false),
+  mouseHumanizeMinMs: Math.max(0, Math.floor(numberFrom(
+    args.mouseHumanizeMinMs ?? process.env.JAILGUN_MOUSE_HUMANIZE_MIN_MS,
+    DEFAULT_MOUSE_HUMANIZE_MIN_MS,
+  ))),
+  mouseHumanizeMaxMs: Math.max(0, Math.floor(numberFrom(
+    args.mouseHumanizeMaxMs ?? process.env.JAILGUN_MOUSE_HUMANIZE_MAX_MS,
+    DEFAULT_MOUSE_HUMANIZE_MAX_MS,
   ))),
   recoverKnownRunTabs: booleanFrom(args.recoverKnownRunTabs ?? process.env.JAILGUN_RECOVER_KNOWN_RUN_TABS, true),
   knownRunArtifactsDir: resolvePath(args.knownRunArtifactsDir ?? process.env.JAILGUN_KNOWN_RUN_ARTIFACTS_DIR ?? join('artifacts', 'live-runs')),
@@ -613,6 +624,8 @@ class ChromeBridge {
     const noArtifactKind = (kind) => waitingForTex ? kind.replace(/-no-tar$/, '-no-artifact') : kind;
     await mkdir(outputDir, { recursive: true });
     let lastTelemetry = 0;
+    let nextMouseJitterAt = startedAt + mouseHumanizeDelayMs(this.options);
+    let lastMouseJitterPosition = null;
     let tick = 0;
     let messageStreamRetries = 0;
     let lastProgressSignature = '';
@@ -696,6 +709,22 @@ class ChromeBridge {
       const progressKind = now - lastTelemetry >= pollMs ? 'telemetry' : 'completion-check';
       if (progressKind === 'telemetry') {
         lastTelemetry = now;
+      }
+      if (this.options.mouseHumanize && now >= nextMouseJitterAt) {
+        const jitter = await passiveMouseActivityJitter(tab.page, lastMouseJitterPosition);
+        nextMouseJitterAt = now + mouseHumanizeDelayMs(this.options);
+        if (jitter.status === 'moved') {
+          lastMouseJitterPosition = { x: jitter.x, y: jitter.y };
+        }
+        this.bridgeLog(envelope, 'mouse-activity-jitter', jitter.status, jitter.status === 'moved' ? 'passive mouse activity jitter moved' : 'passive mouse activity jitter skipped', {
+          x: String(jitter.x ?? ''),
+          y: String(jitter.y ?? ''),
+          steps: String(jitter.steps ?? ''),
+          viewport_width: String(jitter.viewport_width ?? ''),
+          viewport_height: String(jitter.viewport_height ?? ''),
+          reason: jitter.reason || '',
+          next_delay_ms: String(Math.max(0, nextMouseJitterAt - now)),
+        }, jitter.status === 'moved' ? 'info' : 'warn');
       }
       this.emit(envelope, 'tab-progress', {
         kind: progressKind,
@@ -6275,6 +6304,80 @@ function booleanFrom(value, defaultValue) {
   return defaultValue;
 }
 
+function randomIntInclusive(min, max) {
+  const low = Math.min(min, max);
+  const high = Math.max(min, max);
+  return low + Math.floor(Math.random() * (high - low + 1));
+}
+
+function mouseHumanizeDelayMs(options = {}) {
+  if (!options.mouseHumanize) {
+    return Number.POSITIVE_INFINITY;
+  }
+  const min = Math.max(0, Math.floor(Number(options.mouseHumanizeMinMs ?? DEFAULT_MOUSE_HUMANIZE_MIN_MS)));
+  const max = Math.max(min, Math.floor(Number(options.mouseHumanizeMaxMs ?? DEFAULT_MOUSE_HUMANIZE_MAX_MS)));
+  return randomIntInclusive(min, max);
+}
+
+function clampNumber(value, min, max) {
+  return Math.min(max, Math.max(min, value));
+}
+
+async function pageViewportSize(page) {
+  if (typeof page?.viewportSize === 'function') {
+    const viewport = page.viewportSize();
+    if (viewport?.width > 0 && viewport?.height > 0) {
+      return viewport;
+    }
+  }
+  if (typeof page?.evaluate === 'function') {
+    const viewport = await page.evaluate(() => ({
+      width: window.innerWidth || document.documentElement?.clientWidth || 0,
+      height: window.innerHeight || document.documentElement?.clientHeight || 0,
+    }));
+    if (viewport?.width > 0 && viewport?.height > 0) {
+      return viewport;
+    }
+  }
+  return null;
+}
+
+async function passiveMouseActivityJitter(page, lastPosition = null) {
+  if (!page || page.isClosed?.()) {
+    return { status: 'skipped', reason: 'page-closed' };
+  }
+  if (typeof page.mouse?.move !== 'function') {
+    return { status: 'skipped', reason: 'mouse-move-unavailable' };
+  }
+  let viewport;
+  try {
+    viewport = await pageViewportSize(page);
+  } catch (error) {
+    return { status: 'skipped', reason: `viewport-unavailable:${error?.message || String(error)}` };
+  }
+  const width = Math.floor(Number(viewport?.width || 0));
+  const height = Math.floor(Number(viewport?.height || 0));
+  if (width < 20 || height < 20) {
+    return { status: 'skipped', reason: 'viewport-too-small', viewport_width: width, viewport_height: height };
+  }
+  const margin = Math.min(16, Math.floor(Math.min(width, height) / 4));
+  const minX = margin;
+  const minY = margin;
+  const maxX = Math.max(minX, width - margin);
+  const maxY = Math.max(minY, height - margin);
+  const originX = Number.isFinite(lastPosition?.x) ? lastPosition.x : width / 2;
+  const originY = Number.isFinite(lastPosition?.y) ? lastPosition.y : height / 2;
+  const x = Math.round(clampNumber(originX + randomIntInclusive(-40, 40), minX, maxX));
+  const y = Math.round(clampNumber(originY + randomIntInclusive(-28, 28), minY, maxY));
+  const steps = randomIntInclusive(3, 8);
+  try {
+    await page.mouse.move(x, y, { steps });
+    return { status: 'moved', x, y, steps, viewport_width: width, viewport_height: height };
+  } catch (error) {
+    return { status: 'skipped', reason: `move-failed:${error?.message || String(error)}`, viewport_width: width, viewport_height: height };
+  }
+}
+
 function resolvePath(value) {
   return isAbsolute(value) ? value : resolve(process.cwd(), value);
 }
@@ -7144,6 +7247,125 @@ async function assertDirectTexDownloadFailureIsArtifactScoped() {
     }
     if (/failed to persist tar\.gz download|download saveAs failed/.test(errorEvent.payload.message)) {
       throw new Error(`direct tex failure payload used stale wording: ${errorEvent.payload.message}`);
+    }
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+}
+
+async function assertMonitorMouseActivityJitter() {
+  const root = await mkdtemp(join(tmpdir(), 'jailgun-monitor-mouse-jitter-'));
+  try {
+    const logs = [];
+    const events = [];
+    const forbiddenCalls = [];
+    const mouseMoves = [];
+    let closed = false;
+    const forbidden = (name) => {
+      forbiddenCalls.push(name);
+      throw new Error(`${name} should not be called by mouse activity jitter`);
+    };
+    const page = {
+      mouse: {
+        move: async (x, y, options = {}) => {
+          mouseMoves.push({ x, y, options });
+        },
+        click: async () => forbidden('mouse.click'),
+      },
+      keyboard: {
+        press: async () => forbidden('keyboard.press'),
+      },
+      __jailgunDiscoverTarCandidates: async () => ({
+        assistantRootCount: 1,
+        scannedControlCount: 0,
+        candidates: [],
+        artifactTextMentions: [],
+        lastTextLength: 12,
+        lastTextPreview: 'done',
+        abFeedbackActive: false,
+        abResponseCount: 0,
+      }),
+      __jailgunDiscoverArtifactConversationLinks: async () => [],
+      viewportSize: () => ({ width: 640, height: 480 }),
+      isClosed: () => closed,
+      url: () => 'https://chatgpt.com/c/mouse-jitter-self-test',
+      title: async () => 'Mouse Jitter Self Test',
+      content: async () => '<html><body>done</body></html>',
+      screenshot: async ({ path }) => {
+        await writeFile(path, 'fake screenshot\n');
+      },
+      close: async () => {
+        closed = true;
+      },
+      evaluate: async (fn) => {
+        const source = String(fn);
+        if (source.includes('messageStreamError')) {
+          return { activeStop: false, finalActions: 1, messageStreamError: false, retryAvailable: false };
+        }
+        if (source.includes('el.click')) {
+          return { clicked: false, reason: 'not-found' };
+        }
+        if (source.includes('window.scroll') || source.includes('scrollIntoView')) {
+          return forbidden('page.scroll');
+        }
+        if (source.includes('document.body?.innerText')) {
+          return 'done';
+        }
+        if (source.includes('querySelectorAll')) {
+          return [];
+        }
+        return null;
+      },
+    };
+    const bridge = new ChromeBridge({
+      ...settings,
+      downloadsDir: join(root, 'downloads'),
+      artifactsDir: join(root, 'artifacts'),
+      profilePool: [{ key: 'self-test', profileDir: join(root, 'profile') }],
+      mouseHumanize: true,
+      mouseHumanizeMinMs: 0,
+      mouseHumanizeMaxMs: 0,
+      artifactConversationRecoveryLimit: 0,
+    });
+    bridge.tabs.set(1, {
+      page,
+      monitoring: false,
+      failed: false,
+      browserSlot: 1,
+      browserProfile: 'self-test-profile',
+      browserProfileDir: join(root, 'profile'),
+    });
+    bridge.runDismissals = async () => undefined;
+    bridge.handleGitHubToolPrompts = async () => undefined;
+    bridge.emit = (_envelope, type, payload) => {
+      events.push({ type, payload });
+    };
+    bridge.bridgeLog = (_envelope, phase, status, message, fields, level) => {
+      logs.push({ phase, status, message, fields, level });
+    };
+    bridge.closeTabAfterReceipt = async (tab) => {
+      closed = true;
+      tab.page = null;
+      return true;
+    };
+
+    await bridge.monitorTab(selfTestEnvelope());
+
+    if (mouseMoves.length < 1) {
+      throw new Error(`monitor did not attempt passive mouse movement: ${JSON.stringify(logs)}`);
+    }
+    const move = mouseMoves[0];
+    if (move.x < 0 || move.y < 0 || move.x > 640 || move.y > 480 || !(move.options.steps >= 3)) {
+      throw new Error(`mouse jitter used invalid coordinates or steps: ${JSON.stringify(move)}`);
+    }
+    if (forbiddenCalls.length > 0) {
+      throw new Error(`mouse jitter called forbidden input methods: ${forbiddenCalls.join(', ')}`);
+    }
+    if (!logs.some((log) => log.phase === 'mouse-activity-jitter' && log.status === 'moved')) {
+      throw new Error(`monitor did not log moved mouse jitter: ${JSON.stringify(logs)}`);
+    }
+    if (!events.some((event) => event.type === 'error' && event.payload?.kind === 'done-no-tar')) {
+      throw new Error(`monitor self-test did not finish through no-tar path: ${JSON.stringify(events)}`);
     }
   } finally {
     await rm(root, { recursive: true, force: true });
@@ -8618,6 +8840,7 @@ async function runSelfTest() {
   assertTextMaterializationValidation();
   await assertDownloadFailureDiagnosticsAndCleanup();
   await assertDirectTexDownloadFailureIsArtifactScoped();
+  await assertMonitorMouseActivityJitter();
   await assertMessageStreamRetryHardDisabled();
   assertArtifactRepairPositiveSettingsRejected();
   await assertABFeedbackFilenameOnlyTarButtonIgnored();
