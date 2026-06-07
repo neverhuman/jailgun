@@ -2012,8 +2012,17 @@ async function requestManagedBrowserClose(record, timeoutMs = 1500) {
 }
 
 async function terminateManagedBrowserProcess(endpoint, hooks = {}) {
-  const pid = Number(endpoint?.pid);
   const cdpUrl = endpoint?.cdpUrl || '';
+  const parsedEndpoint = cdpUrl ? parseCdpEndpoint(cdpUrl) : null;
+  let pid = Number(endpoint?.pid);
+  let inferredPid = false;
+  if (!Number.isInteger(pid) || pid <= 0) {
+    const inferredPids = parsedEndpoint
+      ? await findManagedChromeListenerPids(parsedEndpoint, endpoint?.profileDir, hooks)
+      : [];
+    pid = inferredPids[0] ?? pid;
+    inferredPid = Number.isInteger(pid) && pid > 0;
+  }
   if (!Number.isInteger(pid) || pid <= 0) {
     return {
       status: 'skipped',
@@ -2025,7 +2034,6 @@ async function terminateManagedBrowserProcess(endpoint, hooks = {}) {
       error: 'missing managed browser pid',
     };
   }
-  const parsedEndpoint = cdpUrl ? parseCdpEndpoint(cdpUrl) : null;
   const xvfbPid = Number(endpoint?.xvfbPid);
   const killProcess = hooks.killProcess ?? ((targetPid, signal) => process.kill(targetPid, signal));
   const isProcessAliveFn = hooks.isProcessAlive ?? ((targetPid) => isProcessAlive(targetPid, killProcess));
@@ -2042,6 +2050,9 @@ async function terminateManagedBrowserProcess(endpoint, hooks = {}) {
     port_closed: false,
     error: '',
   };
+  if (inferredPid) {
+    result.inferred_pid = true;
+  }
 
   if (!isProcessAliveFn(pid)) {
     result.status = 'already-exited';
@@ -2119,6 +2130,69 @@ async function terminateManagedBrowserProcess(endpoint, hooks = {}) {
     }
   }
   return result;
+}
+
+async function findManagedChromeListenerPids(endpoint, profileDir, hooks = {}) {
+  if (!isManagedCdpEndpoint(endpoint) || !profileDir) {
+    return [];
+  }
+  const listenerPids = hooks.managedBrowserListenerPids
+    ? await hooks.managedBrowserListenerPids(endpoint)
+    : listeningPidsForPort(endpoint.port);
+  const readCommandLine = hooks.readProcessCommandLine ?? readProcessCommandLine;
+  const matches = [];
+  const seen = new Set();
+  for (const rawPid of listenerPids) {
+    const pid = Number(rawPid);
+    if (!Number.isInteger(pid) || pid <= 0 || seen.has(pid)) {
+      continue;
+    }
+    seen.add(pid);
+    const commandLine = await readCommandLine(pid);
+    if (managedChromeCommandMatchesEndpoint(commandLine, endpoint, profileDir)) {
+      matches.push(pid);
+    }
+  }
+  return matches;
+}
+
+function listeningPidsForPort(port) {
+  const result = spawnSync('lsof', ['-nP', `-iTCP:${port}`, '-sTCP:LISTEN', '-Fp'], {
+    encoding: 'utf8',
+    timeout: 1500,
+  });
+  if (result.status !== 0 || !result.stdout) {
+    return [];
+  }
+  return result.stdout
+    .split('\n')
+    .map((line) => (line.startsWith('p') ? Number(line.slice(1)) : null))
+    .filter((pid) => Number.isInteger(pid) && pid > 0);
+}
+
+async function readProcessCommandLine(pid) {
+  try {
+    return readFileSync(`/proc/${pid}/cmdline`, 'utf8').replace(/\0/g, ' ');
+  } catch {
+    return '';
+  }
+}
+
+function managedChromeCommandMatchesEndpoint(commandLine, endpoint, profileDir) {
+  if (!commandLine || !isManagedCdpEndpoint(endpoint)) {
+    return false;
+  }
+  const profileArg = `--user-data-dir=${profileDir}`;
+  return /\b(chrome|chromium|google-chrome)\b/i.test(commandLine)
+    && commandLine.includes(`--remote-debugging-port=${endpoint.port}`)
+    && commandLine.includes(profileArg);
+}
+
+function isManagedCdpEndpoint(endpoint) {
+  return Boolean(endpoint)
+    && isLocalCdpHost(endpoint.hostname)
+    && endpoint.port >= DEFAULT_CDP_PORT
+    && endpoint.port <= MANAGED_CDP_MAX_PORT;
 }
 
 async function waitForManagedBrowserToStop({
@@ -7599,6 +7673,49 @@ async function assertManagedBrowserTerminationSequence() {
   const skipped = await terminateManagedBrowserProcess({ pid: null, cdpUrl: 'http://127.0.0.1:9226' });
   if (skipped.status !== 'skipped') {
     throw new Error(`managed browser missing pid should be skipped: ${JSON.stringify(skipped)}`);
+  }
+
+  const wrongProfile = await terminateManagedBrowserProcess({
+    pid: null,
+    cdpUrl: 'http://127.0.0.1:9224',
+    profileDir: '/tmp/jailgun-profile-a',
+  }, {
+    managedBrowserListenerPids: async () => [4244],
+    readProcessCommandLine: async () => 'chrome --remote-debugging-port=9224 --user-data-dir=/tmp/jailgun-profile-b',
+  });
+  if (wrongProfile.status !== 'skipped') {
+    throw new Error(`managed browser pid inference should reject wrong profile: ${JSON.stringify(wrongProfile)}`);
+  }
+
+  const inferredCalls = [];
+  let inferredAlive = true;
+  let inferredPortOpen = true;
+  const inferred = await terminateManagedBrowserProcess({
+    pid: null,
+    cdpUrl: 'http://127.0.0.1:9224',
+    profileDir: '/tmp/jailgun-profile-a',
+  }, {
+    timeoutMs: 100,
+    managedBrowserListenerPids: async () => [4245, 4246],
+    readProcessCommandLine: async (pid) => (pid === 4246
+      ? 'google-chrome --remote-debugging-port=9224 --user-data-dir=/tmp/jailgun-profile-a'
+      : 'google-chrome --remote-debugging-port=9224 --user-data-dir=/tmp/jailgun-profile-b'),
+    isProcessAlive: () => inferredAlive,
+    isPortOpen: async () => inferredPortOpen,
+    killProcess: (pid, signal) => {
+      inferredCalls.push(`${signal}:${pid}`);
+      if (signal === 'SIGTERM') {
+        inferredAlive = false;
+        inferredPortOpen = false;
+      }
+    },
+    sleep: async () => undefined,
+  });
+  if (JSON.stringify(inferredCalls) !== JSON.stringify(['SIGTERM:4246'])) {
+    throw new Error(`managed browser inferred termination sequence failed: ${JSON.stringify(inferredCalls)}`);
+  }
+  if (inferred.status !== 'ok' || inferred.pid !== 4246 || !inferred.inferred_pid || !inferred.port_closed) {
+    throw new Error(`managed browser inferred termination result failed: ${JSON.stringify(inferred)}`);
   }
 }
 
