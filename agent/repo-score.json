@@ -1,6 +1,6 @@
 {
-  "report_fingerprint": "sha256:d75d14f1e1a011a18be7914da1d2a04a4991ff42d2dd6f15dd0c0181a5a88e31",
-  "input_fingerprint": "sha256:20e82bbebd041946a0a7a76ca6fbac056c19e56a12293e7b5cc5a8c8d9654958",
+  "report_fingerprint": "sha256:d131a4475d0238b918618967005784965874619f1bfec884d557f189855951c2",
+  "input_fingerprint": "sha256:8f94be54a0dcf7e439afaf12b797f16f82e3aba445fd7506c0ec1f4a5cd5c072",
   "policy_fingerprint": "sha256:2e02fe1c1919de94a47a99164c962683a934c73ca5bb30bec62384f7b17fe742",
   "manifest_fingerprints": {
     "owner_map": "sha256:c5d6ff65c3420d96e00ff0232f7d382635d4e54169dc799c4c14d8602d9491ef",
@@ -11,7 +11,7 @@
     "standard_version": "sha256:e89e3b08c1e1ab55b195b4041787100956f3888aaba37595bce4403606dcb996"
   },
   "dirty_worktree": false,
-  "generated_at": "1780844286",
+  "generated_at": "1780844463",
   "schema_url": "schemas/repo-score.schema.json",
   "standard": "jankurai",
   "standard_version": "0.9.0",
@@ -25,9 +25,9 @@
   "conformance_decision": "pass",
   "conformance_blockers": [],
   "repo": ".",
-  "run_id": "1780844286",
-  "started_at": "1780844286",
-  "elapsed_ms": 41524,
+  "run_id": "1780844463",
+  "started_at": "1780844463",
+  "elapsed_ms": 41616,
   "scope": {
     "mode": "full",
     "paths": []
@@ -54,7 +54,7 @@
     }
   },
   "git": {
-    "head": "7f7f243",
+    "head": "ab7fe38",
     "base": null,
     "changed_files": 0,
     "mode": "full",
@@ -459,6 +459,7 @@
         "scripts/render-dashboard-ux-qa.mjs"
       ],
       "api_mocks": [
+        "artifacts/download-failures/openqg-live-g0001-08-failure-slicing-hard_stage_repair-a2-67a1cf4d9ce3/tab-01/2026-06-07T14-58-10-630Z-done-no-tar/page.html",
         "ops/ci/ux-qa.sh",
         "package-lock.json",
         "scripts/render-dashboard-ux-qa.mjs"
@@ -1100,7 +1101,7 @@
   "copy_code": {
     "schema_version": "1.1.0",
     "generated_by": "jankurai copy-code",
-    "generated_at": "2026-06-07T14:57:25.738362514+00:00",
+    "generated_at": "2026-06-07T15:00:22.962783895+00:00",
     "repo": ".",
     "auditor_version": "1.6.10",
     "status": "review",
@@ -1138,7 +1139,7 @@
       ]
     },
     "summary": {
-      "files_scanned": 583,
+      "files_scanned": 615,
       "files_considered": 175,
       "active_files": 175,
       "exact_file_classes": 0,
