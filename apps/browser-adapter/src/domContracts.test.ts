@@ -58,6 +58,72 @@ it('prefers assistant tex downloads when a tex target is requested', () => {
   });
 });
 
+it('finds exact assistant json download targets without requiring tar.gz', () => {
+  document.body.innerHTML = `
+    <div data-message-author-role="assistant">
+      <a href="https://files.example.invalid/openqg-smoke.json" download="openqg-smoke.json">
+        Download openqg-smoke.json
+      </a>
+    </div>
+  `;
+  const candidates = collectTarDownloadCandidatesFromDom(document, 'openqg-smoke.json');
+  expect(candidates).toHaveLength(1);
+  expect(candidates[0]).toMatchObject({
+    download: 'openqg-smoke.json',
+    fileKind: 'downloaded-file'
+  });
+});
+
+it('finds exact assistant download targets with arbitrary extensions', () => {
+  document.body.innerHTML = `
+    <div data-message-author-role="assistant">
+      <a href="https://files.example.invalid/openqg-smoke.qg" download="openqg-smoke.qg">
+        Download openqg-smoke.qg
+      </a>
+    </div>
+  `;
+  const candidates = collectTarDownloadCandidatesFromDom(document, 'openqg-smoke.qg');
+  expect(candidates).toHaveLength(1);
+  expect(candidates[0]).toMatchObject({
+    download: 'openqg-smoke.qg',
+    fileKind: 'downloaded-file'
+  });
+});
+
+it('accepts generic artifact export controls for known non-archive targets', () => {
+  document.body.innerHTML = `
+    <div data-message-author-role="assistant">
+      <button aria-label="Download artifact">Download</button>
+    </div>
+  `;
+  const candidates = collectTarDownloadCandidatesFromDom(document, 'openqg-smoke.csv');
+  expect(candidates).toHaveLength(1);
+  expect(candidates[0]).toMatchObject({
+    aria: 'Download artifact',
+    fileKind: 'downloaded-file'
+  });
+});
+
+it('rejects explicit wrong filenames for non-archive targets', () => {
+  document.body.innerHTML = `
+    <div data-message-author-role="assistant">
+      <a href="https://files.example.invalid/wrong.json" download="wrong.json">
+        Download wrong.json
+      </a>
+    </div>
+  `;
+  expect(collectTarDownloadCandidatesFromDom(document, 'openqg-smoke.json')).toEqual([]);
+});
+
+it('rejects explicit wrong filenames with arbitrary extensions', () => {
+  document.body.innerHTML = `
+    <div data-message-author-role="assistant">
+      <button>Download wrong.qg</button>
+    </div>
+  `;
+  expect(collectTarDownloadCandidatesFromDom(document, 'openqg-smoke.qg')).toEqual([]);
+});
+
 it('ignores prompt-side upload chips that mention tar archives', () => {
   document.body.innerHTML = `
     <form>
@@ -150,6 +216,27 @@ it('dedupes artifact conversation links and excludes the current conversation', 
   expect(links).toHaveLength(1);
   expect(links[0].url).toBe('https://chatgpt.com/c/chapter-027-artifact');
   expect(links[0].score).toBeGreaterThan(0);
+});
+
+it('collects artifact conversation links for exact non-archive target names', () => {
+  document.body.innerHTML = `
+    <nav>
+      <a href="https://chatgpt.com/c/openqg-json-artifact">
+        openqg-smoke.json
+      </a>
+    </nav>
+  `;
+  const links = collectArtifactConversationLinksFromDom(
+    document,
+    'openqg-smoke.json',
+    'https://chatgpt.com/c/current-conversation'
+  );
+  expect(links).toHaveLength(1);
+  expect(links[0]).toMatchObject({
+    url: 'https://chatgpt.com/c/openqg-json-artifact',
+    targetMatched: true
+  });
+  expect(links[0].artifactSignals).toContain('artifact-name');
 });
 
 it('does not treat ChatGPT conversation artifact links as direct tar downloads', () => {

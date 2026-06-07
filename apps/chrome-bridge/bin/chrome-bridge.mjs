@@ -788,6 +788,9 @@ class ChromeBridge {
             original_name: file.suggested,
             local_name: file.localName,
             file_kind: file.fileKind,
+            artifact_kind: file.artifactKind,
+            validation_status: file.validationStatus,
+            discovery_strategy: file.persistedBy === 'materialized-from-text' ? 'materialized_from_text' : 'browser_download',
             download_url: candidate.href || null,
             entry_count: file.entryCount,
             started_at: startedDownloadAt,
@@ -901,6 +904,54 @@ class ChromeBridge {
       }
 
       if (!status.activeStop && status.finalActions > 0) {
+        const materialized = await materializeVisibleTextArtifact(tab.page, targetName, outputDir, {
+          bridge: this,
+          envelope,
+          tabId,
+        });
+        if (materialized) {
+          const receiptPath = join(this.options.artifactsDir, 'receipts', envelope.run_id, `tab-${String(tabId).padStart(2, '0')}-download.json`);
+          await mkdir(resolve(receiptPath, '..'), { recursive: true });
+          const finishedAt = timestamp();
+          const completePayload = {
+            sha256: materialized.sha256,
+            size_bytes: materialized.sizeBytes,
+            local_path: materialized.path,
+            receipt_path: receiptPath,
+            original_name: materialized.suggested,
+            local_name: materialized.localName,
+            file_kind: materialized.fileKind,
+            artifact_kind: materialized.artifactKind,
+            validation_status: materialized.validationStatus,
+            discovery_strategy: 'materialized_from_text',
+            download_url: null,
+            entry_count: materialized.entryCount,
+            started_at: finishedAt,
+            finished_at: finishedAt,
+            download_latency_ms: 0,
+            materialized_from_text: true,
+          };
+          await writeFile(receiptPath, JSON.stringify(completePayload, null, 2));
+          const cleanup = await finalizeTabAfterDownload(this, tab, envelope, 'download-complete');
+          this.emit(envelope, 'download-complete', completePayload);
+          this.bridgeLog(envelope, 'download-complete', 'ok', 'materialized text-safe artifact and closed tab', {
+            sha256: completePayload.sha256,
+            size_bytes: String(completePayload.size_bytes),
+            file_kind: completePayload.file_kind,
+            artifact_kind: completePayload.artifact_kind,
+            validation_status: completePayload.validation_status,
+            receipt_path: completePayload.receipt_path,
+            local_path: completePayload.local_path,
+            discovery_strategy: completePayload.discovery_strategy,
+            generation_stop_method: cleanup?.stopMethod || '',
+            tab_closed: String(Boolean(cleanup?.closed)),
+            cleanup_errors: (cleanup?.errors || []).join(';'),
+          });
+          if (!cleanup?.closed || cleanup.errors.length > 0) {
+            throw new Error(`text artifact materialized but tab cleanup failed for tab ${tabId}: ${(cleanup?.errors || ['tab-not-closed']).join('; ')}`);
+          }
+          return;
+        }
         await failNoTar(
           noArtifactKind('done-no-tar'),
           `assistant finished but no ${artifactLabel} download candidate was found`,
@@ -3391,11 +3442,42 @@ async function discoverTarCandidates(page, targetName = '') {
     const disabled = (el) => el.hasAttribute?.('disabled') || /^true$/i.test(attr(el, 'aria-disabled'));
     const tar = (value) => /\.tar(?:\(\d+\))?\.gz(?:$|[?#\s)])/i.test(String(value || ''));
     const tex = (value) => /\.tex(?:$|[?#\s)])/i.test(String(value || ''));
+    const genericArtifactNamePattern = /(?:^|[\s"'`(])([A-Za-z0-9][A-Za-z0-9._-]*\.[A-Za-z0-9][A-Za-z0-9._-]{0,15})(?:$|[?#\s)"'`,])/gi;
+    const normalizeComparable = (value) => String(value || '')
+      .replace(/\.tar\(\d+\)\.gz/gi, '.tar.gz')
+      .replace(/\.tgz/gi, '.tar.gz')
+      .replace(/\s+/g, ' ')
+      .toLowerCase();
+    const artifactNamesFromText = (value) => {
+      const names = [];
+      const pattern = new RegExp(genericArtifactNamePattern);
+      let match;
+      while ((match = pattern.exec(String(value || ''))) !== null) {
+        if (match[1]) names.push(match[1]);
+      }
+      return names;
+    };
+    const artifactNamesFromHref = (value) => {
+      try {
+        const url = new URL(value, 'https://example.invalid/');
+        const name = url.pathname.split('/').filter(Boolean).pop() || '';
+        return name.includes('.') ? [name] : [];
+      } catch {
+        const name = String(value || '').split(/[/?#]/).filter(Boolean).pop() || '';
+        return name.includes('.') ? [name] : [];
+      }
+    };
+    const artifactNamesFromValues = (values) => Object.entries(values)
+      .flatMap(([name, value]) => name === 'href' ? artifactNamesFromHref(value) : artifactNamesFromText(value));
     const downloadAction = (value) => /\b(download|downloadable|save|export)\b/i.test(String(value || ''));
     const archiveNoun = (value) => /\b(tarball|tar|archive|artifact)\b/i.test(String(value || ''));
     const texNoun = (value) => /\b(tex|latex|chapter|file|artifact)\b/i.test(String(value || ''));
+    const fileNoun = (value) => /\b(file|artifact|download|export|save|json|markdown|csv|text|document)\b/i.test(String(value || ''));
     const clickable = (entry) => entry.tag === 'button' || entry.role === 'button' || Boolean(entry.href || entry.download);
-    const targetIsTex = /\.tex$/i.test(String(target || '').trim());
+    const normalizedTarget = normalizeComparable(String(target || '').trim());
+    const targetIsTex = /\.tex$/i.test(normalizedTarget);
+    const targetIsTar = /\.tar\.gz$/i.test(normalizedTarget);
+    const targetIsGenericFile = normalizedTarget !== '' && !targetIsTar && !targetIsTex;
     const candidates = [];
     for (let index = 0; index < controls.length; index += 1) {
       const el = controls[index];
@@ -3421,6 +3503,23 @@ async function discoverTarCandidates(page, targetName = '') {
       const haystack = `${entry.text} ${entry.href} ${entry.download} ${entry.aria} ${entry.title}`;
       const explicitTar = tar(haystack);
       const explicitTex = tex(haystack);
+      const sourceValueMap = {
+        text: entry.text,
+        href: entry.href,
+        download: entry.download,
+        aria: entry.aria,
+        title: entry.title,
+      };
+      const artifactSources = [];
+      for (const [name, value] of Object.entries(sourceValueMap)) {
+        if (normalizedTarget && normalizeComparable(value).includes(normalizedTarget)) {
+          artifactSources.push(name);
+        }
+      }
+      const artifactNamesInControl = artifactNamesFromValues(sourceValueMap).map(normalizeComparable);
+      const conflictingArtifactName = Boolean(
+        normalizedTarget && artifactNamesInControl.some((name) => name !== normalizedTarget)
+      );
       const genericArchiveDownload = Boolean(
         assistant
           && downloadAction(haystack)
@@ -3432,10 +3531,22 @@ async function discoverTarCandidates(page, targetName = '') {
           && downloadAction(haystack)
           && texNoun(haystack)
       );
-      if (!clickable(entry) || (!explicitTar && !explicitTex && !genericArchiveDownload && !genericTexDownload)) continue;
+      const genericFileDownload = Boolean(
+        targetIsGenericFile
+          && assistant
+          && downloadAction(haystack)
+          && fileNoun(haystack)
+          && !conflictingArtifactName
+          && artifactNamesInControl.length === 0
+      );
+      const hasCandidateSignal = targetIsGenericFile
+        ? artifactSources.length > 0 || genericFileDownload
+        : explicitTar || explicitTex || genericArchiveDownload || genericTexDownload;
+      if (!clickable(entry) || !hasCandidateSignal) continue;
       entry.label = entry.text || entry.download || entry.href || entry.aria || entry.title;
-      entry.fileKind = explicitTex ? 'downloaded-tex' : explicitTar || genericArchiveDownload ? 'downloaded-archive' : 'downloaded-file';
-      entry.score += explicitTex ? 260 : explicitTar ? 200 : 120;
+      entry.fileKind = targetIsGenericFile || genericFileDownload ? 'downloaded-file' : explicitTex ? 'downloaded-tex' : explicitTar || genericArchiveDownload ? 'downloaded-archive' : 'downloaded-file';
+      entry.artifactSources = artifactSources;
+      entry.score += targetIsGenericFile ? artifactSources.length > 0 ? 260 : 120 : explicitTex ? 260 : explicitTar ? 200 : 120;
       if (/download/i.test(haystack)) entry.score += 100;
       if (tar(entry.download)) entry.score += 90;
       if (tar(entry.href)) entry.score += 80;
@@ -3445,6 +3556,8 @@ async function discoverTarCandidates(page, targetName = '') {
       if (tex(entry.text)) entry.score += 80;
       if (genericArchiveDownload) entry.score += 30;
       if (genericTexDownload) entry.score += 80;
+      if (genericFileDownload) entry.score += 80;
+      if (artifactSources.length > 0) entry.score += 220;
       if (targetIsTex && explicitTex) entry.score += 200;
       if (targetIsTex && explicitTar) entry.score -= 40;
       if (tag === 'button' || role === 'button') entry.score += 20;
@@ -3466,7 +3579,7 @@ async function discoverTarCandidates(page, targetName = '') {
     };
   }, { targetName });
   try {
-    discovery.artifactConversationLinks = await discoverArtifactConversationLinks(page, '', page.url?.() || '');
+    discovery.artifactConversationLinks = await discoverArtifactConversationLinks(page, targetName, page.url?.() || '');
   } catch (error) {
     discovery.artifactConversationLinks = [];
     discovery.artifactConversationLinksError = error?.message || String(error);
@@ -3481,6 +3594,7 @@ async function discoverArtifactConversationLinks(page, targetName = '', currentU
   return page.evaluate(({ targetName: target, currentUrl: current }) => {
     const selector = 'a[href]';
     const tarNamePattern = /\.tar(?:\(\d+\))?\.gz(?:$|[?#\s)])/i;
+    const artifactNamePattern = /(?:^|[/\s"'`(])([A-Za-z0-9][A-Za-z0-9._-]*\.(?:tar(?:\(\d+\))?\.gz|tgz|tex|jsonl?|md|markdown|txt|csv|tsv|ya?ml|toml|pdf|png|jpe?g|webp|gif|svg|zip))(?:$|[?#\s)"'`,])/i;
     const chapterPattern = /\bchapter[\s_-]*0*(\d{1,4})\b/i;
     const normalizeText = (value) => String(value || '').replace(/\s+/g, ' ').trim();
     const normalizeComparable = (value) => normalizeText(value)
@@ -3520,6 +3634,7 @@ async function discoverArtifactConversationLinks(page, targetName = '', currentU
     };
     const artifactSignalsFor = (value) => {
       const signals = [];
+      if (artifactNamePattern.test(value)) signals.push('artifact-name');
       if (tarNamePattern.test(value)) signals.push('tar-name');
       if (/\b(?:tarball|tar\.?gz|tar)\b/i.test(value)) signals.push('tar');
       if (/\bartifacts?\b/i.test(value)) signals.push('artifact');
@@ -3552,12 +3667,19 @@ async function discoverArtifactConversationLinks(page, targetName = '', currentU
       if (/open conversation options/i.test(haystack)) {
         return;
       }
+      const comparableHaystack = normalizeComparable(haystack);
       const artifactSignals = artifactSignalsFor(haystack);
+      if (
+        normalizedTarget
+          && comparableHaystack.includes(normalizedTarget)
+          && !artifactSignals.includes('artifact-name')
+      ) {
+        artifactSignals.push('artifact-name');
+      }
       if (artifactSignals.length === 0) {
         return;
       }
       const linkChapter = extractChapter(haystack);
-      const comparableHaystack = normalizeComparable(haystack);
       const targetMatched = !normalizedTarget
         || (targetChapter ? linkChapter === targetChapter : Boolean(
           normalizedTarget && comparableHaystack.includes(normalizedTarget)
@@ -3571,6 +3693,7 @@ async function discoverArtifactConversationLinks(page, targetName = '', currentU
       if (targetChapter && linkChapter === targetChapter) score += 120;
       if (normalizedTarget && comparableHaystack.includes(normalizedTarget)) score += 100;
       if (targetStem && comparableHaystack.includes(targetStem)) score += 60;
+      if (artifactSignals.includes('artifact-name')) score += 70;
       if (artifactSignals.includes('tar-name')) score += 60;
       if (artifactSignals.includes('artifact')) score += 40;
       if (artifactSignals.includes('latex-creation')) score += 30;
@@ -3604,8 +3727,10 @@ function rankCandidates(candidates, targetName) {
     .replace(/\.tar\.gz$/i, '')
     .replace(/\.tex$/i, '');
   const targetIsTex = isTexNameLike(targetName);
+  const targetIsGenericFile = target !== '' && !isTarGzNameLike(target) && !targetIsTex;
   return [...candidates]
     .filter((candidate) => !isDocumentTarLabelOnlyCandidate(candidate))
+    .filter((candidate) => !targetIsGenericFile || !hasConflictingArtifactName(candidate, target))
     .map((candidate) => {
       const kind = candidateFileKind(candidate, targetName);
       let scoreBonus = 0;
@@ -3613,6 +3738,8 @@ function rankCandidates(candidates, targetName) {
         scoreBonus += 500;
       } else if (targetIsTex && kind === 'downloaded-archive') {
         scoreBonus += 20;
+      } else if (targetIsGenericFile && kind === 'downloaded-file') {
+        scoreBonus += 300;
       }
       if (target) {
         const haystack = normalizeArtifactComparable(`${candidate.text} ${candidate.href} ${candidate.download} ${candidate.aria} ${candidate.title}`);
@@ -3636,6 +3763,47 @@ function isDocumentTarLabelOnlyCandidate(candidate) {
     return false;
   }
   return tarNameLike(`${candidate?.text || ''} ${candidate?.aria || ''} ${candidate?.title || ''} ${candidate?.label || ''}`);
+}
+
+const ARTIFACT_NAME_RE = /(?:^|[\s"'`(])([A-Za-z0-9][A-Za-z0-9._-]*\.[A-Za-z0-9][A-Za-z0-9._-]{0,15})(?:$|[?#\s)"'`,])/gi;
+
+function hasConflictingArtifactName(candidate, normalizedTarget) {
+  if (!normalizedTarget) {
+    return false;
+  }
+  const names = artifactNamesFromCandidate(candidate)
+    .map(normalizeArtifactComparable);
+  return names.some((name) => name !== normalizedTarget);
+}
+
+function artifactNamesFromCandidate(candidate) {
+  return [
+    ...artifactNamesFromText(`${candidate?.text || ''} ${candidate?.download || ''} ${candidate?.aria || ''} ${candidate?.title || ''} ${candidate?.label || ''}`),
+    ...artifactNamesFromHref(candidate?.href || ''),
+  ];
+}
+
+function artifactNamesFromHref(value) {
+  try {
+    const url = new URL(value, 'https://example.invalid/');
+    const name = url.pathname.split('/').filter(Boolean).pop() || '';
+    return name.includes('.') ? [name] : [];
+  } catch {
+    const name = String(value || '').split(/[/?#]/).filter(Boolean).pop() || '';
+    return name.includes('.') ? [name] : [];
+  }
+}
+
+function artifactNamesFromText(value) {
+  const names = [];
+  const pattern = new RegExp(ARTIFACT_NAME_RE);
+  let match;
+  while ((match = pattern.exec(String(value || ''))) !== null) {
+    if (match[1]) {
+      names.push(match[1]);
+    }
+  }
+  return names;
 }
 
 function tarNameLike(value) {
@@ -3665,7 +3833,10 @@ function candidateFileKind(candidate, targetName = '') {
   if (tarNameLike(haystack)) {
     return 'downloaded-archive';
   }
-  return isTexNameLike(targetName) ? 'downloaded-tex' : 'downloaded-archive';
+  if (targetName && !isTarGzNameLike(targetName)) {
+    return isTexNameLike(targetName) ? 'downloaded-tex' : 'downloaded-file';
+  }
+  return 'downloaded-archive';
 }
 
 function normalizeTarComparable(value) {
@@ -3827,6 +3998,8 @@ async function downloadCandidate(page, candidate, outputDir, timeoutMs = 120000,
         suggested: persisted.suggested,
         localName: persisted.localName,
         fileKind: inspected.fileKind,
+        artifactKind: inspected.artifactKind,
+        validationStatus: inspected.validationStatus,
         sizeBytes: inspected.sizeBytes,
         sha256: inspected.sha256,
         entryCount: inspected.entryCount,
@@ -3854,6 +4027,156 @@ async function downloadCandidate(page, candidate, outputDir, timeoutMs = 120000,
     error.message = `${error.message}; diagnostics: ${bundlePath}`;
   }
   throw error;
+}
+
+async function materializeVisibleTextArtifact(page, targetName, outputDir, context = {}) {
+  if (!isTextSafeArtifactName(targetName) || !page || page.isClosed?.()) {
+    return null;
+  }
+  const extraction = await extractVisibleTextArtifact(page, targetName).catch((error) => ({
+    error: error?.message || String(error),
+  }));
+  const content = selectMaterializableTextContent(targetName, extraction);
+  if (!content) {
+    logDownloadDiagnostic(context, 'artifact-text-materialization', 'skipped', 'no valid visible text artifact content found', {
+      target_name: targetName,
+      reason: extraction?.error || 'no-valid-content',
+      candidate_count: String(extraction?.candidates?.length ?? 0),
+      preview: compact(extraction?.assistantText || '', 160),
+    }, 'warn');
+    return null;
+  }
+  const localName = normalizeArtifactName(targetName);
+  const targetPath = join(outputDir, localName);
+  await mkdir(outputDir, { recursive: true });
+  await writeFile(targetPath, content);
+  let inspected;
+  try {
+    inspected = await inspectDownloadedArtifact(targetPath);
+  } catch (error) {
+    await rm(targetPath, { force: true }).catch(() => undefined);
+    logDownloadDiagnostic(context, 'artifact-text-materialization', 'invalid', 'visible text artifact content failed validation', {
+      target_name: targetName,
+      target_path: targetPath,
+      reason: error?.message || String(error),
+      preview: compact(content, 160),
+    }, 'warn');
+    return null;
+  }
+  logDownloadDiagnostic(context, 'artifact-text-materialization', 'materialized', 'materialized text-safe artifact from assistant content', {
+    target_name: targetName,
+    target_path: targetPath,
+    sha256: inspected.sha256,
+    size_bytes: String(inspected.sizeBytes),
+    artifact_kind: inspected.artifactKind,
+    validation_status: inspected.validationStatus,
+  }, 'warn');
+  return {
+    path: targetPath,
+    suggested: localName,
+    localName,
+    fileKind: inspected.fileKind,
+    artifactKind: inspected.artifactKind,
+    validationStatus: inspected.validationStatus,
+    sizeBytes: inspected.sizeBytes,
+    sha256: inspected.sha256,
+    entryCount: inspected.entryCount,
+    persistedBy: 'materialized-from-text',
+  };
+}
+
+async function extractVisibleTextArtifact(page, targetName) {
+  return page.evaluate(({ target }) => {
+    const normalize = (value) => String(value || '').replace(/\s+/g, ' ').trim();
+    const assistantRoots = Array.from(document.querySelectorAll('[data-message-author-role="assistant"]'));
+    const root = assistantRoots.length > 0 ? assistantRoots[assistantRoots.length - 1] : document.body;
+    const codeBlocks = Array.from(root.querySelectorAll('pre code, pre, code, textarea'))
+      .map((element) => String(element.innerText || element.textContent || element.value || '').trim())
+      .filter(Boolean);
+    const assistantText = String(root?.innerText || root?.textContent || '').trim();
+    const candidates = [...codeBlocks];
+    if (assistantText) {
+      candidates.push(assistantText);
+      const lines = assistantText.split(/\r?\n/).map((line) => line.trim()).filter(Boolean);
+      const withoutTargetLines = lines
+        .filter((line) => line !== target)
+        .filter((line) => !/^(extended|copy response|good response|bad response|more actions)$/i.test(line))
+        .join('\n')
+        .trim();
+      if (withoutTargetLines) {
+        candidates.push(withoutTargetLines);
+      }
+    }
+    return {
+      assistantRootCount: assistantRoots.length,
+      assistantText,
+      candidates,
+      target,
+    };
+  }, { target: targetName });
+}
+
+function selectMaterializableTextContent(targetName, extraction = {}) {
+  const kind = artifactKindForPath(targetName);
+  for (const raw of extraction?.candidates || []) {
+    const content = normalizeMaterializedTextContent(raw, targetName, kind);
+    if (content && isValidMaterializedTextContent(content, kind, targetName)) {
+      return content;
+    }
+  }
+  return '';
+}
+
+function normalizeMaterializedTextContent(raw, targetName, kind) {
+  let content = String(raw || '').trim();
+  if (!content || content === targetName) {
+    return '';
+  }
+  content = content
+    .replace(/^```[A-Za-z0-9_-]*\s*/i, '')
+    .replace(/\s*```$/i, '')
+    .trim();
+  if (kind === 'json') {
+    const objectStart = content.indexOf('{');
+    const arrayStart = content.indexOf('[');
+    const startCandidates = [objectStart, arrayStart].filter((index) => index >= 0);
+    if (startCandidates.length > 0) {
+      const start = Math.min(...startCandidates);
+      const end = Math.max(content.lastIndexOf('}'), content.lastIndexOf(']'));
+      if (end > start) {
+        content = content.slice(start, end + 1).trim();
+      }
+    }
+  }
+  return content === targetName ? '' : content;
+}
+
+function isValidMaterializedTextContent(content, kind, targetName) {
+  if (!content.trim() || content.trim() === targetName) {
+    return false;
+  }
+  try {
+    if (kind === 'json') {
+      JSON.parse(content);
+      return true;
+    }
+    if (kind === 'jsonl') {
+      const lines = content.split(/\r?\n/).filter((line) => line.trim());
+      if (lines.length === 0) return false;
+      for (const line of lines) JSON.parse(line);
+      return true;
+    }
+    if (['markdown', 'text', 'csv', 'tsv', 'tex'].includes(kind)) {
+      return true;
+    }
+  } catch {
+    return false;
+  }
+  return false;
+}
+
+function isTextSafeArtifactName(targetName) {
+  return ['json', 'jsonl', 'markdown', 'text', 'csv', 'tsv', 'tex'].includes(artifactKindForPath(targetName));
 }
 
 async function triggerCandidateDownload(page, candidate, timeoutMs) {
@@ -4244,12 +4567,16 @@ async function inspectDownloadedArtifact(filePath) {
     throw new Error(`downloaded file was empty or not a file: ${filePath}`);
   }
   const sha256 = await sha256File(filePath);
-  if (!String(filePath).toLowerCase().endsWith('.tar.gz')) {
+  const artifactKind = artifactKindForPath(filePath);
+  if (artifactKind !== 'tar.gz') {
+    await validateDownloadedFileByKind(filePath, artifactKind);
     return {
       sizeBytes: fileStat.size,
       sha256,
       entryCount: null,
-      fileKind: String(filePath).toLowerCase().endsWith('.tex') ? 'downloaded-tex' : 'downloaded-file',
+      fileKind: artifactKind === 'tex' ? 'downloaded-tex' : 'downloaded-file',
+      artifactKind,
+      validationStatus: 'ok',
     };
   }
   const tarList = spawnSync('tar', ['-tzf', filePath], { encoding: 'utf8' });
@@ -4265,7 +4592,83 @@ async function inspectDownloadedArtifact(filePath) {
     sha256,
     entryCount,
     fileKind: 'downloaded-archive',
+    artifactKind,
+    validationStatus: 'ok',
   };
+}
+
+function artifactKindForPath(filePath) {
+  const lower = String(filePath || '').toLowerCase();
+  if (lower.endsWith('.tar.gz') || lower.endsWith('.tgz')) return 'tar.gz';
+  if (lower.endsWith('.json')) return 'json';
+  if (lower.endsWith('.jsonl')) return 'jsonl';
+  if (lower.endsWith('.md') || lower.endsWith('.markdown')) return 'markdown';
+  if (lower.endsWith('.txt')) return 'text';
+  if (lower.endsWith('.csv')) return 'csv';
+  if (lower.endsWith('.tsv')) return 'tsv';
+  if (lower.endsWith('.tex')) return 'tex';
+  if (lower.endsWith('.pdf')) return 'pdf';
+  if (/\.(png|jpe?g|webp|gif|svg)$/i.test(lower)) return 'image';
+  return 'unknown';
+}
+
+async function validateDownloadedFileByKind(filePath, artifactKind) {
+  const bytes = await readFile(filePath);
+  if (bytes.length === 0) {
+    throw new Error(`downloaded ${artifactKind} artifact was empty: ${filePath}`);
+  }
+  if (artifactKind === 'json') {
+    JSON.parse(bytes.toString('utf8'));
+    return;
+  }
+  if (artifactKind === 'jsonl') {
+    const lines = bytes.toString('utf8').split(/\r?\n/).filter((line) => line.trim());
+    if (lines.length === 0) {
+      throw new Error(`downloaded jsonl artifact had no records: ${filePath}`);
+    }
+    for (const line of lines) {
+      JSON.parse(line);
+    }
+    return;
+  }
+  if (['markdown', 'text', 'csv', 'tsv', 'tex'].includes(artifactKind)) {
+    const text = bytes.toString('utf8');
+    if (!text.trim()) {
+      throw new Error(`downloaded ${artifactKind} artifact contained only whitespace: ${filePath}`);
+    }
+    return;
+  }
+  if (artifactKind === 'pdf') {
+    if (!bytes.subarray(0, 5).equals(Buffer.from('%PDF-'))) {
+      throw new Error(`downloaded PDF artifact had invalid magic bytes: ${filePath}`);
+    }
+    return;
+  }
+  if (artifactKind === 'image') {
+    if (!looksLikeImageBytes(bytes, filePath)) {
+      throw new Error(`downloaded image artifact had invalid magic bytes: ${filePath}`);
+    }
+  }
+}
+
+function looksLikeImageBytes(bytes, filePath) {
+  const lower = String(filePath || '').toLowerCase();
+  if (lower.endsWith('.svg')) {
+    return /<svg[\s>]/i.test(bytes.toString('utf8', 0, Math.min(bytes.length, 4096)));
+  }
+  if (lower.endsWith('.png')) {
+    return bytes.length >= 8 && bytes[0] === 0x89 && bytes[1] === 0x50 && bytes[2] === 0x4e && bytes[3] === 0x47;
+  }
+  if (lower.endsWith('.jpg') || lower.endsWith('.jpeg')) {
+    return bytes.length >= 3 && bytes[0] === 0xff && bytes[1] === 0xd8 && bytes[2] === 0xff;
+  }
+  if (lower.endsWith('.gif')) {
+    return bytes.subarray(0, 3).toString('ascii') === 'GIF';
+  }
+  if (lower.endsWith('.webp')) {
+    return bytes.length >= 12 && bytes.subarray(0, 4).toString('ascii') === 'RIFF' && bytes.subarray(8, 12).toString('ascii') === 'WEBP';
+  }
+  return true;
 }
 
 function downloadCandidateMetadata(candidate) {
@@ -5063,6 +5466,9 @@ async function downloadRecoveredArtifactConversationCandidate(bridge, tab, envel
     original_name: file.suggested,
     local_name: file.localName,
     file_kind: file.fileKind,
+    artifact_kind: file.artifactKind,
+    validation_status: file.validationStatus,
+    discovery_strategy: file.persistedBy === 'materialized-from-text' ? 'materialized_from_text' : 'browser_download',
     download_url: candidate.href || null,
     entry_count: file.entryCount,
     started_at: startedDownloadAt,
@@ -5257,6 +5663,9 @@ async function recoverKnownRunPage(bridge, page, envelope, source, phase) {
         original_name: file.suggested,
         local_name: file.localName,
         file_kind: file.fileKind,
+        artifact_kind: file.artifactKind,
+        validation_status: file.validationStatus,
+        discovery_strategy: file.persistedBy === 'materialized-from-text' ? 'materialized_from_text' : 'browser_download',
         sha256: file.sha256,
         size_bytes: file.sizeBytes,
         entry_count: file.entryCount,
@@ -5615,19 +6024,19 @@ function cssAttr(value) {
 }
 
 function normalizeTarName(value) {
-  return normalizeArtifactName(value);
-}
-
-function normalizeArtifactName(value) {
-  const safe = String(value || 'chatgpt-output.tar.gz').replace(/[/\\]/g, '-');
-  const normalized = safe
-    .replace(/\.tar\(\d+\)\.gz$/i, '.tar.gz')
-    .replace(/\.tgz$/i, '.tar.gz')
-    .replace(/\.gz\.tar\.gz$/i, '.gz');
-  if (/\.tar\.gz$/i.test(normalized) || /\.tex$/i.test(normalized)) {
+  const normalized = normalizeArtifactName(value || 'chatgpt-output.tar.gz');
+  if (/\.tar\.gz$/i.test(normalized)) {
     return normalized;
   }
   return `${normalized}.tar.gz`;
+}
+
+function normalizeArtifactName(value) {
+  const safe = String(value || 'chatgpt-output').trim().replace(/[/\\]/g, '-');
+  return safe
+    .replace(/\.tar\(\d+\)\.gz$/i, '.tar.gz')
+    .replace(/\.tgz$/i, '.tar.gz')
+    .replace(/\.gz\.tar\.gz$/i, '.gz');
 }
 
 function artifactTargetName(options = {}) {
@@ -5958,6 +6367,64 @@ async function assertDownloadSaveAsBrowserDownloadCopySucceeds() {
       process.env.JAILGUN_BROWSER_DOWNLOADS_DIR = oldBrowserDownloadsDir;
     }
     await rm(root, { recursive: true, force: true });
+  }
+}
+
+async function assertDirectJsonDownloadPreservesTargetName() {
+  const root = await mkdtemp(join(tmpdir(), 'jailgun-json-download-'));
+  try {
+    const sourceJson = join(root, 'source.json');
+    await writeFile(sourceJson, '{"ok":true}\n');
+    const logs = [];
+    const page = fakeDownloadPage([
+      {
+        suggestedFilename: () => 'openqg-smoke.json',
+        saveAs: async (target) => {
+          await copyFile(sourceJson, target);
+        },
+        failure: async () => null,
+        path: async () => sourceJson,
+      },
+    ]);
+    const outputDir = join(root, 'downloads');
+    const file = await downloadCandidate(
+      page,
+      selfTestGenericFileDownloadCandidate('openqg-smoke.json'),
+      outputDir,
+      1000,
+      {
+        ...selfTestDownloadContext(logs, root),
+        targetName: 'openqg-smoke.json',
+      },
+    );
+    if (!file.path.endsWith('/openqg-smoke.json') || file.path.endsWith('.tar.gz')) {
+      throw new Error(`direct json download target name was not preserved: ${JSON.stringify(file)}`);
+    }
+    if (file.fileKind !== 'downloaded-file' || file.artifactKind !== 'json' || file.validationStatus !== 'ok' || file.entryCount !== null) {
+      throw new Error(`direct json download metadata was wrong: ${JSON.stringify(file)}`);
+    }
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+}
+
+function assertTextMaterializationValidation() {
+  const targetName = 'openqg-smoke.json';
+  const content = selectMaterializableTextContent(targetName, {
+    candidates: [
+      targetName,
+      `${targetName}\nExtended`,
+      '```json\n{"ok":true}\n```',
+    ],
+  });
+  if (content !== '{"ok":true}') {
+    throw new Error(`json materialization did not select valid content: ${JSON.stringify(content)}`);
+  }
+  const bareFilename = selectMaterializableTextContent(targetName, {
+    candidates: [targetName],
+  });
+  if (bareFilename !== '') {
+    throw new Error(`bare filename should not materialize: ${JSON.stringify(bareFilename)}`);
   }
 }
 
@@ -6404,6 +6871,23 @@ function selfTestArtifactDownloadCandidate() {
     tag: 'a',
     role: '',
     assistantIndex: 0,
+  };
+}
+
+function selfTestGenericFileDownloadCandidate(targetName = 'openqg-smoke.json') {
+  return {
+    index: 0,
+    score: 700,
+    label: `Download ${targetName}`,
+    text: `Download ${targetName}`,
+    href: '',
+    download: targetName,
+    aria: '',
+    title: '',
+    tag: 'a',
+    role: '',
+    assistantIndex: 0,
+    fileKind: 'downloaded-file',
   };
 }
 
@@ -7194,12 +7678,28 @@ async function runSelfTest() {
   if (name !== 'jekko-fixes.tar.gz') {
     throw new Error(`normalizeTarName failed: ${name}`);
   }
+  const jsonName = normalizeArtifactName('openqg-smoke.json');
+  if (jsonName !== 'openqg-smoke.json') {
+    throw new Error(`normalizeArtifactName should preserve json target names: ${jsonName}`);
+  }
   const ranked = rankCandidates([
     { score: 1, text: 'other.tar.gz', href: '', download: '', aria: '', title: '', assistantIndex: 0 },
     { score: 1, text: 'Download jekko-fixes.tar.gz', href: '', download: '', aria: '', title: '', assistantIndex: 0 },
   ], 'jekko-fixes.tar.gz');
   if (!ranked[0].text.includes('jekko-fixes')) {
     throw new Error('target tar ranking failed');
+  }
+  const jsonRanked = rankCandidates([
+    { score: 1, text: 'Download openqg-smoke.json', href: '', download: 'openqg-smoke.json', aria: '', title: '', assistantIndex: 0 },
+  ], 'openqg-smoke.json');
+  if (jsonRanked.length !== 1 || candidateFileKind(jsonRanked[0], 'openqg-smoke.json') !== 'downloaded-file') {
+    throw new Error(`target json ranking failed: ${JSON.stringify(jsonRanked)}`);
+  }
+  const wrongGeneric = rankCandidates([
+    { score: 1, text: 'Download wrong.qg', href: '', download: '', aria: '', title: '', assistantIndex: 0 },
+  ], 'openqg-smoke.qg');
+  if (wrongGeneric.length !== 0) {
+    throw new Error(`wrong arbitrary-extension candidate was not filtered: ${JSON.stringify(wrongGeneric)}`);
   }
   const filteredHistoryTarLabel = rankCandidates([
     {
@@ -7318,6 +7818,8 @@ async function runSelfTest() {
   await assertNoLinkBundleCapture('timeout-no-tar', 'timed out after 30 minutes waiting for tar.gz download candidate');
   await assertDownloadSaveAsTempPathCopySucceeds();
   await assertDownloadSaveAsBrowserDownloadCopySucceeds();
+  await assertDirectJsonDownloadPreservesTargetName();
+  assertTextMaterializationValidation();
   await assertDownloadFailureDiagnosticsAndCleanup();
   await assertDirectTexDownloadFailureIsArtifactScoped();
   await assertMessageStreamRetryHardDisabled();

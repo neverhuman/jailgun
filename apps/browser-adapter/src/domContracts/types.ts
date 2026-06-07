@@ -14,6 +14,7 @@ export interface DomTarCandidate {
   clickable: boolean;
   assistantIndex: number | null;
   tarSources: string[];
+  artifactSources?: string[];
   fileKind?: 'downloaded-archive' | 'downloaded-tex' | 'downloaded-file';
 }
 

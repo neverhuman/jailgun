@@ -9,6 +9,7 @@ import {
 
 const ARTIFACT_CONVERSATION_LINK_SELECTOR = 'a[href]';
 const TAR_NAME_RE = /\.tar(?:\(\d+\))?\.gz(?:$|[?#\s)])/i;
+const ARTIFACT_NAME_RE = /(?:^|[/\s"'`(])([A-Za-z0-9][A-Za-z0-9._-]*\.(?:tar(?:\(\d+\))?\.gz|tgz|tex|jsonl?|md|markdown|txt|csv|tsv|ya?ml|toml|pdf|png|jpe?g|webp|gif|svg|zip))(?:$|[?#\s)"'`,])/i;
 const CHAPTER_RE = /\bchapter[\s_-]*0*(\d{1,4})\b/i;
 const ARTIFACT_WORD_RE = /\bartifacts?\b/i;
 const TAR_WORD_RE = /\b(?:tarball|tar\.?gz|tar)\b/i;
@@ -54,7 +55,15 @@ export function collectArtifactConversationLinksFromDom(
       return;
     }
 
+    const comparableHaystack = normalizeComparable(haystack);
     const artifactSignals = artifactSignalsFor(haystack);
+    if (
+      normalizedTarget
+        && comparableHaystack.includes(normalizedTarget)
+        && !artifactSignals.includes('artifact-name')
+    ) {
+      artifactSignals.push('artifact-name');
+    }
     if (artifactSignals.length === 0) {
       return;
     }
@@ -74,8 +83,9 @@ export function collectArtifactConversationLinksFromDom(
     let score = 100 + artifactSignals.length * 25;
     if (linkChapter) score += 20;
     if (targetChapter && linkChapter === targetChapter) score += 120;
-    if (normalizedTarget && normalizeComparable(haystack).includes(normalizedTarget)) score += 100;
-    if (targetStem && normalizeComparable(haystack).includes(targetStem)) score += 60;
+    if (normalizedTarget && comparableHaystack.includes(normalizedTarget)) score += 100;
+    if (targetStem && comparableHaystack.includes(targetStem)) score += 60;
+    if (artifactSignals.includes('artifact-name')) score += 70;
     if (artifactSignals.includes('tar-name')) score += 60;
     if (artifactSignals.includes('artifact')) score += 40;
     if (artifactSignals.includes('latex-creation')) score += 30;
@@ -126,6 +136,7 @@ function matchesTarget(values: {
 
 function artifactSignalsFor(value: string): string[] {
   const signals: string[] = [];
+  if (ARTIFACT_NAME_RE.test(value)) signals.push('artifact-name');
   if (TAR_NAME_RE.test(value)) signals.push('tar-name');
   if (TAR_WORD_RE.test(value)) signals.push('tar');
   if (ARTIFACT_WORD_RE.test(value)) signals.push('artifact');
