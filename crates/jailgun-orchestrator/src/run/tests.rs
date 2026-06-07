@@ -13,6 +13,7 @@ fn prompt_for_tab_prefixes_and_replaces_placeholders() {
     let prompt = "Build {{TAB_INDEX}} of {{TAB_COUNT}}.";
     let got = prompt_for_tab(prompt, 2, 7);
     assert!(got.starts_with("Batch tab: 2 of 7."));
+    assert!(got.contains("Do not answer with the tab number by itself."));
     assert!(got.contains("Build 2 of 7."));
 }
 

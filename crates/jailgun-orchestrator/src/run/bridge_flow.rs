@@ -172,7 +172,7 @@ pub(super) fn prompt_for_tab(prompt: &str, tab_id: u16, total_tabs: u16) -> Stri
         .replace("{{TAB_NUMBER}}", &tab_id.to_string())
         .replace("{{TAB_COUNT}}", &total_tabs.to_string());
     format!(
-        "Batch tab: {tab_id} of {total_tabs}.\nUse this tab number ({tab_id}) in your final response and artifact notes.\n\n{with_placeholders}"
+        "Batch tab: {tab_id} of {total_tabs}.\nIf a tab identifier is relevant, include tab {tab_id} inside the requested artifact or notes only. Do not answer with the tab number by itself.\n\n{with_placeholders}"
     )
 }
 

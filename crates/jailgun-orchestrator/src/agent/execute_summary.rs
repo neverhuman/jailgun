@@ -120,10 +120,7 @@ pub(super) fn artifacts_from_events(
                                 code: "tar-validation".into(),
                                 message: format!(
                                     "archive top-level must be {expected}/, found {}",
-                                    match validation.top_level.as_deref() {
-                                        Some(top_level) => top_level,
-                                        None => "(multiple)",
-                                    }
+                                    validation.top_level.as_deref().unwrap_or("(multiple)")
                                 ),
                             });
                         }

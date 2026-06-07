@@ -38,10 +38,10 @@ pub(super) async fn review_patch(router_url: &str, diff: &str) -> Result<ReviewG
     let result = response
         .get("result")
         .context("router response missing result")?;
-    let is_error = match result.get("isError").and_then(Value::as_bool) {
-        Some(value) => value,
-        None => false,
-    };
+    let is_error = result
+        .get("isError")
+        .and_then(Value::as_bool)
+        .unwrap_or_default();
     if is_error {
         anyhow::bail!("router review gate returned isError=true: {result}");
     }
@@ -79,13 +79,10 @@ pub(super) fn worker_count(result: &Value, structured: &Value) -> u64 {
     {
         return worker_count;
     }
-    match result
+    result
         .pointer("/telemetry/worker_count")
         .and_then(Value::as_u64)
-    {
-        Some(worker_count) => worker_count,
-        None => 0,
-    }
+        .unwrap_or_default()
 }
 
 pub(super) fn router_job_id(structured: &Value) -> Option<String> {
@@ -156,11 +153,8 @@ pub(super) fn supporting_model_count(finding: &Value) -> u64 {
     if let Some(count) = finding.get("support_count").and_then(Value::as_u64) {
         return count;
     }
-    match finding
+    finding
         .get("supporting_model_count")
         .and_then(Value::as_u64)
-    {
-        Some(count) => count,
-        None => 1,
-    }
+        .unwrap_or(1)
 }

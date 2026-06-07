@@ -158,10 +158,10 @@ pub(super) fn reject_project_root_folder(
     if files.iter().any(|file| !file.contains('/')) {
         return Ok(());
     }
-    let invocation_name = match invocation_dir.file_name().and_then(|name| name.to_str()) {
-        Some(name) => name,
-        None => "",
-    };
+    let invocation_name = invocation_dir
+        .file_name()
+        .and_then(|name| name.to_str())
+        .unwrap_or_default();
     let source_top_levels = manifest
         .selected_files
         .iter()
