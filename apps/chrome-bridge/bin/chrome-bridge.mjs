@@ -4636,48 +4636,21 @@ async function persistDownloadFromBrowserDownloads(suggested, targetPath, diagno
     context?.downloadsDir || '',
     profileDownloadsDir,
   ]);
-  const matches = [];
-  for (const [dirIndex, dir] of dirs.entries()) {
-    let entries = [];
-    try {
-      entries = await readdir(dir, { withFileTypes: true });
-    } catch (error) {
-      diagnostics.browser_download_error = diagnostics.browser_download_error || `${dir}: ${error?.message || String(error)}`;
-      continue;
-    }
-    for (const entry of entries) {
-      if (!entry.isFile()) {
-        continue;
-      }
-      const matchStrategy = browserDownloadNameMatchStrategy(entry.name, suggested, targetName, expectedKind);
-      if (!matchStrategy) {
-        continue;
-      }
-      const candidatePath = join(dir, entry.name);
-      try {
-        const fileStat = await stat(candidatePath);
-        if (fileStat.size <= 0) {
-          continue;
-        }
-        if (sinceMs && fileStat.mtimeMs + 5000 < sinceMs) {
-          continue;
-        }
-        matches.push({
-          path: candidatePath,
-          size: fileStat.size,
-          mtimeMs: fileStat.mtimeMs,
-          dirIndex,
-          matchStrategy,
-          matchRank: matchStrategy === 'same-artifact-kind' ? 1 : 0,
-        });
-      } catch (error) {
-        diagnostics.browser_download_error = diagnostics.browser_download_error || `${candidatePath}: ${error?.message || String(error)}`;
-      }
-    }
-  }
+  const retryWindowMs = Math.max(0, numberFrom(process.env.JAILGUN_BROWSER_DOWNLOAD_RECOVERY_WAIT_MS, 4000));
+  const pollIntervalMs = Math.max(100, numberFrom(process.env.JAILGUN_BROWSER_DOWNLOAD_RECOVERY_POLL_MS, 250));
+  const match = await findBrowserDownloadMatch({
+    dirs,
+    sinceMs,
+    suggested,
+    targetName,
+    expectedKind,
+    diagnostics,
+    context,
+    candidate,
+    retryWindowMs,
+    pollIntervalMs,
+  });
 
-  matches.sort((a, b) => a.matchRank - b.matchRank || a.dirIndex - b.dirIndex || b.mtimeMs - a.mtimeMs);
-  const match = matches[0];
   if (!match) {
     diagnostics.browser_download_status = 'missing';
     const error = diagnostics.browser_download_error || `no fresh ${suggested} found in browser download dirs`;
@@ -4726,6 +4699,74 @@ async function persistDownloadFromBrowserDownloads(suggested, targetPath, diagno
   }
 }
 
+async function findBrowserDownloadMatch({
+  dirs,
+  sinceMs,
+  suggested,
+  targetName,
+  expectedKind,
+  diagnostics,
+  context,
+  candidate,
+  retryWindowMs,
+  pollIntervalMs,
+}) {
+  const deadline = Date.now() + retryWindowMs;
+  let bestMatch = null;
+  do {
+    const matches = [];
+    for (const [dirIndex, dir] of dirs.entries()) {
+      let entries = [];
+      try {
+        entries = await readdir(dir, { withFileTypes: true });
+      } catch (error) {
+        diagnostics.browser_download_error = diagnostics.browser_download_error || `${dir}: ${error?.message || String(error)}`;
+        continue;
+      }
+      for (const entry of entries) {
+        if (!entry.isFile()) {
+          continue;
+        }
+        const matchStrategy = browserDownloadNameMatchStrategy(entry.name, suggested, targetName, expectedKind);
+        if (!matchStrategy) {
+          continue;
+        }
+        const candidatePath = join(dir, entry.name);
+        try {
+          const fileStat = await stat(candidatePath);
+          if (fileStat.size <= 0) {
+            continue;
+          }
+          if (sinceMs && fileStat.mtimeMs + 5000 < sinceMs) {
+            continue;
+          }
+          matches.push({
+            path: candidatePath,
+            size: fileStat.size,
+            mtimeMs: fileStat.mtimeMs,
+            dirIndex,
+            matchStrategy,
+            matchRank: matchStrategy === 'same-artifact-kind' ? 1 : 0,
+          });
+        } catch (error) {
+          diagnostics.browser_download_error = diagnostics.browser_download_error || `${candidatePath}: ${error?.message || String(error)}`;
+        }
+      }
+    }
+
+    matches.sort((a, b) => a.matchRank - b.matchRank || a.dirIndex - b.dirIndex || b.mtimeMs - a.mtimeMs);
+    bestMatch = matches[0] || null;
+    if (bestMatch) {
+      return bestMatch;
+    }
+    if (Date.now() >= deadline) {
+      return null;
+    }
+    await sleep(Math.min(pollIntervalMs, Math.max(0, deadline - Date.now())));
+  } while (Date.now() < deadline);
+  return bestMatch;
+}
+
 function browserDownloadNameMatchStrategy(name, suggested, targetName, expectedKind) {
   if (suggested && isSuggestedDownloadName(name, suggested)) {
     return 'suggested-name';
@@ -4755,7 +4796,8 @@ function isSuggestedDownloadName(name, suggested) {
   }
   if (suggested.endsWith('.tar.gz')) {
     const stem = suggested.slice(0, -'.tar.gz'.length);
-    return new RegExp(`^${escapeRegExp(stem)} \\(\\d+\\)\\.tar\\.gz$`).test(name);
+    return new RegExp(`^${escapeRegExp(stem)} \\(\\d+\\)\\.tar\\.gz$`).test(name)
+      || new RegExp(`^${escapeRegExp(stem)}\\.tar\\(\\d+\\)\\.gz$`).test(name);
   }
   const extension = extname(suggested);
   const stem = extension ? suggested.slice(0, -extension.length) : suggested;
@@ -4820,7 +4862,7 @@ async function inspectDownloadedArtifact(filePath) {
 
 function artifactKindForPath(filePath) {
   const lower = String(filePath || '').toLowerCase();
-  if (lower.endsWith('.tar.gz') || lower.endsWith('.tgz')) return 'tar.gz';
+  if (lower.endsWith('.tar.gz') || lower.endsWith('.tgz') || /\.tar\(\d+\)\.gz$/.test(lower)) return 'tar.gz';
   if (lower.endsWith('.json')) return 'json';
   if (lower.endsWith('.jsonl')) return 'jsonl';
   if (lower.endsWith('.md') || lower.endsWith('.markdown')) return 'markdown';
@@ -6776,6 +6818,57 @@ async function assertDownloadSaveAsSameKindBrowserDownloadCopySucceeds() {
   }
 }
 
+async function assertDownloadSaveAsTarIndexedBrowserDownloadCopySucceeds() {
+  const root = await mkdtemp(join(tmpdir(), 'jailgun-download-browser-kind-indexed-'));
+  const oldBrowserDownloadsDir = process.env.JAILGUN_BROWSER_DOWNLOADS_DIR;
+  try {
+    const expected = 'chapter-7-output.tar.gz';
+    const actual = 'chapter-7-output.tar(3).gz';
+    const browserDownloadsDir = join(root, 'browser-downloads');
+    await mkdir(browserDownloadsDir, { recursive: true });
+    process.env.JAILGUN_BROWSER_DOWNLOADS_DIR = browserDownloadsDir;
+    const tempArchive = await createSelfTestTarGz(root);
+    setTimeout(() => {
+      void copyFile(tempArchive, join(browserDownloadsDir, actual)).catch(() => undefined);
+    }, 250);
+    const missingTempPath = join(root, 'missing-playwright-temp.tar.gz');
+    const logs = [];
+    const page = fakeDownloadPage([
+      {
+        suggestedFilename: () => expected,
+        saveAs: async () => {
+          const error = new Error('ENOENT: no such file or directory, copyfile');
+          error.code = 'ENOENT';
+          throw error;
+        },
+        failure: async () => null,
+        path: async () => missingTempPath,
+      },
+    ]);
+    const outputDir = join(root, 'downloads');
+    const file = await downloadCandidate(
+      page,
+      selfTestDownloadCandidate(),
+      outputDir,
+      1000,
+      selfTestDownloadContext(logs, root),
+    );
+    if (file.persistedBy !== 'browser-download-copy' || basename(file.path) !== expected || file.entryCount < 1) {
+      throw new Error(`tar-indexed browser-dir copy did not return valid file metadata: ${JSON.stringify(file)}`);
+    }
+    if (!logs.some((log) => log.phase === 'download-browser-download-persist' && log.status === 'copied' && log.fields?.match_strategy === 'suggested-name')) {
+      throw new Error(`tar-indexed browser-dir copy did not emit expected diagnostics: ${JSON.stringify(logs)}`);
+    }
+  } finally {
+    if (oldBrowserDownloadsDir == null) {
+      delete process.env.JAILGUN_BROWSER_DOWNLOADS_DIR;
+    } else {
+      process.env.JAILGUN_BROWSER_DOWNLOADS_DIR = oldBrowserDownloadsDir;
+    }
+    await rm(root, { recursive: true, force: true });
+  }
+}
+
 async function assertDirectJsonDownloadPreservesTargetName() {
   const root = await mkdtemp(join(tmpdir(), 'jailgun-json-download-'));
   try {
@@ -8520,6 +8613,7 @@ async function runSelfTest() {
   await assertDownloadSaveAsTempPathCopySucceeds();
   await assertDownloadSaveAsBrowserDownloadCopySucceeds();
   await assertDownloadSaveAsSameKindBrowserDownloadCopySucceeds();
+  await assertDownloadSaveAsTarIndexedBrowserDownloadCopySucceeds();
   await assertDirectJsonDownloadPreservesTargetName();
   assertTextMaterializationValidation();
   await assertDownloadFailureDiagnosticsAndCleanup();
