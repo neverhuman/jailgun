@@ -73,6 +73,12 @@ const profilePortsSetting = firstSetting([
   ['JAILGUN_CHROME_PROFILE_PORTS', process.env.JAILGUN_CHROME_PROFILE_PORTS],
   ['~/.jailgun/config.json:profile_ports', globalConfig.profilePorts],
 ]);
+const artifactRepairAttemptSetting = firstSetting([
+  ['--artifact-repair-attempts', args.artifactRepairAttempts],
+  ['--artifact-repair-attempt-limit', args.artifactRepairAttemptLimit],
+  ['JAILGUN_ARTIFACT_REPAIR_ATTEMPTS', process.env.JAILGUN_ARTIFACT_REPAIR_ATTEMPTS],
+  ['JAILGUN_ARTIFACT_REPAIR_ATTEMPT_LIMIT', process.env.JAILGUN_ARTIFACT_REPAIR_ATTEMPT_LIMIT],
+]);
 
 const settings = {
   cdpUrl: cdpUrlOverride ?? `http://${cdpHost}:${cdpPort}`,
@@ -116,13 +122,7 @@ const settings = {
     args.artifactStallRepairSeconds ?? process.env.JAILGUN_ARTIFACT_STALL_REPAIR_SECONDS,
     DEFAULT_ARTIFACT_STALL_REPAIR_SECONDS,
   ) * 1000),
-  artifactRepairAttemptLimit: Math.max(0, Math.floor(numberFrom(
-    args.artifactRepairAttempts
-      ?? args.artifactRepairAttemptLimit
-      ?? process.env.JAILGUN_ARTIFACT_REPAIR_ATTEMPTS
-      ?? process.env.JAILGUN_ARTIFACT_REPAIR_ATTEMPT_LIMIT,
-    DEFAULT_ARTIFACT_REPAIR_ATTEMPT_LIMIT,
-  ))),
+  artifactRepairAttemptLimit: disabledArtifactRepairAttemptLimit(artifactRepairAttemptSetting),
   artifactConversationRecoveryLimit: Math.max(0, Math.floor(numberFrom(
     args.artifactConversationRecoveryLimit ?? process.env.JAILGUN_ARTIFACT_CONVERSATION_RECOVERY_LIMIT,
     DEFAULT_ARTIFACT_CONVERSATION_RECOVERY_LIMIT,
@@ -957,13 +957,6 @@ class ChromeBridge {
             throw new Error(`text artifact materialized but tab cleanup failed for tab ${tabId}: ${(cleanup?.errors || ['tab-not-closed']).join('; ')}`);
           }
           return;
-        }
-        const repair = await submitArtifactRepairIfNeeded(this, tab, envelope, targetName, artifactRepairState, discovery);
-        if (repair.submitted) {
-          lastProgressSignature = '';
-          lastProgressChangedAt = Date.now();
-          await sleep(Math.min(completionMs, 1000));
-          continue;
         }
         await failNoTar(
           noArtifactKind('done-no-tar'),
@@ -4217,66 +4210,6 @@ async function materializeVisibleTextArtifact(page, targetName, outputDir, conte
   };
 }
 
-async function submitArtifactRepairIfNeeded(bridge, tab, envelope, targetName, state, discovery = {}) {
-  const limit = Math.max(0, Math.floor(Number(bridge.options.artifactRepairAttemptLimit) || 0));
-  if (!targetName || limit <= 0 || state.attempts >= limit || tab.page?.isClosed?.()) {
-    return { submitted: false, reason: limit <= 0 ? 'disabled' : 'limit-reached' };
-  }
-  const signal = await detectArtifactRepairSignal(tab.page, targetName, discovery).catch((error) => ({
-    shouldRepair: false,
-    reason: `detect-error:${error?.message || String(error)}`,
-  }));
-  if (!signal.shouldRepair) {
-    return { submitted: false, reason: signal.reason || 'no-signal' };
-  }
-  const prompt = artifactRepairPrompt(targetName, signal);
-  state.attempts += 1;
-  bridge.bridgeLog(envelope, 'artifact-repair-submit', 'started', 'submitting artifact repair prompt', {
-    target_name: targetName,
-    attempt: String(state.attempts),
-    max_attempts: String(limit),
-    reason: signal.reason,
-    preview: compact(signal.preview || '', 160),
-  }, 'warn');
-  try {
-    await bridge.runDismissals(tab.page, envelope, 'artifact-repair-preflight');
-    const result = await submitPromptToChat(tab.page, prompt, 45000, {
-      dismiss: async (phase) => bridge.runDismissals(tab.page, envelope, phase),
-      log: (phase, status, message, fields = {}, level = 'info') => {
-        bridge.bridgeLog(envelope, phase, status, message, fields, level);
-      },
-      authState: (authState) => bridge.emitPromptAuthState(envelope, authState),
-    });
-    state.submitted = true;
-    bridge.emit(envelope, 'artifact-repair-submitted', {
-      target_name: targetName,
-      attempt: state.attempts,
-      reason: signal.reason,
-    });
-    bridge.bridgeLog(envelope, 'artifact-repair-submit', 'submitted', 'artifact repair prompt accepted by ChatGPT', {
-      target_name: targetName,
-      attempt: String(state.attempts),
-      reason: signal.reason,
-      acceptance_reason: result.acceptanceReason || '',
-    }, 'warn');
-    return { submitted: true, reason: signal.reason };
-  } catch (error) {
-    state.lastError = error?.message || String(error);
-    bridge.bridgeLog(envelope, 'artifact-repair-submit', 'failed', 'artifact repair prompt failed', {
-      target_name: targetName,
-      attempt: String(state.attempts),
-      reason: signal.reason,
-      error: state.lastError,
-    }, 'warn');
-    return { submitted: false, reason: 'submit-failed', error: state.lastError };
-  }
-}
-
-async function detectArtifactRepairSignal(page, targetName, discovery = {}) {
-  const extraction = await extractVisibleTextArtifact(page, targetName);
-  return artifactRepairSignalFromText(targetName, extraction.assistantText || discovery.lastTextPreview || '', extraction.candidates || []);
-}
-
 function artifactRepairSignalFromText(targetName, assistantText, candidates = []) {
   const target = normalizeArtifactComparable(targetName);
   const text = String(assistantText || '').trim();
@@ -4312,20 +4245,6 @@ function artifactRepairSignalFromText(targetName, assistantText, candidates = []
     reason,
     preview: compact(text, 240),
   };
-}
-
-function artifactRepairPrompt(targetName, signal) {
-  const kind = artifactKindForPath(targetName);
-  const textFallback = isTextSafeArtifactName(targetName)
-    ? `If the UI cannot attach the file, provide the complete valid ${kind} contents in one fenced code block only.`
-    : 'Attach the actual downloadable file; do not provide a filename, markdown link, or prose-only response.';
-  return [
-    `The previous response did not expose a clickable/downloadable artifact for ${targetName}.`,
-    `Reason detected by automation: ${signal.reason}.`,
-    `Create the artifact again with filename exactly ${targetName}.`,
-    'Do not answer with a sandbox:/mnt/data markdown link or the filename alone.',
-    textFallback,
-  ].join('\n');
 }
 
 async function extractVisibleTextArtifact(page, targetName) {
@@ -4977,22 +4896,28 @@ async function writeDownloadTroubleshootingBundle(context, payload, options = {}
   const runId = sanitizePathSegment(context?.envelope?.run_id || 'unknown-run');
   const tabName = `tab-${String(context?.tabId ?? 'unknown').padStart(2, '0')}`;
   const kind = sanitizePathSegment(payload?.kind || 'download-failed');
-  const bundleDir = join(artifactsDir, 'download-failures', runId, tabName, `${pathTimestamp()}-${kind}`);
+  const page = context?.page;
+  const pageUrl = payload?.pageUrl || (page && !page.isClosed() && typeof page.url === 'function' ? page.url() : '');
+  const urlSlug = failureUrlSlug(pageUrl);
+  const bundleDir = join(artifactsDir, 'BAD_FUCKING_URL', runId, tabName, `${pathTimestamp()}-${kind}-${urlSlug}`);
   const snapshotPath = join(bundleDir, 'snapshot.json');
   const htmlPath = join(bundleDir, 'page.html');
   const textPath = join(bundleDir, 'page.txt');
   const screenshotPath = join(bundleDir, 'page.png');
   const discoveryPath = join(bundleDir, 'candidate-discovery.json');
   const attemptsPath = join(bundleDir, 'download-attempts.json');
+  const assistantResponsesPath = join(bundleDir, 'assistant-responses.json');
+  const assistantResponseTextPath = join(bundleDir, 'assistant-response.txt');
   const logPhase = options.logPhase || 'download-failure-bundle';
   try {
     await mkdir(bundleDir, { recursive: true });
-    const page = context?.page;
-    const pageUrl = payload?.pageUrl || (page && !page.isClosed() && typeof page.url === 'function' ? page.url() : '');
     let pageTitle = '';
     let pageHtml = '';
     let pageText = '';
     let discovery = null;
+    let assistantResponses = [];
+    let assistantResponseText = '';
+    let assistantResponseError = '';
     let screenshotError = '';
     if (page && !page.isClosed()) {
       try {
@@ -5019,6 +4944,15 @@ async function writeDownloadTroubleshootingBundle(context, payload, options = {}
         };
       }
       try {
+        assistantResponses = await extractAssistantResponses(page);
+        assistantResponseText = assistantResponses
+          .map((response) => response.text || '')
+          .filter(Boolean)
+          .join('\n\n---\n\n');
+      } catch (error) {
+        assistantResponseError = error?.message || String(error);
+      }
+      try {
         await page.screenshot({ path: screenshotPath, fullPage: true });
       } catch (error) {
         screenshotError = error?.message || String(error);
@@ -5029,6 +4963,8 @@ async function writeDownloadTroubleshootingBundle(context, payload, options = {}
     await writeFile(textPath, pageText);
     await writeFile(discoveryPath, JSON.stringify(redactDiagnosticJson(discovery || {}), null, 2));
     await writeFile(attemptsPath, JSON.stringify(redactDiagnosticJson(attempts), null, 2));
+    await writeFile(assistantResponsesPath, JSON.stringify(assistantResponses, null, 2));
+    await writeFile(assistantResponseTextPath, assistantResponseText);
     const snapshot = {
       captured_at: timestamp(),
       run_id: context?.envelope?.run_id || '',
@@ -5044,13 +4980,19 @@ async function writeDownloadTroubleshootingBundle(context, payload, options = {}
       screenshot_path: existsSync(screenshotPath) ? screenshotPath : '',
       candidate_discovery_path: discoveryPath,
       download_attempts_path: attemptsPath,
+      assistant_responses_path: assistantResponsesPath,
+      assistant_response_path: assistantResponseTextPath,
       html_bytes: Buffer.byteLength(pageHtml, 'utf8'),
       text_bytes: Buffer.byteLength(pageText, 'utf8'),
       discovery_bytes: Buffer.byteLength(JSON.stringify(discovery || {}), 'utf8'),
       download_attempt_count: Array.isArray(attempts) ? attempts.length : 0,
+      assistant_response_count: assistantResponses.length,
+      assistant_response_bytes: Buffer.byteLength(assistantResponseText, 'utf8'),
       candidate: redactDiagnosticJson(payload?.candidate || null),
       output_dir: payload?.output_dir || '',
       details: redactDiagnosticJson(payload?.details || {}),
+      url_slug: urlSlug,
+      assistant_response_error: assistantResponseError,
       screenshot_error: screenshotError,
     };
     await writeFile(snapshotPath, JSON.stringify(snapshot, null, 2));
@@ -5060,6 +5002,9 @@ async function writeDownloadTroubleshootingBundle(context, payload, options = {}
       snapshot_path: snapshotPath,
       html_path: htmlPath,
       text_path: textPath,
+      assistant_responses_path: assistantResponsesPath,
+      assistant_response_path: assistantResponseTextPath,
+      url_slug: urlSlug,
     }, 'warn');
     return { bundleDir, snapshotPath };
   } catch (error) {
@@ -5074,6 +5019,38 @@ async function writeDownloadTroubleshootingBundle(context, payload, options = {}
 
 function pathTimestamp() {
   return timestamp().replace(/[:.]/g, '-');
+}
+
+async function extractAssistantResponses(page) {
+  if (typeof page?.__jailgunExtractAssistantResponses === 'function') {
+    return page.__jailgunExtractAssistantResponses();
+  }
+  return page.evaluate(() => {
+    const roots = Array.from(document.querySelectorAll('[data-message-author-role="assistant"]'));
+    return roots.map((root, index) => ({
+      index,
+      text: String(root.innerText || root.textContent || ''),
+      html: String(root.outerHTML || ''),
+    }));
+  });
+}
+
+function failureUrlSlug(value) {
+  const text = String(value || '').trim();
+  if (!text) {
+    return 'unknown-url';
+  }
+  try {
+    const url = new URL(text);
+    const conversationId = isChatGptPageUrl(text) ? conversationIdFromChatGptUrl(text) : '';
+    if (conversationId) {
+      return sanitizePathSegment(`chatgpt-c-${conversationId}`);
+    }
+    const path = url.pathname.split('/').filter(Boolean).slice(0, 4).join('-');
+    return sanitizePathSegment([url.hostname.replace(/^www\./, ''), path].filter(Boolean).join('-'));
+  } catch {
+    return sanitizePathSegment(text);
+  }
 }
 
 function redactDiagnosticJson(value) {
@@ -6173,6 +6150,14 @@ function numberFrom(value, defaultValue) {
   return number;
 }
 
+function disabledArtifactRepairAttemptLimit(setting) {
+  const parsed = Math.max(0, Math.floor(numberFrom(setting?.value, DEFAULT_ARTIFACT_REPAIR_ATTEMPT_LIMIT)));
+  if (parsed > 0) {
+    throw new Error(`artifact repair is hard-disabled; ${setting?.source || 'artifact repair setting'} must be 0 or unset`);
+  }
+  return 0;
+}
+
 function booleanFrom(value, defaultValue) {
   if (value === undefined || value === null || value === '') {
     return defaultValue;
@@ -6492,7 +6477,6 @@ async function assertNoLinkBundleCapture(kind, message) {
   try {
     const logs = [];
     const events = [];
-    let evaluateCount = 0;
     const envelope = {
       v: PROTOCOL_VERSION,
       type: 'monitor-tab',
@@ -6508,21 +6492,26 @@ async function assertNoLinkBundleCapture(kind, message) {
         url: () => 'https://chatgpt.com/c/self-test',
         title: async () => 'Self Test',
         content: async () => '<html><body>Self test source</body></html>',
-        evaluate: async () => {
-          evaluateCount += 1;
-          if (evaluateCount === 1) {
-            return {
-              assistantRootCount: 1,
-              scannedControlCount: 2,
-              candidates: [],
-              lastTextLength: 18,
-              lastTextPreview: 'Self test source',
-              abFeedbackActive: false,
-              abResponseCount: 0,
-            };
+        evaluate: async (fn) => {
+          if (String(fn).includes('document.body?.innerText')) {
+            return 'Self test source';
           }
           return { clicked: false, reason: 'not-found' };
         },
+        __jailgunDiscoverTarCandidates: async () => ({
+          assistantRootCount: 1,
+          scannedControlCount: 2,
+          candidates: [],
+          lastTextLength: 18,
+          lastTextPreview: 'Self test source',
+          abFeedbackActive: false,
+          abResponseCount: 0,
+        }),
+        __jailgunExtractAssistantResponses: async () => ([{
+          index: 0,
+          text: 'Self test assistant response',
+          html: '<div data-message-author-role="assistant">Self test assistant response</div>',
+        }]),
         screenshot: async ({ path }) => {
           await writeFile(path, 'fake screenshot');
         },
@@ -6560,21 +6549,31 @@ async function assertNoLinkBundleCapture(kind, message) {
     if (!noLinkLog?.fields?.path) {
       throw new Error(`no-link bundle path was not logged: ${JSON.stringify(logs)}`);
     }
-    if (!noLinkLog.fields.path.includes('download-failures/run-test/tab-07')) {
-      throw new Error(`${kind} bundle was not written under download-failures: ${JSON.stringify(noLinkLog.fields)}`);
+    if (!noLinkLog.fields.path.includes('BAD_FUCKING_URL/run-test/tab-07')) {
+      throw new Error(`${kind} bundle was not written under BAD_FUCKING_URL: ${JSON.stringify(noLinkLog.fields)}`);
+    }
+    if (!basename(noLinkLog.fields.path).includes(`${kind}-chatgpt-c-self-test`)) {
+      throw new Error(`${kind} bundle name missed failure URL slug: ${JSON.stringify(noLinkLog.fields)}`);
     }
     const snapshotPath = join(noLinkLog.fields.path, 'snapshot.json');
     const snapshot = JSON.parse(await readFile(snapshotPath, 'utf8'));
-    if (!snapshot.html_path || !snapshot.text_path || !snapshot.candidate_discovery_path || !snapshot.download_attempts_path) {
+    if (!snapshot.html_path || !snapshot.text_path || !snapshot.candidate_discovery_path || !snapshot.download_attempts_path || !snapshot.assistant_responses_path || !snapshot.assistant_response_path) {
       throw new Error(`no-link snapshot missing fields: ${JSON.stringify(snapshot)}`);
     }
     const htmlStat = await stat(snapshot.html_path);
     const textStat = await stat(snapshot.text_path);
     const discoveryStat = await stat(snapshot.candidate_discovery_path);
     const attemptsStat = await stat(snapshot.download_attempts_path);
+    const assistantResponsesStat = await stat(snapshot.assistant_responses_path);
+    const assistantResponseStat = await stat(snapshot.assistant_response_path);
     const screenshotStat = await stat(snapshot.screenshot_path);
-    if (!htmlStat.isFile() || !textStat.isFile() || !discoveryStat.isFile() || !attemptsStat.isFile() || !screenshotStat.isFile()) {
+    if (!htmlStat.isFile() || !textStat.isFile() || !discoveryStat.isFile() || !attemptsStat.isFile() || !assistantResponsesStat.isFile() || !assistantResponseStat.isFile() || !screenshotStat.isFile()) {
       throw new Error(`no-link bundle files were not written: ${JSON.stringify(snapshot)}`);
+    }
+    const assistantResponses = JSON.parse(await readFile(snapshot.assistant_responses_path, 'utf8'));
+    const assistantResponse = await readFile(snapshot.assistant_response_path, 'utf8');
+    if (assistantResponses[0]?.text !== 'Self test assistant response' || !assistantResponse.includes('Self test assistant response')) {
+      throw new Error(`no-link assistant response files missed full response: ${JSON.stringify({ assistantResponses, assistantResponse })}`);
     }
     const errorEvent = events.find((event) => event.type === 'error');
     if (!errorEvent?.payload?.failed_download_bundle_path || !errorEvent?.payload?.no_link_bundle_path) {
@@ -6775,13 +6774,21 @@ async function assertDownloadFailureDiagnosticsAndCleanup() {
     if (!downloadError?.failureBundlePath) {
       throw new Error(`download failure did not include diagnostics bundle path: ${downloadError?.message || downloadError}`);
     }
+    if (!downloadError.failureBundlePath.includes('BAD_FUCKING_URL/run-test/tab-01')) {
+      throw new Error(`download failure bundle was not written under BAD_FUCKING_URL: ${downloadError.failureBundlePath}`);
+    }
+    if (!basename(downloadError.failureBundlePath).includes('download-failed-chatgpt-c-self-test-download')) {
+      throw new Error(`download failure bundle name missed failure URL slug: ${downloadError.failureBundlePath}`);
+    }
     if (failurePage.clickCount() !== 1) {
       throw new Error(`failed download clicked candidate more than once: ${failurePage.clickCount()}`);
     }
     const bundleStat = await stat(downloadError.failureBundlePath);
     const htmlStat = await stat(join(downloadError.failureBundlePath, 'page.html'));
+    const assistantResponsesStat = await stat(join(downloadError.failureBundlePath, 'assistant-responses.json'));
+    const assistantResponseStat = await stat(join(downloadError.failureBundlePath, 'assistant-response.txt'));
     const attempts = JSON.parse(await readFile(join(downloadError.failureBundlePath, 'download-attempts.json'), 'utf8'));
-    if (!bundleStat.isDirectory() || !htmlStat.isFile() || !Array.isArray(attempts) || attempts.length !== 1) {
+    if (!bundleStat.isDirectory() || !htmlStat.isFile() || !assistantResponsesStat.isFile() || !assistantResponseStat.isFile() || !Array.isArray(attempts) || attempts.length !== 1) {
       throw new Error(`download failure diagnostics bundle was not written: ${downloadError.failureBundlePath}`);
     }
     for (const phase of ['download-save-failed', 'download-failure-bundle']) {
@@ -7341,6 +7348,20 @@ async function assertMessageStreamRetryHardDisabled() {
   }
   if (clicked) {
     throw new Error('message stream Retry button was clicked even though retries are disabled');
+  }
+}
+
+function assertArtifactRepairPositiveSettingsRejected() {
+  for (const source of ['JAILGUN_ARTIFACT_REPAIR_ATTEMPTS', 'JAILGUN_ARTIFACT_REPAIR_ATTEMPT_LIMIT']) {
+    let rejected = false;
+    try {
+      disabledArtifactRepairAttemptLimit({ source, value: '1' });
+    } catch (error) {
+      rejected = /artifact repair is hard-disabled/.test(error?.message || String(error));
+    }
+    if (!rejected) {
+      throw new Error(`${source} positive value should be a hard configuration error`);
+    }
   }
 }
 
@@ -8395,6 +8416,7 @@ async function runSelfTest() {
   await assertDownloadFailureDiagnosticsAndCleanup();
   await assertDirectTexDownloadFailureIsArtifactScoped();
   await assertMessageStreamRetryHardDisabled();
+  assertArtifactRepairPositiveSettingsRejected();
   await assertABFeedbackFilenameOnlyTarButtonIgnored();
   await assertArtifactConversationLinkCollection();
   await assertArtifactConversationRecoveryDownloadsFromLinkedPage();
