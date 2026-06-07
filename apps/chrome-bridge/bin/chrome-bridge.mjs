@@ -3664,10 +3664,39 @@ async function discoverTarCandidates(page, targetName = '') {
     const roots = assistantRoots.length > 0 ? assistantRoots : [document.body];
     const lastAssistantText = assistantRoots.length > 0 ? textOf(assistantRoots[assistantRoots.length - 1]) : textOf(document.body);
     const lastTextLength = roots.reduce((sum, root) => sum + textOf(root).length, 0);
+    const artifactTextMentions = [];
+    const targetText = String(target || '').trim();
+    if (targetText) {
+      const escapeRegex = (value) => String(value).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      const escapedTarget = escapeRegex(targetText);
+      const malformedSandboxPattern = new RegExp(`\\[\\s*${escapedTarget}\\s*\\]\\s*\\(\\s*sandbox:\\s*/?/?mnt/data/${escapedTarget}(?!\\s*\\))`, 'i');
+      const sandboxPattern = new RegExp(`sandbox:\\s*/?/?mnt/data/${escapedTarget}`, 'i');
+      const snippet = (value) => String(value || '').replace(/\s+/g, ' ').trim().slice(0, 360);
+      for (let rootIndex = 0; rootIndex < roots.length; rootIndex += 1) {
+        const root = roots[rootIndex];
+        const text = textOf(root);
+        if (!text) continue;
+        let kind = '';
+        if (malformedSandboxPattern.test(text)) {
+          kind = 'malformed-sandbox-markdown';
+        } else if (sandboxPattern.test(text)) {
+          kind = 'sandbox-text';
+        } else if (normalizedTarget && normalizeComparable(text).includes(normalizedTarget)) {
+          kind = 'target-text';
+        }
+        if (!kind) continue;
+        artifactTextMentions.push({
+          kind,
+          assistantIndex: assistantRoots.length > 0 ? assistantRoots.indexOf(root) : null,
+          text: snippet(text),
+        });
+      }
+    }
     return {
       assistantRootCount: assistantRoots.length,
       scannedControlCount: controls.length,
       candidates,
+      artifactTextMentions,
       lastTextLength,
       lastTextPreview: lastAssistantText.slice(0, 240),
       abFeedbackActive,
@@ -7430,17 +7459,20 @@ function fakeTarCandidateControl({ tagName = 'BUTTON', text = '', href = '', dow
   return element;
 }
 
-function fakeTarCandidateRoot(elements) {
+function fakeTarCandidateRoot(elements, textOverride = null) {
+  const text = textOverride ?? elements.map((element) => element.textContent).join(' ');
   return {
-    innerText: elements.map((element) => element.textContent).join(' '),
-    textContent: elements.map((element) => element.textContent).join(' '),
+    innerText: text,
+    textContent: text,
     getBoundingClientRect: () => ({ width: 120, height: 24 }),
     contains: (element) => elements.includes(element),
   };
 }
 
-function fakeTarCandidateDomPage({ controls, assistantRootCount = 1, abRootCount = 0, bodyText, currentUrl }) {
-  const assistantRoots = Array.from({ length: assistantRootCount }, () => fakeTarCandidateRoot(controls));
+function fakeTarCandidateDomPage({ controls, assistantRootCount = 1, abRootCount = 0, bodyText, currentUrl, assistantTexts = null }) {
+  const assistantRoots = Array.isArray(assistantTexts)
+    ? assistantTexts.map((text) => fakeTarCandidateRoot(controls, text))
+    : Array.from({ length: assistantRootCount }, () => fakeTarCandidateRoot(controls));
   const abRoots = Array.from({ length: abRootCount }, () => fakeTarCandidateRoot(controls));
   for (const control of controls) {
     control.__assistantRoot = assistantRoots[0] || null;
@@ -7506,6 +7538,24 @@ async function assertABFeedbackFilenameOnlyTarButtonIgnored() {
   const discovery = await discoverTarCandidates(page, targetName);
   if (discovery.candidates.length !== 1 || discovery.candidates[0].tag !== 'a') {
     throw new Error(`A/B feedback filename-only tar button was not filtered: ${JSON.stringify(discovery.candidates)}`);
+  }
+}
+
+async function assertMalformedSandboxTextMentionIsDiagnosedOnly() {
+  const targetName = '03-agent-arrives-job-001-zyal.tar.gz';
+  const page = fakeTarCandidateDomPage({
+    controls: [],
+    assistantTexts: [`[${targetName}](sandbox:/mnt/data/${targetName}`],
+    bodyText: `[${targetName}](sandbox:/mnt/data/${targetName}`,
+    currentUrl: 'https://chatgpt.com/c/self-test',
+  });
+  const discovery = await discoverTarCandidates(page, targetName);
+  if (discovery.candidates.length !== 0) {
+    throw new Error(`malformed sandbox text should not become a download candidate: ${JSON.stringify(discovery.candidates)}`);
+  }
+  const mention = discovery.artifactTextMentions?.[0];
+  if (mention?.kind !== 'malformed-sandbox-markdown' || !mention.text.includes(`sandbox:/mnt/data/${targetName}`)) {
+    throw new Error(`malformed sandbox text mention was not diagnosed: ${JSON.stringify(discovery.artifactTextMentions)}`);
   }
 }
 
@@ -8247,6 +8297,7 @@ async function runSelfTest() {
   if (filteredHistoryTarLabel.length !== 0) {
     throw new Error(`chat history tar label candidate was not filtered: ${JSON.stringify(filteredHistoryTarLabel)}`);
   }
+  await assertMalformedSandboxTextMentionIsDiagnosedOnly();
   const legacyFallback = planCdpEndpointRecovery(
     parseCdpEndpoint('http://127.0.0.1:922'),
     { status: 'closed', reason: 'connection refused' },
