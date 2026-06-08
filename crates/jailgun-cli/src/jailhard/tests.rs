@@ -251,6 +251,61 @@ fn recursive_selection_rejects_symlink_escape() {
 }
 
 #[test]
+fn include_manifest_selects_exact_files_and_bypasses_extension_allowlist() {
+    let temp = tempfile::tempdir().unwrap();
+    fs::create_dir_all(temp.path().join("src")).unwrap();
+    fs::create_dir_all(temp.path().join("docs")).unwrap();
+    fs::write(temp.path().join("src/lib.rs"), "pub fn x() {}\n").unwrap();
+    // A `.zyal` file is NOT in the source-extension allowlist, so the default scope walk would drop
+    // it — the manifest path must include it verbatim.
+    fs::write(temp.path().join("docs/run.zyal"), "<<<ZYAL v1>>>\n").unwrap();
+    fs::write(temp.path().join("ignored.rs"), "pub fn nope() {}\n").unwrap();
+    fs::write(
+        temp.path().join("manifest.txt"),
+        "# curated payload\nsrc/lib.rs\ndocs/run.zyal\n",
+    )
+    .unwrap();
+
+    let paths = read_manifest_paths(temp.path(), Path::new("manifest.txt")).unwrap();
+    let scope = TargetScope::resolve(temp.path(), &paths).unwrap();
+    let selected = select_manifest_source_files(temp.path(), &scope).unwrap();
+    let got = selected
+        .iter()
+        .map(|file| path_to_slash(&file.entry_path))
+        .collect::<Vec<_>>();
+    // Exactly the two listed files (sorted), including the .zyal; `ignored.rs` is absent.
+    assert_eq!(
+        got,
+        vec!["docs/run.zyal".to_string(), "src/lib.rs".to_string()]
+    );
+}
+
+#[test]
+fn include_manifest_rejects_secret_like_files() {
+    let temp = tempfile::tempdir().unwrap();
+    fs::write(temp.path().join(".env.local"), "TOKEN=secret\n").unwrap();
+    fs::write(temp.path().join("manifest.txt"), ".env.local\n").unwrap();
+    let paths = read_manifest_paths(temp.path(), Path::new("manifest.txt")).unwrap();
+    let scope = TargetScope::resolve(temp.path(), &paths).unwrap();
+    let error =
+        select_manifest_source_files(temp.path(), &scope).expect_err("secret-like file rejected");
+    assert!(error.to_string().contains("secret-like"));
+}
+
+#[test]
+fn include_manifest_rejects_excluded_directories() {
+    let temp = tempfile::tempdir().unwrap();
+    fs::create_dir_all(temp.path().join("target")).unwrap();
+    fs::write(temp.path().join("target/foo.rs"), "pub fn f() {}\n").unwrap();
+    fs::write(temp.path().join("manifest.txt"), "target/foo.rs\n").unwrap();
+    let paths = read_manifest_paths(temp.path(), Path::new("manifest.txt")).unwrap();
+    let scope = TargetScope::resolve(temp.path(), &paths).unwrap();
+    let error = select_manifest_source_files(temp.path(), &scope)
+        .expect_err("excluded directory rejected");
+    assert!(error.to_string().contains("excluded directory"));
+}
+
+#[test]
 fn account_resolution_defaults_to_all_ready_accounts() {
     let temp = tempfile::tempdir().unwrap();
     let registry_path = temp.path().join("browser-profiles.json");

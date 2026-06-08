@@ -53,6 +53,13 @@ pub struct JailhardArgs {
     pub target_count: Option<u16>,
     #[arg(long = "task-file", value_name = "PATH")]
     pub task_file: Option<PathBuf>,
+    /// Restrict the source archive to EXACTLY the files listed in this manifest (newline- or
+    /// comma-separated repo-relative paths; blank lines and `#` comments are ignored). Unlike the
+    /// default scope walk, this bypasses the source-extension allowlist so curated non-code payload
+    /// files (e.g. `.zyal`, `.cff`) are included — while still enforcing the security denylist
+    /// (no secrets, no `.git`/`target`/artifact dirs, no path traversal, the `--max-bytes` cap).
+    #[arg(long = "include-manifest", value_name = "PATH")]
+    pub include_manifest: Option<PathBuf>,
     #[arg(long, default_value_t = DEFAULT_MAX_BYTES)]
     pub max_bytes: u64,
     #[arg(long, hide = true, num_args = 1.., value_name = "ARG", allow_hyphen_values = true)]
@@ -197,14 +204,26 @@ pub async fn run(args: JailhardArgs) -> Result<()> {
         ensure_clean_worktree(&invocation_dir)?;
     }
 
-    let scope = TargetScope::resolve(&invocation_dir, &args.paths)?;
+    // When --include-manifest is set, the archive is exactly the listed files (extension allowlist
+    // bypassed, security denylist still enforced); otherwise fall back to the default scope walk.
+    let manifest_paths = match args.include_manifest.as_deref() {
+        Some(path) => Some(read_manifest_paths(&invocation_dir, path)?),
+        None => None,
+    };
+    let scope = match &manifest_paths {
+        Some(paths) => TargetScope::resolve(&invocation_dir, paths)?,
+        None => TargetScope::resolve(&invocation_dir, &args.paths)?,
+    };
     let temp_dir = tempfile::Builder::new()
         .prefix("jailgun-hardening-")
         .tempdir_in("/tmp")
         .context("creating /tmp jailhard archive root")?;
     let temp_dir_path = temp_dir.path().to_path_buf();
     let source_archive = source_archive_path(&temp_dir_path)?;
-    let selected = select_source_files(&invocation_dir, &scope)?;
+    let selected = match &manifest_paths {
+        Some(_) => select_manifest_source_files(&invocation_dir, &scope)?,
+        None => select_source_files(&invocation_dir, &scope)?,
+    };
     let manifest = create_source_archive(
         &invocation_dir,
         &scope,

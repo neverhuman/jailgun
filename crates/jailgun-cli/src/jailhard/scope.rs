@@ -97,6 +97,82 @@ pub(super) fn select_source_files(
     }
 }
 
+/// Parse an `--include-manifest` file into a list of repo-relative paths. Entries are separated by
+/// newlines or commas; blank lines and `#`-prefixed comments are ignored. The manifest itself must
+/// live under (or be addressable relative to) the invocation directory.
+pub(super) fn read_manifest_paths(
+    invocation_dir: &Path,
+    manifest_path: &Path,
+) -> Result<Vec<PathBuf>> {
+    let abs = absolute_from(invocation_dir, manifest_path);
+    let text = fs::read_to_string(&abs)
+        .with_context(|| format!("reading include-manifest {}", abs.display()))?;
+    let mut paths = Vec::new();
+    // Process line-by-line so a comment line is recognized as a whole BEFORE comma-splitting
+    // (otherwise a `#` comment that contains a comma would leak its tail as a fake path).
+    for line in text.lines() {
+        let line = line.trim();
+        if line.is_empty() || line.starts_with('#') {
+            continue;
+        }
+        for raw in line.split(',') {
+            let trimmed = raw.trim();
+            if !trimmed.is_empty() {
+                paths.push(PathBuf::from(trimmed));
+            }
+        }
+    }
+    if paths.is_empty() {
+        anyhow::bail!("include-manifest {} listed no files", abs.display());
+    }
+    Ok(paths)
+}
+
+/// Select exactly the files named by an `--include-manifest` (each `scope` root is one listed file,
+/// already validated to exist under the invocation directory by [`TargetScope::resolve`]). This
+/// deliberately **skips the source-extension allowlist** so curated payload files of any extension
+/// (`.zyal`, `.cff`, …) are included, but it still enforces the security denylist: no excluded
+/// directories (`.git`, `target`, `artifacts`, …), no secret-like filenames (`.env*`, `*.key`, …),
+/// no path traversal, and regular files only (via [`selected_file`]).
+pub(super) fn select_manifest_source_files(
+    invocation_dir: &Path,
+    scope: &TargetScope,
+) -> Result<Vec<SelectedFile>> {
+    let canonical_roots = canonical_scope_roots(invocation_dir, scope)?;
+    let mut selected = Vec::new();
+    let mut seen = BTreeSet::new();
+    for root in &scope.roots {
+        let entry_rel = root.rel.clone();
+        if entry_rel.as_os_str().is_empty() {
+            anyhow::bail!("include-manifest cannot select the repository root");
+        }
+        if excluded_path(&entry_rel) {
+            anyhow::bail!(
+                "include-manifest path is inside an excluded directory: {}",
+                entry_rel.display()
+            );
+        }
+        if let Some(name) = entry_rel.file_name().and_then(|name| name.to_str()) {
+            if secret_like_filename(&name.to_ascii_lowercase()) {
+                anyhow::bail!(
+                    "include-manifest refuses a secret-like file: {}",
+                    entry_rel.display()
+                );
+            }
+        }
+        let abs = invocation_dir.join(&entry_rel);
+        let file = selected_file(&canonical_roots, &abs, entry_rel)?;
+        if seen.insert(file.entry_path.clone()) {
+            selected.push(file);
+        }
+    }
+    selected.sort_by(|left, right| left.entry_path.cmp(&right.entry_path));
+    if selected.is_empty() {
+        anyhow::bail!("include-manifest produced no files");
+    }
+    Ok(selected)
+}
+
 pub(super) fn select_git_source_files(
     invocation_dir: &Path,
     git_root: &Path,
