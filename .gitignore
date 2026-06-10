@@ -28,3 +28,4 @@ config/*.local.toml
 prompts/local/
 tips/headless/
 telegram/
+managed-browsers.json
