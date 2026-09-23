@@ -227,6 +227,7 @@ impl Default for JailgunConfig {
             },
             prompt_policy: PromptPolicy {
                 deny_github_write_by_default: true,
+                allow_write_prompts: false,
                 allow_info_prompts: false,
                 allowed_repositories: Vec::new(),
             },

@@ -33,6 +33,14 @@ read_only = true
 write_policy = "generator-only"
 
 [[zone]]
+path = "artifacts/ux-qa/"
+source = "scripts/render-dashboard-ux-qa.mjs"
+generator = "dashboard UX QA renderer"
+command = "bash ops/ci/ux-qa.sh"
+read_only = true
+write_policy = "generator-only"
+
+[[zone]]
 path = "agent/repo-score.json"
 source = "tracked source tree"
 generator = "jankurai"
@@ -44,22 +52,6 @@ write_policy = "generator-only"
 path = "agent/repo-score.md"
 source = "tracked source tree"
 generator = "jankurai"
-command = "bash ops/ci/jankurai.sh"
-read_only = true
-write_policy = "generator-only"
-
-[[zone]]
-path = "agent/jankurai-badge.svg"
-source = "agent/repo-score.json"
-generator = "jankurai badge"
-command = "bash ops/ci/jankurai.sh"
-read_only = true
-write_policy = "generator-only"
-
-[[zone]]
-path = "agent/jankurai-badge.json"
-source = "agent/repo-score.json"
-generator = "jankurai badge"
 command = "bash ops/ci/jankurai.sh"
 read_only = true
 write_policy = "generator-only"

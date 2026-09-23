@@ -1,52 +1,49 @@
 {
-  "report_fingerprint": "sha256:6eb089577889208098afd775f56a23e0d4de363d619004071314de3c437f2a4d",
-  "input_fingerprint": "sha256:a8366fffff64773e59eac7ce5bc7f32b55c5d2e8291c89f4f9fbfc31468d334f",
+  "report_fingerprint": "sha256:06016b10425e77004c1422d86f0f7dc5f10ec0d45f2db7ea4368849f311eb115",
+  "input_fingerprint": "sha256:92c49f5408927114f2ad4e0d9a15954658c178e58e06b1e5aac4a190ab519e27",
   "policy_fingerprint": "sha256:2e02fe1c1919de94a47a99164c962683a934c73ca5bb30bec62384f7b17fe742",
   "manifest_fingerprints": {
-    "owner_map": "sha256:89a7e7fbf34ac713ba7a2d6b72c59a1e056b591e74b4ea4a2fc555a47cc1de71",
-    "test_map": "sha256:f497c15a319c3d2b2addc8c04a1751e8bee32a27403d54afcee3daea9436cde2",
-    "generated_zones": "sha256:eb2cb0462a9f165fd321c43da2668a397fa9bcca5b7f7087c1edbf7823e6eebc",
+    "owner_map": "sha256:3d4dee6bdcad6f20a716ef593fc957ad3d891f587f9f2e27ed2afeaaf2f29abf",
+    "test_map": "sha256:10d8db2a42670fcaa5e038df0b65cdc67e3badc368c2d7cc9fe117f2e50280f8",
+    "generated_zones": "sha256:3eb7f69a09a1452a4189e7e132cda2275525ed4bcf640a3f983723e1d67ade1a",
     "boundaries": "sha256:e603dc2c37fd526ad62380eb9f3d8dda55bfd85d62125e9479e2ecc8004bf771",
     "proof_lanes": "sha256:15ec3d011b63046bbc896e0de66f4c8ec26bc4b72e286200e2ece5f714024c73",
     "standard_version": "sha256:e89e3b08c1e1ab55b195b4041787100956f3888aaba37595bce4403606dcb996"
   },
   "dirty_worktree": false,
-  "generated_at": "1780292842",
+  "generated_at": "1780502667",
   "schema_url": "schemas/repo-score.schema.json",
   "standard": "jankurai",
   "standard_version": "0.9.0",
-  "auditor_version": "1.4.3",
+  "auditor_version": "1.6.10",
   "schema_version": "1.9.0",
   "paper_edition": "2026.05-ed8",
   "target_stack_id": "rust-ts-vite-react-postgres-bounded-python",
   "target_stack": "Rust core + TypeScript/React/Vite + PostgreSQL + generated contracts + exception-only Python AI/data service",
   "claimed_conformance_level": "HL3",
-  "observed_conformance_level": "HL2",
-  "conformance_decision": "block",
-  "conformance_blockers": [
-    "HLT-001-DEAD-MARKER on apps/browser-adapter/src/chatUpload.ts",
-    "HLT-022-AUTHZ-ISOLATION-GAP on crates/jailgun-cli/src/main.rs"
-  ],
+  "observed_conformance_level": "HL3",
+  "conformance_decision": "pass",
+  "conformance_blockers": [],
   "repo": ".",
-  "run_id": "1780292842",
-  "started_at": "1780292842",
-  "elapsed_ms": 13307,
+  "run_id": "1780502667",
+  "started_at": "1780502667",
+  "elapsed_ms": 4439,
   "scope": {
     "mode": "full",
     "paths": []
   },
-  "score": 70,
-  "raw_score": 87,
+  "score": 89,
+  "raw_score": 89,
   "decision": {
     "status": "advisory",
     "minimum_score": 85,
     "passed": true,
     "hard_findings": 0,
-    "soft_findings": 4,
+    "soft_findings": 2,
     "ratchet": {
-      "baseline_score": 70,
+      "baseline_score": 89,
       "allowed_drop": 0,
-      "passed": false,
+      "passed": true,
       "score_delta": 0,
       "baseline_report_fingerprint": "sha256:0000000000000000000000000000000000000000000000000000000000000000",
       "baseline_input_fingerprint": "sha256:0000000000000000000000000000000000000000000000000000000000000000",
@@ -57,7 +54,7 @@
     }
   },
   "git": {
-    "head": "6d747d1",
+    "head": "8819e48",
     "base": null,
     "changed_files": 0,
     "mode": "full",
@@ -70,15 +67,12 @@
     "advisory_on": [],
     "mode": "advisory",
     "standard_version": "0.9.0",
-    "auditor_version": "1.4.3",
+    "auditor_version": "1.6.10",
     "schema_version": "1.9.0",
     "paper_edition": "2026.05-ed8",
     "target_stack": "rust-ts-vite-react-postgres-bounded-python"
   },
-  "caps_applied": [
-    "fallback-soup-in-product-code",
-    "authz-or-data-isolation-gap"
-  ],
+  "caps_applied": [],
   "hard_rules": [
     {
       "id": "no-root-agent-instructions",
@@ -336,7 +330,7 @@
         "security lane present",
         "canonical security lane wrapper present",
         "agent-readiness audit gate found in CI",
-        "rust bad-behavior advisory signals: 287",
+        "rust bad-behavior advisory signals: 390",
         "typescript bad-behavior advisory signals: 1",
         "ci bad-behavior advisory signals: 1",
         "gittools bad-behavior advisory signals: 2",
@@ -349,16 +343,15 @@
     {
       "name": "Code shape and semantic surface",
       "weight": 12,
-      "score": 27,
-      "weighted_points": 3.24,
+      "score": 45,
+      "weighted_points": 5.4,
       "evidence": [
-        "largest authored code file: crates/jailgun-orchestrator/src/run/mod.rs (1014 LOC)",
+        "largest authored code file: crates/jailgun-orchestrator/src/run/mod.rs (1019 LOC)",
         "code file exceeds 500 LOC",
         "code file exceeds 1000 LOC",
         "most code files stay under 300 LOC",
         "copy-code advisory classes found: 2 (advisory only, no score impact)",
-        "fallback soup marker found",
-        "rust bad-behavior advisory signals: 287",
+        "rust bad-behavior advisory signals: 390",
         "typescript bad-behavior advisory signals: 1",
         "ci bad-behavior advisory signals: 1",
         "gittools bad-behavior advisory signals: 2",
@@ -416,16 +409,21 @@
     {
       "name": "Jankurai tool adoption and CI replacement",
       "weight": 7,
-      "score": 100,
-      "weighted_points": 7.0,
+      "score": 95,
+      "weighted_points": 6.65,
       "evidence": [
         "control-plane files present",
         "applicable=17",
         "configured=17",
         "ci_evidence=17",
-        "artifact_verified=17"
+        "artifact_verified=9"
       ],
-      "notes": []
+      "notes": [
+        "missing CI evidence for `audit-ci`",
+        "missing CI evidence for `proof-routing`",
+        "missing CI evidence for `contract-drift`",
+        "missing CI evidence for `authz-matrix`"
+      ]
     },
     {
       "name": "Python containment and polyglot hygiene",
@@ -457,6 +455,7 @@
     "missing_categories": [],
     "evidence": {
       "accessibility": [
+        ".jankurai/repo-score.json",
         "agent/repo-score.json",
         "agent/repo-score.md",
         "ops/ci/ux-qa.sh",
@@ -470,9 +469,9 @@
       "artifact_backed_proof": [
         "agent/ux-qa.toml",
         "apps/chrome-bridge/bin/chrome-bridge.mjs",
-        "ops/ci/ux-qa.sh",
-        "package-lock.json",
-        "scripts/render-dashboard-ux-qa.mjs"
+        "apps/dashboard/src/App.drilldown.test.tsx",
+        "apps/dashboard/src/components/FailureTooltip.tsx",
+        "apps/dashboard/src/components/TabProgressBar.tsx"
       ],
       "design_tokens": [
         "ops/ci/ux-qa.sh",
@@ -483,7 +482,7 @@
         "apps/browser-adapter/bin/live-capture.mjs",
         "apps/browser-adapter/src/domContracts.ts",
         "apps/chrome-bridge/bin/chrome-bridge.mjs",
-        "ops/ci/ux-qa.sh"
+        "artifacts/ux-qa/README.md"
       ],
       "layout_stability": [
         "ops/ci/ux-qa.sh",
@@ -494,6 +493,7 @@
         "scripts/render-dashboard-ux-qa.mjs"
       ],
       "storybook": [
+        ".jankurai/repo-score.json",
         "agent/repo-score.json"
       ],
       "visual_review": [
@@ -533,7 +533,7 @@
     "applicable_count": 17,
     "configured_count": 17,
     "ci_evidence_count": 17,
-    "artifact_verified_count": 17,
+    "artifact_verified_count": 9,
     "replaced_count": 17,
     "items": [
       {
@@ -541,7 +541,7 @@
         "category": "audit",
         "mode": "advisory",
         "applicable": true,
-        "status": "artifact_verified",
+        "status": "ci_evidence",
         "replaced_tools": [
           "manual repo scoring",
           "ad hoc score gates"
@@ -549,15 +549,16 @@
         "evidence": [
           "mode=advisory",
           "tool-adoption config entry present",
-          "CI command found in workflow",
-          "artifact uploads found: agent/repo-score.json, agent/repo-score.md"
+          "CI command found in workflow"
         ],
-        "missing": [],
-        "local_command": "jankurai audit . --mode advisory --json agent/repo-score.json --md agent/repo-score.md",
+        "missing": [
+          "artifact upload reference"
+        ],
+        "local_command": "jankurai audit . --mode advisory --json .jankurai/repo-score.json --md .jankurai/repo-score.md",
         "ci_command": "jankurai audit . --mode ratchet --baseline target/jankurai/accepted-baseline.json --json target/jankurai/repo-score.json --md target/jankurai/repo-score.md",
         "artifact_paths": [
-          "agent/repo-score.json",
-          "agent/repo-score.md"
+          ".jankurai/repo-score.json",
+          ".jankurai/repo-score.md"
         ]
       },
       {
@@ -565,7 +566,7 @@
         "category": "proof",
         "mode": "advisory",
         "applicable": true,
-        "status": "artifact_verified",
+        "status": "ci_evidence",
         "replaced_tools": [
           "ad hoc proof lane selection",
           "manual proof receipts"
@@ -573,15 +574,16 @@
         "evidence": [
           "mode=advisory",
           "tool-adoption config entry present",
-          "CI command found in workflow",
-          "artifact uploads found: agent/repo-score.json, agent/repo-score.md, target/jankurai/repair-queue.jsonl"
+          "CI command found in workflow"
         ],
-        "missing": [],
+        "missing": [
+          "artifact upload reference"
+        ],
         "local_command": "jankurai proof . --changed-from origin/main --out target/jankurai/proof-plan.json --md target/jankurai/proof-plan.md",
         "ci_command": "jankurai audit . --mode ratchet --baseline target/jankurai/accepted-baseline.json --json target/jankurai/repo-score.json --md target/jankurai/repo-score.md",
         "artifact_paths": [
-          "agent/repo-score.json",
-          "agent/repo-score.md",
+          ".jankurai/repo-score.json",
+          ".jankurai/repo-score.md",
           "target/jankurai/repair-queue.jsonl"
         ]
       },
@@ -801,7 +803,7 @@
         "category": "contract",
         "mode": "advisory",
         "applicable": true,
-        "status": "artifact_verified",
+        "status": "ci_evidence",
         "replaced_tools": [
           "handwritten contract drift checks",
           "openapi diff"
@@ -809,15 +811,16 @@
         "evidence": [
           "mode=advisory",
           "tool-adoption config entry present",
-          "CI command found in workflow",
-          "artifact uploads found: agent/repo-score.json, agent/repo-score.md"
+          "CI command found in workflow"
         ],
-        "missing": [],
-        "local_command": "jankurai audit . --mode advisory --json agent/repo-score.json --md agent/repo-score.md",
+        "missing": [
+          "artifact upload reference"
+        ],
+        "local_command": "jankurai audit . --mode advisory --json .jankurai/repo-score.json --md .jankurai/repo-score.md",
         "ci_command": "jankurai audit . --mode ratchet --baseline target/jankurai/accepted-baseline.json --json target/jankurai/repo-score.json --md target/jankurai/repo-score.md",
         "artifact_paths": [
-          "agent/repo-score.json",
-          "agent/repo-score.md"
+          ".jankurai/repo-score.json",
+          ".jankurai/repo-score.md"
         ]
       },
       {
@@ -888,22 +891,23 @@
         "category": "security",
         "mode": "auto",
         "applicable": true,
-        "status": "artifact_verified",
+        "status": "ci_evidence",
         "replaced_tools": [
           "manual authz matrix review"
         ],
         "evidence": [
           "mode=auto",
           "tool-adoption config entry present",
-          "CI command found in workflow",
-          "artifact uploads found: agent/repo-score.json, agent/repo-score.md"
+          "CI command found in workflow"
         ],
-        "missing": [],
-        "local_command": "jankurai audit . --mode advisory --json agent/repo-score.json --md agent/repo-score.md",
+        "missing": [
+          "artifact upload reference"
+        ],
+        "local_command": "jankurai audit . --mode advisory --json .jankurai/repo-score.json --md .jankurai/repo-score.md",
         "ci_command": "jankurai audit . --mode ratchet --baseline target/jankurai/accepted-baseline.json --json target/jankurai/repo-score.json --md target/jankurai/repo-score.md",
         "artifact_paths": [
-          "agent/repo-score.json",
-          "agent/repo-score.md"
+          ".jankurai/repo-score.json",
+          ".jankurai/repo-score.md"
         ]
       },
       {
@@ -911,22 +915,23 @@
         "category": "security",
         "mode": "advisory",
         "applicable": true,
-        "status": "artifact_verified",
+        "status": "ci_evidence",
         "replaced_tools": [
           "manual unsafe sink review"
         ],
         "evidence": [
           "mode=advisory",
           "tool-adoption config entry present",
-          "CI command found in workflow",
-          "artifact uploads found: agent/repo-score.json, agent/repo-score.md"
+          "CI command found in workflow"
         ],
-        "missing": [],
-        "local_command": "jankurai audit . --mode advisory --json agent/repo-score.json --md agent/repo-score.md",
+        "missing": [
+          "artifact upload reference"
+        ],
+        "local_command": "jankurai audit . --mode advisory --json .jankurai/repo-score.json --md .jankurai/repo-score.md",
         "ci_command": "jankurai audit . --mode ratchet --baseline target/jankurai/accepted-baseline.json --json target/jankurai/repo-score.json --md target/jankurai/repo-score.md",
         "artifact_paths": [
-          "agent/repo-score.json",
-          "agent/repo-score.md"
+          ".jankurai/repo-score.json",
+          ".jankurai/repo-score.md"
         ]
       },
       {
@@ -934,22 +939,23 @@
         "category": "security",
         "mode": "advisory",
         "applicable": true,
-        "status": "artifact_verified",
+        "status": "ci_evidence",
         "replaced_tools": [
           "manual MCP/tool trust review"
         ],
         "evidence": [
           "mode=advisory",
           "tool-adoption config entry present",
-          "CI command found in workflow",
-          "artifact uploads found: agent/repo-score.json, agent/repo-score.md"
+          "CI command found in workflow"
         ],
-        "missing": [],
-        "local_command": "jankurai audit . --mode advisory --json agent/repo-score.json --md agent/repo-score.md",
+        "missing": [
+          "artifact upload reference"
+        ],
+        "local_command": "jankurai audit . --mode advisory --json .jankurai/repo-score.json --md .jankurai/repo-score.md",
         "ci_command": "jankurai audit . --mode ratchet --baseline target/jankurai/accepted-baseline.json --json target/jankurai/repo-score.json --md target/jankurai/repo-score.md",
         "artifact_paths": [
-          "agent/repo-score.json",
-          "agent/repo-score.md"
+          ".jankurai/repo-score.json",
+          ".jankurai/repo-score.md"
         ]
       },
       {
@@ -957,22 +963,23 @@
         "category": "release",
         "mode": "auto",
         "applicable": true,
-        "status": "artifact_verified",
+        "status": "ci_evidence",
         "replaced_tools": [
           "manual launch checklist"
         ],
         "evidence": [
           "mode=auto",
           "tool-adoption config entry present",
-          "CI command found in workflow",
-          "artifact uploads found: agent/repo-score.json, agent/repo-score.md"
+          "CI command found in workflow"
         ],
-        "missing": [],
-        "local_command": "jankurai audit . --mode advisory --json agent/repo-score.json --md agent/repo-score.md",
+        "missing": [
+          "artifact upload reference"
+        ],
+        "local_command": "jankurai audit . --mode advisory --json .jankurai/repo-score.json --md .jankurai/repo-score.md",
         "ci_command": "jankurai audit . --mode ratchet --baseline target/jankurai/accepted-baseline.json --json target/jankurai/repo-score.json --md target/jankurai/repo-score.md",
         "artifact_paths": [
-          "agent/repo-score.json",
-          "agent/repo-score.md"
+          ".jankurai/repo-score.json",
+          ".jankurai/repo-score.md"
         ]
       },
       {
@@ -980,22 +987,23 @@
         "category": "release",
         "mode": "auto",
         "applicable": true,
-        "status": "artifact_verified",
+        "status": "ci_evidence",
         "replaced_tools": [
           "manual spend review"
         ],
         "evidence": [
           "mode=auto",
           "tool-adoption config entry present",
-          "CI command found in workflow",
-          "artifact uploads found: agent/repo-score.json, agent/repo-score.md"
+          "CI command found in workflow"
         ],
-        "missing": [],
-        "local_command": "jankurai audit . --mode advisory --json agent/repo-score.json --md agent/repo-score.md",
+        "missing": [
+          "artifact upload reference"
+        ],
+        "local_command": "jankurai audit . --mode advisory --json .jankurai/repo-score.json --md .jankurai/repo-score.md",
         "ci_command": "jankurai audit . --mode ratchet --baseline target/jankurai/accepted-baseline.json --json target/jankurai/repo-score.json --md target/jankurai/repo-score.md",
         "artifact_paths": [
-          "agent/repo-score.json",
-          "agent/repo-score.md"
+          ".jankurai/repo-score.json",
+          ".jankurai/repo-score.md"
         ]
       }
     ],
@@ -1020,10 +1028,8 @@
         "release-readiness",
         "cost-budget"
       ],
-      "artifact_verified_count": 17,
+      "artifact_verified_count": 9,
       "artifact_verified_tools": [
-        "audit-ci",
-        "proof-routing",
         "proofbind",
         "proofmark-rust",
         "copy-code",
@@ -1032,13 +1038,7 @@
         "git-bad-behavior",
         "release-bad-behavior",
         "ux-qa",
-        "contract-drift",
-        "rust-witness",
-        "authz-matrix",
-        "input-boundary",
-        "agent-tool-supply",
-        "release-readiness",
-        "cost-budget"
+        "rust-witness"
       ],
       "ci_evidence_count": 17,
       "ci_evidence_tools": [
@@ -1083,7 +1083,16 @@
       ],
       "control_plane_present": true
     },
-    "missing": []
+    "missing": [
+      "audit-ci",
+      "proof-routing",
+      "contract-drift",
+      "authz-matrix",
+      "input-boundary",
+      "agent-tool-supply",
+      "release-readiness",
+      "cost-budget"
+    ]
   },
   "security_evidence": {},
   "boundaries": {
@@ -1092,9 +1101,9 @@
   "copy_code": {
     "schema_version": "1.1.0",
     "generated_by": "jankurai copy-code",
-    "generated_at": "2026-06-01T05:47:09.303259+00:00",
+    "generated_at": "2026-06-03T16:04:22.927317469+00:00",
     "repo": ".",
-    "auditor_version": "1.4.3",
+    "auditor_version": "1.6.10",
     "status": "review",
     "policy": {
       "active_source_only": true,
@@ -1130,22 +1139,57 @@
       ]
     },
     "summary": {
-      "files_scanned": 174,
-      "files_considered": 61,
-      "active_files": 61,
+      "files_scanned": 223,
+      "files_considered": 73,
+      "active_files": 73,
       "exact_file_classes": 0,
       "hard_classes": 0,
       "warning_classes": 2,
       "hard_instances": 0,
       "warning_instances": 5,
-      "duplicate_lines": 2,
-      "duplicate_tokens": 2,
-      "duplicate_bytes": 20,
-      "total_redundant_lines": 3,
-      "total_redundant_tokens": 2,
-      "total_redundant_bytes": 21
+      "duplicate_lines": 3,
+      "duplicate_tokens": 1,
+      "duplicate_bytes": 11,
+      "total_redundant_lines": 4,
+      "total_redundant_tokens": 1,
+      "total_redundant_bytes": 12
     },
     "classes": [
+      {
+        "id": "copy-code-body-rust-292e97ca3c1379b2",
+        "kind": "exact_unit_different_name",
+        "severity": "warning",
+        "confidence": "medium",
+        "language": "rust",
+        "duplicate_lines": 2,
+        "duplicate_tokens": 1,
+        "duplicate_bytes": 10,
+        "instance_count": 2,
+        "total_redundant_lines": 2,
+        "total_redundant_tokens": 1,
+        "total_redundant_bytes": 10,
+        "effective_severity": "warning",
+        "hard_fail": false,
+        "fingerprint": "c6e16cb161d95612",
+        "reason": "same body appears under different names across files",
+        "recommended_action": "choose one owner for the shared body or intentionally differentiate the behavior",
+        "instances": [
+          {
+            "path": "crates/jailgun-core/src/agent.rs",
+            "language": "rust",
+            "start_line": 282,
+            "end_line": 284,
+            "unit_name": "default_true"
+          },
+          {
+            "path": "crates/jailgun-orchestrator/src/bridge/command.rs",
+            "language": "rust",
+            "start_line": 42,
+            "end_line": 44,
+            "unit_name": "default_delete_after_upload"
+          }
+        ]
+      },
       {
         "id": "copy-code-body-rust-d10b36aa74a59bcf",
         "kind": "exact_unit_different_name",
@@ -1185,41 +1229,6 @@
             "start_line": 27,
             "end_line": 28,
             "unit_name": "publish"
-          }
-        ]
-      },
-      {
-        "id": "copy-code-body-rust-e79a79c10b090329",
-        "kind": "exact_unit_different_name",
-        "severity": "warning",
-        "confidence": "medium",
-        "language": "rust",
-        "duplicate_lines": 1,
-        "duplicate_tokens": 2,
-        "duplicate_bytes": 19,
-        "instance_count": 2,
-        "total_redundant_lines": 1,
-        "total_redundant_tokens": 2,
-        "total_redundant_bytes": 19,
-        "effective_severity": "warning",
-        "hard_fail": false,
-        "fingerprint": "8d251ac659f2d1a0",
-        "reason": "same body appears under different names across files",
-        "recommended_action": "choose one owner for the shared body or intentionally differentiate the behavior",
-        "instances": [
-          {
-            "path": "crates/jailgun-deploy/src/deploy/events.rs",
-            "language": "rust",
-            "start_line": 195,
-            "end_line": 196,
-            "unit_name": "outcome_str"
-          },
-          {
-            "path": "crates/jailgun-orchestrator/src/run/mod.rs",
-            "language": "rust",
-            "start_line": 816,
-            "end_line": 817,
-            "unit_name": "deploy_outcome_label"
           }
         ]
       }
@@ -1455,10 +1464,10 @@
       "severity": "medium",
       "category": "shape",
       "path": ".",
-      "problem": "`Code shape and semantic surface` scored 27 below the standard floor of 85",
+      "problem": "`Code shape and semantic surface` scored 45 below the standard floor of 85",
       "agent_fix": "split large or ambiguous authored code into smaller semantic modules with focused tests",
       "evidence": [
-        "largest authored code file: crates/jailgun-orchestrator/src/run/mod.rs (1014 LOC)",
+        "largest authored code file: crates/jailgun-orchestrator/src/run/mod.rs (1019 LOC)",
         "code file exceeds 500 LOC",
         "code file exceeds 1000 LOC",
         "most code files stay under 300 LOC"
@@ -1468,7 +1477,7 @@
       "confidence": 0.76,
       "evidence_kind": "repository-scan",
       "rerun_command": "just fast",
-      "fingerprint": "sha256:032bb4db2149ede5cc2a04c1944e4d7e8a90abcc7f4e0da9c1149d797483684d",
+      "fingerprint": "sha256:e3ee186afeb47c3396c65a9650301c52295164fd72d725fad2063d47aad036e4",
       "rule_id": "HLT-001-DEAD-MARKER",
       "tlr": "Entropy",
       "lane": "fast",
@@ -1498,65 +1507,9 @@
       "lane": "fast",
       "docs_url": "docs/testing.md",
       "owner": "ci-release"
-    },
-    {
-      "severity": "high",
-      "category": "vibe",
-      "path": "apps/browser-adapter/src/chatUpload.ts",
-      "problem": "fallback soup detected in product code",
-      "agent_fix": "collapse fallback chains into explicit typed states with bounded retry policy, telemetry, and documented repair guidance",
-      "evidence": [
-        "apps/browser-adapter/src/chatUpload.ts:424 return null;"
-      ],
-      "check_id": "HLT-001-DEAD-MARKER:vibe",
-      "hardness": "hard",
-      "confidence": 0.88,
-      "evidence_kind": "repository-scan",
-      "rerun_command": "just fast",
-      "fingerprint": "sha256:45b72d17c740195c924e362c3f9581db6f23de62e382c555591148c96c3c2b35",
-      "rule_id": "HLT-001-DEAD-MARKER",
-      "tlr": "Entropy",
-      "lane": "fast",
-      "docs_url": "docs/audit-rubric.md#future-hostile-language-rule",
-      "owner": "browser-adapter",
-      "line": 424
-    },
-    {
-      "severity": "high",
-      "category": "security",
-      "path": "crates/jailgun-cli/src/main.rs",
-      "problem": "authorization or data-isolation surface lacks direct negative proof",
-      "agent_fix": "add owner/non-owner authorization tests or RLS evidence for the touched data boundary",
-      "evidence": [
-        "fn infers_github_owner_repo_from_supported_remote_urls() {"
-      ],
-      "check_id": "HLT-022-AUTHZ-ISOLATION-GAP:security",
-      "hardness": "hard",
-      "confidence": 0.88,
-      "evidence_kind": "boundary-scan",
-      "rerun_command": "just fast",
-      "fingerprint": "sha256:b9ba8df40da33de885e0f0b175d3a2fe5afeafefdd9347dd065d0b988debbe8a",
-      "rule_id": "HLT-022-AUTHZ-ISOLATION-GAP",
-      "tlr": "Business truth",
-      "lane": "db",
-      "docs_url": "docs/audit-rubric.md#top-level-risk-mapping",
-      "owner": "rust-cli",
-      "line": 983,
-      "matched_term": "rls",
-      "reason": "authz/data isolation requires negative proof evidence"
     }
   ],
   "agent_fix_queue": [
-    {
-      "path": "crates/jailgun-cli/src/main.rs",
-      "priority": "high",
-      "rule_id": "HLT-022-AUTHZ-ISOLATION-GAP",
-      "tlr": "Business truth",
-      "lane": "db",
-      "owner": "rust-cli",
-      "task": "add owner/non-owner authorization tests or RLS evidence for the touched data boundary",
-      "why": "authorization or data-isolation surface lacks direct negative proof"
-    },
     {
       "path": "Justfile",
       "priority": "medium",
@@ -1568,16 +1521,6 @@
       "why": "`Build speed signals` scored 70 below the standard floor of 85"
     },
     {
-      "path": "apps/browser-adapter/src/chatUpload.ts",
-      "priority": "high",
-      "rule_id": "HLT-001-DEAD-MARKER",
-      "tlr": "Entropy",
-      "lane": "fast",
-      "owner": "browser-adapter",
-      "task": "collapse fallback chains into explicit typed states with bounded retry policy, telemetry, and documented repair guidance",
-      "why": "fallback soup detected in product code"
-    },
-    {
       "path": ".",
       "priority": "medium",
       "rule_id": "HLT-001-DEAD-MARKER",
@@ -1585,7 +1528,7 @@
       "lane": "fast",
       "owner": "tools",
       "task": "split large or ambiguous authored code into smaller semantic modules with focused tests",
-      "why": "`Code shape and semantic surface` scored 27 below the standard floor of 85"
+      "why": "`Code shape and semantic surface` scored 45 below the standard floor of 85"
     }
   ]
 }
