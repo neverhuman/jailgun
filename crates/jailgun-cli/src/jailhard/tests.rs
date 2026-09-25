@@ -300,8 +300,8 @@ fn include_manifest_rejects_excluded_directories() {
     fs::write(temp.path().join("manifest.txt"), "target/foo.rs\n").unwrap();
     let paths = read_manifest_paths(temp.path(), Path::new("manifest.txt")).unwrap();
     let scope = TargetScope::resolve(temp.path(), &paths).unwrap();
-    let error = select_manifest_source_files(temp.path(), &scope)
-        .expect_err("excluded directory rejected");
+    let error =
+        select_manifest_source_files(temp.path(), &scope).expect_err("excluded directory rejected");
     assert!(error.to_string().contains("excluded directory"));
 }
 

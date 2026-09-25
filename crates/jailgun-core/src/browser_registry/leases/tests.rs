@@ -111,7 +111,7 @@ fn stale_leases_are_purged_by_expiry() {
     ready_registry(&registry_path, &[("acct-a", 1)]);
     let manager = BrowserLeaseManager::new(&registry_path);
     let now = unix_seconds();
-    save_lease_state(
+    super::store::save_lease_state(
         manager.lease_path(),
         &BrowserLeaseState {
             version: 1,
