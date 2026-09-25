@@ -30,7 +30,7 @@ jobs:
         run: |
           cargo install cargo-audit --locked
           cargo install cargo-deny --locked
-          go install github.com/gitleaks/gitleaks/v8@v8.24.2
+          go install github.com/zricethezav/gitleaks/v8@v8.24.2
           go install github.com/anchore/syft/cmd/syft@v1.18.1
           go install github.com/rhysd/actionlint/cmd/actionlint@v1.7.7
           python3 -m pip install --user zizmor
