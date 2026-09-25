@@ -1,18 +1,18 @@
 # jankurai Repo Score
 
 - Standard: `jankurai`
-- Auditor: `1.6.10`
+- Auditor: `1.4.3`
 - Schema: `1.9.0`
 - Paper edition: `2026.05-ed8`
 - Target stack ID: `rust-ts-vite-react-postgres-bounded-python`
 - Target stack: `Rust core + TypeScript/React/Vite + PostgreSQL + generated contracts + exception-only Python AI/data service`
 - Repo: `.`
-- Run ID: `1780845382`
-- Started at: `1780845382`
-- Elapsed: `42222` ms
+- Run ID: `1790311586`
+- Started at: `1790311586`
+- Elapsed: `2137` ms
 - Scope: `full`
-- Raw score: `94`
-- Final score: `94`
+- Raw score: `97`
+- Final score: `97`
 - Decision: `advisory`
 - Minimum score: `85`
 - Caps applied: `none`
@@ -70,7 +70,7 @@
 
 ## Copy-Code Redundancy
 
-- Status: `review` hard=`0` warning=`10` files=`175`
+- Status: `review` hard=`0` warning=`10` files=`178`
 - Policy: min-lines=`10` min-tokens=`100` max-findings=`50` include-tests=`false` strict=`false`
 - Duplicate volume: lines=`45` tokens=`111` bytes=`1094`
 
@@ -86,7 +86,7 @@
 | `ExactUnitSameName` | `Warning` | `rust` | 3 | 2 | `crates/jailgun-deploy/src/fake/ci_tracker.rs:15-18, crates/jailgun-deploy/src/fake/job.rs:15-18, crates/jailgun-deploy/src/fake/upload.rs:14-17` | `same-name semantic unit copied across multiple files` |
 | `ExactUnitDifferentName` | `Warning` | `rust` | 2 | 1 | `crates/jailgun-core/src/browser_registry/leases/lock.rs:75-77, crates/jailgun-core/src/browser_registry/leases/lock.rs:80-82, crates/jailgun-core/src/browser_registry/storage.rs:54-56, crates/jailgun-core/src/browser_registry/storage.rs:70-72` | `same body appears under different names across files` |
 | `ExactUnitSameName` | `Warning` | `rust` | 4 | 12 | `crates/jailgun-cli/src/auth/mod.rs:138-142, crates/jailgun-orchestrator/src/run/bridge_flow.rs:183-187` | `same-name semantic unit copied across multiple files` |
-| `ExactUnitDifferentName` | `Warning` | `rust` | 2 | 1 | `crates/jailgun-core/src/agent/request.rs:243-245, crates/jailgun-core/src/browser_registry/leases.rs:439-441, crates/jailgun-orchestrator/src/bridge/command.rs:45-47` | `same body appears under different names across files` |
+| `ExactUnitDifferentName` | `Warning` | `rust` | 2 | 1 | `crates/jailgun-core/src/agent/request.rs:243-245, crates/jailgun-core/src/browser_registry/leases/store.rs:125-127, crates/jailgun-orchestrator/src/bridge/command.rs:45-47` | `same body appears under different names across files` |
 | `ExactUnitSameName` | `Warning` | `rust` | 3 | 4 | `crates/jailgun-deploy/src/shell/job.rs:20-23, crates/jailgun-deploy/src/shell/upload.rs:15-18` | `same-name semantic unit copied across multiple files` |
 | `ExactUnitSameName` | `Warning` | `rust` | 2 | 5 | `crates/jailgun-deploy/src/deploy/events.rs:10-12, crates/jailgun-orchestrator/src/run/publish.rs:4-6` | `same-name semantic unit copied across multiple files` |
 | `ExactUnitSameName` | `Warning` | `rust` | 2 | 3 | `crates/jailgun-deploy/src/shell.rs:17-19, crates/jailgun-deploy/src/util.rs:6-8` | `same-name semantic unit copied across multiple files` |
@@ -100,11 +100,11 @@
 | Contract and boundary integrity | 13 | 88 | 11.44 | contract surface found; generated contract artifacts found |
 | Proof lanes and test routing | 12 | 100 | 12.00 | one-command setup/validation lane found; deterministic fast lane found |
 | Security and supply-chain posture | 12 | 100 | 12.00 | lockfile present; secret or dependency scan tooling found |
-| Code shape and semantic surface | 12 | 80 | 9.60 | largest authored code file: crates/jailgun-core/src/browser_registry/leases.rs (441 LOC); most code files stay under 300 LOC |
+| Code shape and semantic surface | 12 | 100 | 12.00 | largest authored code file: crates/jailgun-core/src/browser_registry/leases.rs (331 LOC); most code files stay under 300 LOC |
 | Data truth and workflow safety | 8 | 100 | 8.00 | database surface present; structured db boundary manifest present |
 | Observability and repair evidence | 8 | 88 | 7.04 | observability libraries or patterns found; ops/observability directory present |
 | Context economy and agent instructions | 7 | 93 | 6.51 | root `AGENTS.md` present; root `AGENTS.md` stays short |
-| Jankurai tool adoption and CI replacement | 7 | 95 | 6.65 | control-plane files present; applicable=17 |
+| Jankurai tool adoption and CI replacement | 7 | 100 | 7.00 | control-plane files present; applicable=17 |
 | Python containment and polyglot hygiene | 4 | 100 | 4.00 | no Python files in scope |
 | Build speed signals | 4 | 95 | 3.80 | build acceleration markers found; targeted test/build commands found |
 
@@ -131,32 +131,20 @@
 - Layered UX lane: `true`
 - Missing: `none`
 
-### Ingested UX QA report (`target/jankurai/ux-qa.json`)
-- Report count: `2`
-- Worst decision: `pass`
-- Total violations: `0`
-- Summary errors / warnings: `0` / `0`
-- Artifact counts: `accessibility=2, aria-snapshot=2, screenshot=2`
-- Artifact fingerprints: `6`
-- Visual baseline counts: missing=`0` changed=`0` review=`0` block=`0`
-- Missing required states: `0` report(s) `none`
-- Missing required artifacts: `0` report(s) `none`
-- Accessibility violations / incomplete / passes: `0` / `0` / `24`
-
 ## Tool Adoption
 
 - Control plane present: `true`
 - Applicable tools: `17`
 - Configured: `17`
 - CI evidence: `17`
-- Artifact verified: `9`
+- Artifact verified: `17`
 - Replaced count: `17`
-- Missing CI evidence: `audit-ci, proof-routing, contract-drift, authz-matrix, input-boundary, agent-tool-supply, release-readiness, cost-budget`
+- Missing CI evidence: `none`
 
 | Tool | Category | Mode | Status | Replaced | Artifacts |
 | --- | --- | --- | --- | --- | --- |
-| `audit-ci` | `audit` | `advisory` | `ci_evidence` | `manual repo scoring, ad hoc score gates` | `.jankurai/repo-score.json, .jankurai/repo-score.md` |
-| `proof-routing` | `proof` | `advisory` | `ci_evidence` | `ad hoc proof lane selection, manual proof receipts` | `.jankurai/repo-score.json, .jankurai/repo-score.md, target/jankurai/repair-queue.jsonl` |
+| `audit-ci` | `audit` | `advisory` | `artifact_verified` | `manual repo scoring, ad hoc score gates` | `agent/repo-score.json, agent/repo-score.md` |
+| `proof-routing` | `proof` | `advisory` | `artifact_verified` | `ad hoc proof lane selection, manual proof receipts` | `agent/repo-score.json, agent/repo-score.md, target/jankurai/repair-queue.jsonl` |
 | `proofbind` | `proof` | `auto` | `artifact_verified` | `manual changed-surface routing, ad hoc proof obligation lists` | `target/jankurai/proofbind/surface-witness.json, target/jankurai/proofbind/obligations.json` |
 | `proofmark-rust` | `proof` | `auto` | `artifact_verified` | `line-only coverage review, manual in-diff mutation review` | `target/jankurai/proofmark/proofmark-receipt.json, target/jankurai/proofmark/proof-receipt.json` |
 | `copy-code` | `audit` | `auto` | `artifact_verified` | `ad hoc copy-code review, manual duplication triage` | `target/jankurai/copy-code.json, target/jankurai/copy-code.md` |
@@ -166,15 +154,15 @@
 | `release-bad-behavior` | `release` | `auto` | `artifact_verified` | `manual release checklist, ad hoc tag and artifact review, manual provenance review` | `target/jankurai/language-bad-behavior.log` |
 | `ux-qa` | `ux` | `advisory` | `artifact_verified` | `playwright, axe-core, visual baselines` | `target/jankurai/ux-qa.json` |
 | `db-migration-analyze` | `db` | `auto` | `not_applicable` | `manual migration review` | `target/jankurai/migration-report.json` |
-| `contract-drift` | `contract` | `advisory` | `ci_evidence` | `handwritten contract drift checks, openapi diff` | `.jankurai/repo-score.json, .jankurai/repo-score.md` |
+| `contract-drift` | `contract` | `advisory` | `artifact_verified` | `handwritten contract drift checks, openapi diff` | `agent/repo-score.json, agent/repo-score.md` |
 | `rust-witness` | `rust` | `auto` | `artifact_verified` | `manual witness graphing` | `target/jankurai/rust/witness-graph.json` |
 | `vibe-coverage` | `audit` | `auto` | `not_applicable` | `manual vibe-coding coverage spreadsheet` | `target/jankurai/vibe-coverage.json, target/jankurai/vibe-coverage.md` |
 | `coverage-evidence` | `proof` | `auto` | `not_applicable` | `manual coverage report review, ad hoc mutation survivor review` | `target/jankurai/coverage/coverage-audit.json, target/jankurai/coverage/coverage-audit.md` |
-| `authz-matrix` | `security` | `auto` | `ci_evidence` | `manual authz matrix review` | `.jankurai/repo-score.json, .jankurai/repo-score.md` |
-| `input-boundary` | `security` | `advisory` | `ci_evidence` | `manual unsafe sink review` | `.jankurai/repo-score.json, .jankurai/repo-score.md` |
-| `agent-tool-supply` | `security` | `advisory` | `ci_evidence` | `manual MCP/tool trust review` | `.jankurai/repo-score.json, .jankurai/repo-score.md` |
-| `release-readiness` | `release` | `auto` | `ci_evidence` | `manual launch checklist` | `.jankurai/repo-score.json, .jankurai/repo-score.md` |
-| `cost-budget` | `release` | `auto` | `ci_evidence` | `manual spend review` | `.jankurai/repo-score.json, .jankurai/repo-score.md` |
+| `authz-matrix` | `security` | `auto` | `artifact_verified` | `manual authz matrix review` | `agent/repo-score.json, agent/repo-score.md` |
+| `input-boundary` | `security` | `advisory` | `artifact_verified` | `manual unsafe sink review` | `agent/repo-score.json, agent/repo-score.md` |
+| `agent-tool-supply` | `security` | `advisory` | `artifact_verified` | `manual MCP/tool trust review` | `agent/repo-score.json, agent/repo-score.md` |
+| `release-readiness` | `release` | `auto` | `artifact_verified` | `manual launch checklist` | `agent/repo-score.json, agent/repo-score.md` |
+| `cost-budget` | `release` | `auto` | `artifact_verified` | `manual spend review` | `agent/repo-score.json, agent/repo-score.md` |
 
 ## Boundary Reclassifications
 
@@ -182,16 +170,7 @@ No audited runtime boundary reclassifications declared.
 
 ## Findings
 
-1. `medium` `shape` `.`
-   Rule: `HLT-001-DEAD-MARKER`
-   Check: `HLT-001-DEAD-MARKER:shape` `soft` confidence `0.76`
-   Route: TLR `Entropy`, lane `fast`, owner `tools`
-   Docs: `docs/audit-rubric.md#future-hostile-language-rule`
-   Reason: `Code shape and semantic surface` scored 80 below the standard floor of 85
-   Fix: split large or ambiguous authored code into smaller semantic modules with focused tests
-   Rerun: `just fast`
-   Fingerprint: `sha256:7ba3d5349c91bbea4a859c738895af234724bc1f4c50d4c327ce5fdd32426788`
-   Evidence: largest authored code file: crates/jailgun-core/src/browser_registry/leases.rs (441 LOC), most code files stay under 300 LOC, copy-code advisory classes found: 10 (advisory only, no score impact), rust bad-behavior advisory signals: 420
+No findings.
 
 ## Policy
 
@@ -201,5 +180,4 @@ No audited runtime boundary reclassifications declared.
 
 ## Agent Fix Queue
 
-1. `medium` `HLT-001-DEAD-MARKER` `.` - split large or ambiguous authored code into smaller semantic modules with focused tests
-   Route: `Entropy`/`fast`
+No queued fixes.

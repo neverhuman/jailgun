@@ -1,6 +1,6 @@
 {
-  "report_fingerprint": "sha256:181213199190cde6217431211927625b827352f306e9a9cbeaabeb0d0d445f4a",
-  "input_fingerprint": "sha256:da04a86b989a60d09c0340dad1a1e703b6b9d615ccb73d655245a958e80a1f27",
+  "report_fingerprint": "sha256:e7d88fd2491ccdf8b2bd62c23f677c63c613ee63dac85a9d6e7a2887d95db5fc",
+  "input_fingerprint": "sha256:2b909783e5be658cdb7a0919a3f6266543aaa93ce398a7b07eadb41a16682220",
   "policy_fingerprint": "sha256:2e02fe1c1919de94a47a99164c962683a934c73ca5bb30bec62384f7b17fe742",
   "manifest_fingerprints": {
     "owner_map": "sha256:c5d6ff65c3420d96e00ff0232f7d382635d4e54169dc799c4c14d8602d9491ef",
@@ -11,11 +11,11 @@
     "standard_version": "sha256:e89e3b08c1e1ab55b195b4041787100956f3888aaba37595bce4403606dcb996"
   },
   "dirty_worktree": false,
-  "generated_at": "1780845382",
+  "generated_at": "1790311586",
   "schema_url": "schemas/repo-score.schema.json",
   "standard": "jankurai",
   "standard_version": "0.9.0",
-  "auditor_version": "1.6.10",
+  "auditor_version": "1.4.3",
   "schema_version": "1.9.0",
   "paper_edition": "2026.05-ed8",
   "target_stack_id": "rust-ts-vite-react-postgres-bounded-python",
@@ -25,23 +25,23 @@
   "conformance_decision": "pass",
   "conformance_blockers": [],
   "repo": ".",
-  "run_id": "1780845382",
-  "started_at": "1780845382",
-  "elapsed_ms": 42222,
+  "run_id": "1790311586",
+  "started_at": "1790311586",
+  "elapsed_ms": 2137,
   "scope": {
     "mode": "full",
     "paths": []
   },
-  "score": 94,
-  "raw_score": 94,
+  "score": 97,
+  "raw_score": 97,
   "decision": {
     "status": "advisory",
     "minimum_score": 85,
     "passed": true,
     "hard_findings": 0,
-    "soft_findings": 1,
+    "soft_findings": 0,
     "ratchet": {
-      "baseline_score": 94,
+      "baseline_score": 97,
       "allowed_drop": 0,
       "passed": true,
       "score_delta": 0,
@@ -54,7 +54,7 @@
     }
   },
   "git": {
-    "head": "86168ce",
+    "head": "7426337",
     "base": null,
     "changed_files": 0,
     "mode": "full",
@@ -67,7 +67,7 @@
     "advisory_on": [],
     "mode": "advisory",
     "standard_version": "0.9.0",
-    "auditor_version": "1.6.10",
+    "auditor_version": "1.4.3",
     "schema_version": "1.9.0",
     "paper_edition": "2026.05-ed8",
     "target_stack": "rust-ts-vite-react-postgres-bounded-python"
@@ -328,7 +328,7 @@
         "security lane present",
         "canonical security lane wrapper present",
         "agent-readiness audit gate found in CI",
-        "rust bad-behavior advisory signals: 420",
+        "rust bad-behavior advisory signals: 424",
         "typescript bad-behavior advisory signals: 1",
         "ci bad-behavior advisory signals: 3",
         "gittools bad-behavior advisory signals: 2",
@@ -341,13 +341,14 @@
     {
       "name": "Code shape and semantic surface",
       "weight": 12,
-      "score": 80,
-      "weighted_points": 9.6,
+      "score": 100,
+      "weighted_points": 12.0,
       "evidence": [
-        "largest authored code file: crates/jailgun-core/src/browser_registry/leases.rs (441 LOC)",
+        "largest authored code file: crates/jailgun-core/src/browser_registry/leases.rs (331 LOC)",
         "most code files stay under 300 LOC",
         "copy-code advisory classes found: 10 (advisory only, no score impact)",
-        "rust bad-behavior advisory signals: 420",
+        "authored code stays below hard LOC limits with no shape markers",
+        "rust bad-behavior advisory signals: 424",
         "typescript bad-behavior advisory signals: 1",
         "ci bad-behavior advisory signals: 3",
         "gittools bad-behavior advisory signals: 2",
@@ -405,21 +406,16 @@
     {
       "name": "Jankurai tool adoption and CI replacement",
       "weight": 7,
-      "score": 95,
-      "weighted_points": 6.65,
+      "score": 100,
+      "weighted_points": 7.0,
       "evidence": [
         "control-plane files present",
         "applicable=17",
         "configured=17",
         "ci_evidence=17",
-        "artifact_verified=9"
+        "artifact_verified=17"
       ],
-      "notes": [
-        "missing CI evidence for `audit-ci`",
-        "missing CI evidence for `proof-routing`",
-        "missing CI evidence for `contract-drift`",
-        "missing CI evidence for `authz-matrix`"
-      ]
+      "notes": []
     },
     {
       "name": "Python containment and polyglot hygiene",
@@ -459,8 +455,6 @@
         "scripts/render-dashboard-ux-qa.mjs"
       ],
       "api_mocks": [
-        "artifacts/download-failures/openqg-live-g0001-08-failure-slicing-hard_stage_repair-a2-67a1cf4d9ce3/tab-01/2026-06-07T14-58-10-630Z-done-no-tar/page.html",
-        "artifacts/download-failures/openqg-live-g0001-09-selection-mutation-hard_stage_repair-a1-dce84da8be0a/tab-01/2026-06-07T15-03-25-809Z-done-no-tar/page.html",
         "ops/ci/ux-qa.sh",
         "package-lock.json",
         "scripts/render-dashboard-ux-qa.mjs"
@@ -484,7 +478,6 @@
         "apps/browser-adapter/src/domContracts/rateLimit.ts"
       ],
       "layout_stability": [
-        "artifacts/download-failures/openqg-live-g0050-04-repair-genes-hard_stage_repair-a1-f306642f84d8/tab-01/2026-06-07T13-35-10-545Z-done-no-tar/page.html",
         "ops/ci/ux-qa.sh",
         "scripts/render-dashboard-ux-qa.mjs"
       ],
@@ -494,39 +487,12 @@
         "scripts/render-dashboard-ux-qa.mjs"
       ],
       "storybook": [
-        "agent/repo-score.json",
-        "artifacts/download-failures/openqg-live-g0001-04-repair-genes-hard_stage_repair-a2-4dac464c314a/tab-01/2026-06-07T13-20-44-192Z-timeout-no-tar/page.html"
+        "agent/repo-score.json"
       ],
       "visual_review": [
         "ops/ci/ux-qa.sh",
         "scripts/render-dashboard-ux-qa.mjs"
       ]
-    },
-    "artifact": {
-      "path": "target/jankurai/ux-qa.json",
-      "report_count": 2,
-      "worst_decision": "pass",
-      "total_violations": 0,
-      "summary_errors": 0,
-      "summary_warnings": 0,
-      "reports_missing_required_states": 0,
-      "missing_state_names": [],
-      "artifact_counts_by_kind": {
-        "accessibility": 2,
-        "aria-snapshot": 2,
-        "screenshot": 2
-      },
-      "reports_missing_required_artifacts": 0,
-      "missing_artifact_kinds": [],
-      "reports_missing_required_accessibility_artifact": 0,
-      "accessibility_violation_total": 0,
-      "accessibility_incomplete_total": 0,
-      "accessibility_pass_total": 24,
-      "artifact_fingerprint_count": 6,
-      "visual_baseline_missing": 0,
-      "visual_baseline_changed": 0,
-      "visual_baseline_review": 0,
-      "visual_baseline_block": 0
     }
   },
   "tool_adoption": {
@@ -534,7 +500,7 @@
     "applicable_count": 17,
     "configured_count": 17,
     "ci_evidence_count": 17,
-    "artifact_verified_count": 9,
+    "artifact_verified_count": 17,
     "replaced_count": 17,
     "items": [
       {
@@ -542,7 +508,7 @@
         "category": "audit",
         "mode": "advisory",
         "applicable": true,
-        "status": "ci_evidence",
+        "status": "artifact_verified",
         "replaced_tools": [
           "manual repo scoring",
           "ad hoc score gates"
@@ -550,16 +516,15 @@
         "evidence": [
           "mode=advisory",
           "tool-adoption config entry present",
-          "CI command found in workflow"
+          "CI command found in workflow",
+          "artifact uploads found: agent/repo-score.json, agent/repo-score.md"
         ],
-        "missing": [
-          "artifact upload reference"
-        ],
-        "local_command": "jankurai audit . --mode advisory --json .jankurai/repo-score.json --md .jankurai/repo-score.md",
+        "missing": [],
+        "local_command": "jankurai audit . --mode advisory --json agent/repo-score.json --md agent/repo-score.md",
         "ci_command": "jankurai audit . --mode ratchet --baseline target/jankurai/accepted-baseline.json --json target/jankurai/repo-score.json --md target/jankurai/repo-score.md",
         "artifact_paths": [
-          ".jankurai/repo-score.json",
-          ".jankurai/repo-score.md"
+          "agent/repo-score.json",
+          "agent/repo-score.md"
         ]
       },
       {
@@ -567,7 +532,7 @@
         "category": "proof",
         "mode": "advisory",
         "applicable": true,
-        "status": "ci_evidence",
+        "status": "artifact_verified",
         "replaced_tools": [
           "ad hoc proof lane selection",
           "manual proof receipts"
@@ -575,16 +540,15 @@
         "evidence": [
           "mode=advisory",
           "tool-adoption config entry present",
-          "CI command found in workflow"
+          "CI command found in workflow",
+          "artifact uploads found: agent/repo-score.json, agent/repo-score.md, target/jankurai/repair-queue.jsonl"
         ],
-        "missing": [
-          "artifact upload reference"
-        ],
+        "missing": [],
         "local_command": "jankurai proof . --changed-from origin/main --out target/jankurai/proof-plan.json --md target/jankurai/proof-plan.md",
         "ci_command": "jankurai audit . --mode ratchet --baseline target/jankurai/accepted-baseline.json --json target/jankurai/repo-score.json --md target/jankurai/repo-score.md",
         "artifact_paths": [
-          ".jankurai/repo-score.json",
-          ".jankurai/repo-score.md",
+          "agent/repo-score.json",
+          "agent/repo-score.md",
           "target/jankurai/repair-queue.jsonl"
         ]
       },
@@ -804,7 +768,7 @@
         "category": "contract",
         "mode": "advisory",
         "applicable": true,
-        "status": "ci_evidence",
+        "status": "artifact_verified",
         "replaced_tools": [
           "handwritten contract drift checks",
           "openapi diff"
@@ -812,16 +776,15 @@
         "evidence": [
           "mode=advisory",
           "tool-adoption config entry present",
-          "CI command found in workflow"
+          "CI command found in workflow",
+          "artifact uploads found: agent/repo-score.json, agent/repo-score.md"
         ],
-        "missing": [
-          "artifact upload reference"
-        ],
-        "local_command": "jankurai audit . --mode advisory --json .jankurai/repo-score.json --md .jankurai/repo-score.md",
+        "missing": [],
+        "local_command": "jankurai audit . --mode advisory --json agent/repo-score.json --md agent/repo-score.md",
         "ci_command": "jankurai audit . --mode ratchet --baseline target/jankurai/accepted-baseline.json --json target/jankurai/repo-score.json --md target/jankurai/repo-score.md",
         "artifact_paths": [
-          ".jankurai/repo-score.json",
-          ".jankurai/repo-score.md"
+          "agent/repo-score.json",
+          "agent/repo-score.md"
         ]
       },
       {
@@ -892,23 +855,22 @@
         "category": "security",
         "mode": "auto",
         "applicable": true,
-        "status": "ci_evidence",
+        "status": "artifact_verified",
         "replaced_tools": [
           "manual authz matrix review"
         ],
         "evidence": [
           "mode=auto",
           "tool-adoption config entry present",
-          "CI command found in workflow"
+          "CI command found in workflow",
+          "artifact uploads found: agent/repo-score.json, agent/repo-score.md"
         ],
-        "missing": [
-          "artifact upload reference"
-        ],
-        "local_command": "jankurai audit . --mode advisory --json .jankurai/repo-score.json --md .jankurai/repo-score.md",
+        "missing": [],
+        "local_command": "jankurai audit . --mode advisory --json agent/repo-score.json --md agent/repo-score.md",
         "ci_command": "jankurai audit . --mode ratchet --baseline target/jankurai/accepted-baseline.json --json target/jankurai/repo-score.json --md target/jankurai/repo-score.md",
         "artifact_paths": [
-          ".jankurai/repo-score.json",
-          ".jankurai/repo-score.md"
+          "agent/repo-score.json",
+          "agent/repo-score.md"
         ]
       },
       {
@@ -916,23 +878,22 @@
         "category": "security",
         "mode": "advisory",
         "applicable": true,
-        "status": "ci_evidence",
+        "status": "artifact_verified",
         "replaced_tools": [
           "manual unsafe sink review"
         ],
         "evidence": [
           "mode=advisory",
           "tool-adoption config entry present",
-          "CI command found in workflow"
+          "CI command found in workflow",
+          "artifact uploads found: agent/repo-score.json, agent/repo-score.md"
         ],
-        "missing": [
-          "artifact upload reference"
-        ],
-        "local_command": "jankurai audit . --mode advisory --json .jankurai/repo-score.json --md .jankurai/repo-score.md",
+        "missing": [],
+        "local_command": "jankurai audit . --mode advisory --json agent/repo-score.json --md agent/repo-score.md",
         "ci_command": "jankurai audit . --mode ratchet --baseline target/jankurai/accepted-baseline.json --json target/jankurai/repo-score.json --md target/jankurai/repo-score.md",
         "artifact_paths": [
-          ".jankurai/repo-score.json",
-          ".jankurai/repo-score.md"
+          "agent/repo-score.json",
+          "agent/repo-score.md"
         ]
       },
       {
@@ -940,23 +901,22 @@
         "category": "security",
         "mode": "advisory",
         "applicable": true,
-        "status": "ci_evidence",
+        "status": "artifact_verified",
         "replaced_tools": [
           "manual MCP/tool trust review"
         ],
         "evidence": [
           "mode=advisory",
           "tool-adoption config entry present",
-          "CI command found in workflow"
+          "CI command found in workflow",
+          "artifact uploads found: agent/repo-score.json, agent/repo-score.md"
         ],
-        "missing": [
-          "artifact upload reference"
-        ],
-        "local_command": "jankurai audit . --mode advisory --json .jankurai/repo-score.json --md .jankurai/repo-score.md",
+        "missing": [],
+        "local_command": "jankurai audit . --mode advisory --json agent/repo-score.json --md agent/repo-score.md",
         "ci_command": "jankurai audit . --mode ratchet --baseline target/jankurai/accepted-baseline.json --json target/jankurai/repo-score.json --md target/jankurai/repo-score.md",
         "artifact_paths": [
-          ".jankurai/repo-score.json",
-          ".jankurai/repo-score.md"
+          "agent/repo-score.json",
+          "agent/repo-score.md"
         ]
       },
       {
@@ -964,23 +924,22 @@
         "category": "release",
         "mode": "auto",
         "applicable": true,
-        "status": "ci_evidence",
+        "status": "artifact_verified",
         "replaced_tools": [
           "manual launch checklist"
         ],
         "evidence": [
           "mode=auto",
           "tool-adoption config entry present",
-          "CI command found in workflow"
+          "CI command found in workflow",
+          "artifact uploads found: agent/repo-score.json, agent/repo-score.md"
         ],
-        "missing": [
-          "artifact upload reference"
-        ],
-        "local_command": "jankurai audit . --mode advisory --json .jankurai/repo-score.json --md .jankurai/repo-score.md",
+        "missing": [],
+        "local_command": "jankurai audit . --mode advisory --json agent/repo-score.json --md agent/repo-score.md",
         "ci_command": "jankurai audit . --mode ratchet --baseline target/jankurai/accepted-baseline.json --json target/jankurai/repo-score.json --md target/jankurai/repo-score.md",
         "artifact_paths": [
-          ".jankurai/repo-score.json",
-          ".jankurai/repo-score.md"
+          "agent/repo-score.json",
+          "agent/repo-score.md"
         ]
       },
       {
@@ -988,23 +947,22 @@
         "category": "release",
         "mode": "auto",
         "applicable": true,
-        "status": "ci_evidence",
+        "status": "artifact_verified",
         "replaced_tools": [
           "manual spend review"
         ],
         "evidence": [
           "mode=auto",
           "tool-adoption config entry present",
-          "CI command found in workflow"
+          "CI command found in workflow",
+          "artifact uploads found: agent/repo-score.json, agent/repo-score.md"
         ],
-        "missing": [
-          "artifact upload reference"
-        ],
-        "local_command": "jankurai audit . --mode advisory --json .jankurai/repo-score.json --md .jankurai/repo-score.md",
+        "missing": [],
+        "local_command": "jankurai audit . --mode advisory --json agent/repo-score.json --md agent/repo-score.md",
         "ci_command": "jankurai audit . --mode ratchet --baseline target/jankurai/accepted-baseline.json --json target/jankurai/repo-score.json --md target/jankurai/repo-score.md",
         "artifact_paths": [
-          ".jankurai/repo-score.json",
-          ".jankurai/repo-score.md"
+          "agent/repo-score.json",
+          "agent/repo-score.md"
         ]
       }
     ],
@@ -1029,8 +987,10 @@
         "release-readiness",
         "cost-budget"
       ],
-      "artifact_verified_count": 9,
+      "artifact_verified_count": 17,
       "artifact_verified_tools": [
+        "audit-ci",
+        "proof-routing",
         "proofbind",
         "proofmark-rust",
         "copy-code",
@@ -1039,7 +999,13 @@
         "git-bad-behavior",
         "release-bad-behavior",
         "ux-qa",
-        "rust-witness"
+        "contract-drift",
+        "rust-witness",
+        "authz-matrix",
+        "input-boundary",
+        "agent-tool-supply",
+        "release-readiness",
+        "cost-budget"
       ],
       "ci_evidence_count": 17,
       "ci_evidence_tools": [
@@ -1084,16 +1050,7 @@
       ],
       "control_plane_present": true
     },
-    "missing": [
-      "audit-ci",
-      "proof-routing",
-      "contract-drift",
-      "authz-matrix",
-      "input-boundary",
-      "agent-tool-supply",
-      "release-readiness",
-      "cost-budget"
-    ]
+    "missing": []
   },
   "security_evidence": {},
   "boundaries": {
@@ -1102,9 +1059,9 @@
   "copy_code": {
     "schema_version": "1.1.0",
     "generated_by": "jankurai copy-code",
-    "generated_at": "2026-06-07T15:15:41.233651562+00:00",
+    "generated_at": "2026-09-25T04:46:24.836130584+00:00",
     "repo": ".",
-    "auditor_version": "1.6.10",
+    "auditor_version": "1.4.3",
     "status": "review",
     "policy": {
       "active_source_only": true,
@@ -1140,9 +1097,9 @@
       ]
     },
     "summary": {
-      "files_scanned": 652,
-      "files_considered": 175,
-      "active_files": 175,
+      "files_scanned": 342,
+      "files_considered": 178,
+      "active_files": 178,
       "exact_file_classes": 0,
       "hard_classes": 0,
       "warning_classes": 10,
@@ -1371,7 +1328,7 @@
         "total_redundant_bytes": 20,
         "effective_severity": "warning",
         "hard_fail": false,
-        "fingerprint": "14f560c367920139",
+        "fingerprint": "a4b51a89af6234fd",
         "reason": "same body appears under different names across files",
         "recommended_action": "choose one owner for the shared body or intentionally differentiate the behavior",
         "instances": [
@@ -1383,10 +1340,10 @@
             "unit_name": "default_true"
           },
           {
-            "path": "crates/jailgun-core/src/browser_registry/leases.rs",
+            "path": "crates/jailgun-core/src/browser_registry/leases/store.rs",
             "language": "rust",
-            "start_line": 439,
-            "end_line": 441,
+            "start_line": 125,
+            "end_line": 127,
             "unit_name": "owner_process_is_alive"
           },
           {
@@ -1775,42 +1732,6 @@
       "noncanonical_count": 0
     }
   },
-  "findings": [
-    {
-      "severity": "medium",
-      "category": "shape",
-      "path": ".",
-      "problem": "`Code shape and semantic surface` scored 80 below the standard floor of 85",
-      "agent_fix": "split large or ambiguous authored code into smaller semantic modules with focused tests",
-      "evidence": [
-        "largest authored code file: crates/jailgun-core/src/browser_registry/leases.rs (441 LOC)",
-        "most code files stay under 300 LOC",
-        "copy-code advisory classes found: 10 (advisory only, no score impact)",
-        "rust bad-behavior advisory signals: 420"
-      ],
-      "check_id": "HLT-001-DEAD-MARKER:shape",
-      "hardness": "soft",
-      "confidence": 0.76,
-      "evidence_kind": "repository-scan",
-      "rerun_command": "just fast",
-      "fingerprint": "sha256:7ba3d5349c91bbea4a859c738895af234724bc1f4c50d4c327ce5fdd32426788",
-      "rule_id": "HLT-001-DEAD-MARKER",
-      "tlr": "Entropy",
-      "lane": "fast",
-      "docs_url": "docs/audit-rubric.md#future-hostile-language-rule",
-      "owner": "tools"
-    }
-  ],
-  "agent_fix_queue": [
-    {
-      "path": ".",
-      "priority": "medium",
-      "rule_id": "HLT-001-DEAD-MARKER",
-      "tlr": "Entropy",
-      "lane": "fast",
-      "owner": "tools",
-      "task": "split large or ambiguous authored code into smaller semantic modules with focused tests",
-      "why": "`Code shape and semantic surface` scored 80 below the standard floor of 85"
-    }
-  ]
+  "findings": [],
+  "agent_fix_queue": []
 }
