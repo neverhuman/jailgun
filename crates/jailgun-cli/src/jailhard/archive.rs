@@ -161,7 +161,7 @@ pub(super) fn reject_project_root_folder(
     let invocation_name = invocation_dir
         .file_name()
         .and_then(|name| name.to_str())
-        .unwrap_or_default();
+        .unwrap_or("");
     let source_top_levels = manifest
         .selected_files
         .iter()

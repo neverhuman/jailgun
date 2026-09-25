@@ -33,9 +33,10 @@ impl Default for BrowserProfileRegistry {
 
 impl BrowserProfileRegistry {
     pub fn default_path_from_env(env_name: &str) -> PathBuf {
-        env::var_os(env_name)
-            .map(PathBuf::from)
-            .unwrap_or_else(default_registry_path)
+        match env::var_os(env_name) {
+            Some(value) => PathBuf::from(value),
+            None => default_registry_path(),
+        }
     }
 
     pub fn load_or_default(path: &Path) -> Result<Self, BrowserRegistryError> {
@@ -96,7 +97,10 @@ impl BrowserProfileRegistry {
         cdp_port: u16,
         max_tabs: u16,
     ) -> Result<BrowserAccount, BrowserRegistryError> {
-        let id = id.unwrap_or_else(|| default_account_id(email_hint));
+        let id = match id {
+            Some(id) => id,
+            None => default_account_id(email_hint),
+        };
         validate_account_id(&id)?;
         let account = BrowserAccount {
             id: id.clone(),

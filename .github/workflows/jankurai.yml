@@ -36,7 +36,7 @@ jobs:
         env:
           JANKURAI_CHECK_GIT_DIFF: "0"
       - name: Enforce zero findings
-        run: jq -e '.caps == 0 and (.findings | length == 0) and .score >= 95' agent/repo-score.json
+        run: jq -e '(.caps_applied | length) == 0 and (.findings | length == 0) and .score >= 95' agent/repo-score.json
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         if: always()
         with:

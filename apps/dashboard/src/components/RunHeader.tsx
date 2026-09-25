@@ -74,7 +74,9 @@ function RunMetric({
 function RunElapsed({ startedAt, finishedAt }: { startedAt: string; finishedAt: string | null }) {
   const [now, setNow] = useState(Date.now());
   useEffect(() => {
-    if (finishedAt) return undefined;
+    if (finishedAt) {
+      return;
+    }
     const interval = window.setInterval(() => setNow(Date.now()), 1_000);
     return () => window.clearInterval(interval);
   }, [finishedAt]);

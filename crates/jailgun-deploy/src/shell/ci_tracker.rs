@@ -156,9 +156,9 @@ fn parse_gh_run_list(bytes: &[u8]) -> Result<CiState, DeployError> {
         return Ok(CiState::Pending { run_id: None });
     };
     let run_id = run.database_id.map(|id| id.to_string()).unwrap_or_default();
-    let url = run.url.unwrap_or_default();
-    let status = run.status.unwrap_or_default();
-    let conclusion = run.conclusion.unwrap_or_default();
+    let url = run.url.unwrap_or_else(String::new);
+    let status = run.status.unwrap_or_else(String::new);
+    let conclusion = run.conclusion.unwrap_or_else(String::new);
     if status != "completed" {
         return Ok(CiState::Pending {
             run_id: if run_id.is_empty() {

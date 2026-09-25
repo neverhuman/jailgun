@@ -40,6 +40,10 @@
   passes, and bumped Vite to 6.4.3 and Vitest to 4.1.11 so the locked PostCSS,
   nanoid, browserslist, and baseline-browser-mapping packages clear the
   high-severity npm audit range.
+- Install gitleaks from `github.com/zricethezav/gitleaks/v8`, and run
+  dependency review only when the repository dependency graph is enabled.
+- Score the Jankurai gate against `caps_applied`, which is the field the
+  pinned auditor writes.
 - Artifact and tar recovery: generic ChatGPT artifact downloads, current-page
   and tar-indexed browser downloads, malformed artifact sandbox responses,
   artifact-safe tab prompt prefixes, tar download false positives, fail-fast

@@ -95,10 +95,10 @@ pub async fn run(args: JailhardArgs) -> Result<()> {
         tabs_override: Some(tabs),
         no_deploy: true,
         dry_run: true,
-        profile_dir: accounts
-            .first()
-            .map(|account| account.profile_dir.clone())
-            .unwrap_or_else(default_managed_chrome_profile_dir),
+        profile_dir: match accounts.first() {
+            Some(account) => account.profile_dir.clone(),
+            None => default_managed_chrome_profile_dir(),
+        },
         profile_pool: accounts
             .iter()
             .map(|account| account.profile_dir.clone())

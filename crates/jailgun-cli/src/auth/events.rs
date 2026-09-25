@@ -39,7 +39,7 @@ pub(super) async fn next_auth_event(
                 eprintln!(
                     "auth state: {} ({})",
                     payload.state,
-                    payload.reason.unwrap_or_default()
+                    payload.reason.unwrap_or_else(String::new)
                 );
             }
             BridgeEvent::AuthCodeRequested(payload) => {
@@ -49,7 +49,7 @@ pub(super) async fn next_auth_event(
                         .destination_hint
                         .as_deref()
                         .map(|hint| format!(": {hint}"))
-                        .unwrap_or_default()
+                        .unwrap_or_else(String::new)
                 );
                 return Ok(AuthEvent::CodeRequested);
             }

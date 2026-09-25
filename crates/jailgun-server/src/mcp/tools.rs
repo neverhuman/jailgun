@@ -95,10 +95,10 @@ pub(super) async fn mcp_call_tool(
             })),
         );
     };
-    let arguments = params
-        .get("arguments")
-        .cloned()
-        .unwrap_or_else(|| json!({}));
+    let arguments = match params.get("arguments").cloned() {
+        Some(arguments) => arguments,
+        None => json!({}),
+    };
     let response = match tool_name {
         "jailgun.run" => start_agent_run_inner(
             State(state.clone()),

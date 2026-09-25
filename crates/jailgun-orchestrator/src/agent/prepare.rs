@@ -107,13 +107,15 @@ pub fn prepare_agent_run(
         &config.browser.profile_dir_env,
         default_managed_chrome_profile_dir(),
     )?;
-    let repo_url = request
-        .source_archive
-        .repo_url
-        .clone()
-        .or_else(|| request.repo.repository.clone())
-        .or_else(|| env::var(&config.source_archive.repo_url_env).ok())
-        .unwrap_or_else(|| config.project.repository.clone());
+    let repo_url = if let Some(repo_url) = request.source_archive.repo_url.clone() {
+        repo_url
+    } else if let Some(repository) = request.repo.repository.clone() {
+        repository
+    } else if let Ok(from_env) = env::var(&config.source_archive.repo_url_env) {
+        from_env
+    } else {
+        config.project.repository.clone()
+    };
     let ci_repo = request
         .ci
         .repo
@@ -173,13 +175,15 @@ pub fn prepare_agent_run(
     }
 
     let bridge_cmd = bridge_command(request.browser.bridge_cmd.clone())?;
-    let run_id = request.run_id.clone().unwrap_or_else(default_run_id);
+    let run_id = match request.run_id.clone() {
+        Some(run_id) => run_id,
+        None => default_run_id(),
+    };
     let started_at = timestamp_now();
-    let deploy_expected_top_level = request
-        .deploy
-        .expected_top_level
-        .clone()
-        .or_else(|| request.source_archive.expected_top_level.clone());
+    let deploy_expected_top_level = match request.deploy.expected_top_level.clone() {
+        Some(level) => Some(level),
+        None => request.source_archive.expected_top_level.clone(),
+    };
     let opts = RunOptions {
         run_id: run_id.clone(),
         config: config.clone(),
@@ -202,7 +206,10 @@ pub fn prepare_agent_run(
         deploy_expected_top_level: deploy_expected_top_level.clone(),
         ci_tracker_enabled: request.ci.enabled,
         ci_repo,
-        ci_branch: request.ci.branch.clone().unwrap_or_else(|| "main".into()),
+        ci_branch: match request.ci.branch.clone() {
+            Some(branch) => branch,
+            None => "main".into(),
+        },
         ci_max_attempts: request.ci.max_attempts.unwrap_or(20),
         ci_poll_seconds: request.ci.poll_seconds.unwrap_or(30),
         status_max_minutes: 30,
@@ -246,12 +253,10 @@ fn apply_request_config_overrides(
     if let Some(enabled) = request.source_archive.enabled {
         config.source_archive.enabled = enabled;
     }
-    if let Some(ref_name) = request
-        .source_archive
-        .ref_name
-        .clone()
-        .or_else(|| request.repo.ref_name.clone())
-    {
+    if let Some(ref_name) = match request.source_archive.ref_name.clone() {
+        Some(ref_name) => Some(ref_name),
+        None => request.repo.ref_name.clone(),
+    } {
         config.source_archive.ref_name = ref_name;
     }
     config.deploy.enabled = request.deploy.enabled;

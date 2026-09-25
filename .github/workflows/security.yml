@@ -39,11 +39,19 @@ jobs:
       - run: sudo apt-get update && sudo apt-get install -y ripgrep
       - run: npm ci
       - run: bash ops/ci/security.sh
-      - uses: actions/dependency-review-action@2031cfc080254a8a887f58cffee85186f0e49e48
+      - name: Check dependency graph
+        id: depgraph
         if: github.event_name == 'pull_request'
-        # Advisory until repo Dependency graph is enabled. The action errors
-        # with "Dependency review is not supported" and cannot scan the diff.
-        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if bash ops/ci/dependency_graph_enabled.sh; then
+            echo "run=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "run=false" >> "$GITHUB_OUTPUT"
+          fi
+      - uses: actions/dependency-review-action@2031cfc080254a8a887f58cffee85186f0e49e48
+        if: github.event_name == 'pull_request' && steps.depgraph.outputs.run == 'true'
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         if: always()
         with:
