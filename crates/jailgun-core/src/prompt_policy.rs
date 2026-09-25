@@ -23,6 +23,8 @@ pub struct ToolPrompt {
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct PromptPolicy {
     pub deny_github_write_by_default: bool,
+    #[serde(default)]
+    pub allow_write_prompts: bool,
     pub allow_info_prompts: bool,
     pub allowed_repositories: Vec<String>,
 }
@@ -32,6 +34,7 @@ pub struct PromptPolicy {
 pub enum PromptDecision {
     Deny { reason: String },
     AllowInfo { reason: String },
+    AllowWrite { reason: String },
     Ignore { reason: String },
 }
 
@@ -76,6 +79,10 @@ impl PromptPolicy {
                     PromptDecision::Deny {
                         reason: "github-write-denied-by-default".into(),
                     }
+                } else if self.allow_write_prompts {
+                    PromptDecision::AllowWrite {
+                        reason: "explicit-github-write-policy".into(),
+                    }
                 } else {
                     PromptDecision::Deny {
                         reason: "github-write-requires-explicit-narrow-policy".into(),
@@ -93,6 +100,7 @@ impl Default for PromptPolicy {
     fn default() -> Self {
         Self {
             deny_github_write_by_default: true,
+            allow_write_prompts: false,
             allow_info_prompts: false,
             allowed_repositories: Vec::new(),
         }
@@ -129,5 +137,18 @@ mod tests {
         policy.allow_info_prompts = true;
         let allowed = policy.decide(&github_prompt(ToolPromptAction::Read));
         assert!(matches!(allowed, PromptDecision::AllowInfo { .. }));
+    }
+
+    #[test]
+    fn allows_github_write_only_with_explicit_policy() {
+        let mut policy = PromptPolicy::default();
+        let denied = policy.decide(&github_prompt(ToolPromptAction::Write));
+        assert!(matches!(denied, PromptDecision::Deny { .. }));
+
+        policy.deny_github_write_by_default = false;
+        policy.allow_write_prompts = true;
+        policy.allowed_repositories = vec!["org/example".into()];
+        let allowed = policy.decide(&github_prompt(ToolPromptAction::Write));
+        assert!(matches!(allowed, PromptDecision::AllowWrite { .. }));
     }
 }

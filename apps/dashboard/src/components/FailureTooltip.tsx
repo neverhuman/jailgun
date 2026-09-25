@@ -10,7 +10,7 @@ interface FailureTooltipProps {
 
 export function FailureTooltip({ summary, visible }: FailureTooltipProps) {
   if (!visible) {
-    return null;
+    return <></>;
   }
   const headerLines: string[] = [];
   if (summary.outcome) headerLines.push(`outcome=${summary.outcome}`);

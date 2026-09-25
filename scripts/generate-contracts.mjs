@@ -36,6 +36,13 @@ const schema = {
         'prompt-policy',
         'rate-limit-detected',
         'browser-log',
+        'auth-state',
+        'auth-action-needed',
+        'auth-code-requested',
+        'auth-code-submitted',
+        'auth-complete',
+        'auth-failed',
+        'session-expired',
         'error'
       ]
     },
@@ -114,6 +121,91 @@ const fixtures = {
       status: 'running',
       candidate_count: '0',
       page_url: 'https://chatgpt.com/'
+    }
+  },
+  'auth-state.json': {
+    run_id: 'auth-acct-fixture',
+    tab_id: null,
+    timestamp: '2026-05-31T12:06:50Z',
+    kind: 'auth-state',
+    severity: 'info',
+    message: 'auth state updated',
+    fields: {
+      state: 'code-requested',
+      page_url: 'https://chatgpt.com/',
+      composer_detected: 'false',
+      code_requested: 'true'
+    }
+  },
+  'auth-action-needed.json': {
+    run_id: 'auth-acct-fixture',
+    tab_id: null,
+    timestamp: '2026-05-31T12:06:51Z',
+    kind: 'auth-action-needed',
+    severity: 'warn',
+    message: 'manual browser auth action needed',
+    fields: {
+      action: 'manual-browser-required',
+      reason: 'password prompt detected'
+    }
+  },
+  'auth-code-requested.json': {
+    run_id: 'auth-acct-fixture',
+    tab_id: null,
+    timestamp: '2026-05-31T12:06:52Z',
+    kind: 'auth-code-requested',
+    severity: 'info',
+    message: 'auth email code requested',
+    fields: {
+      channel: 'email',
+      destination_hint: 'email verification'
+    }
+  },
+  'auth-code-submitted.json': {
+    run_id: 'auth-acct-fixture',
+    tab_id: null,
+    timestamp: '2026-05-31T12:06:53Z',
+    kind: 'auth-code-submitted',
+    severity: 'info',
+    message: 'auth code submitted',
+    fields: {
+      accepted: 'true'
+    }
+  },
+  'auth-complete.json': {
+    run_id: 'auth-acct-fixture',
+    tab_id: null,
+    timestamp: '2026-05-31T12:06:54Z',
+    kind: 'auth-complete',
+    severity: 'info',
+    message: 'auth complete',
+    fields: {
+      page_url: 'https://chatgpt.com/',
+      composer_detected: 'true'
+    }
+  },
+  'auth-failed.json': {
+    run_id: 'auth-acct-fixture',
+    tab_id: null,
+    timestamp: '2026-05-31T12:06:55Z',
+    kind: 'auth-failed',
+    severity: 'error',
+    message: 'auth failed',
+    fields: {
+      reason: 'manual browser required',
+      manual_browser_required: 'true'
+    }
+  },
+  'session-expired.json': {
+    run_id: 'auth-acct-fixture',
+    tab_id: null,
+    timestamp: '2026-05-31T12:06:56Z',
+    kind: 'session-expired',
+    severity: 'warn',
+    message: 'session expired',
+    fields: {
+      page_url: 'https://chatgpt.com/',
+      reason: 'session expired prompt detected'
     }
   },
   'tar-discovered.json': {

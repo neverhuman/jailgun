@@ -1,0 +1,12 @@
+{
+  "run_id": "auth-acct-fixture",
+  "tab_id": null,
+  "timestamp": "2026-05-31T12:06:56Z",
+  "kind": "session-expired",
+  "severity": "warn",
+  "message": "session expired",
+  "fields": {
+    "page_url": "https://chatgpt.com/",
+    "reason": "session expired prompt detected"
+  }
+}

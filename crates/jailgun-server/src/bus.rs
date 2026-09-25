@@ -42,9 +42,9 @@ impl EventBus for RecordingBus {
 
 impl RecordingBus {
     pub fn snapshot(&self) -> Vec<JailgunEvent> {
-        self.events
-            .lock()
-            .map(|guard| guard.clone())
-            .unwrap_or_default()
+        match self.events.lock() {
+            Ok(guard) => guard.clone(),
+            Err(_) => Vec::new(),
+        }
     }
 }

@@ -5,6 +5,7 @@ use thiserror::Error;
 
 use crate::{
     agent_error::{AgentError, AgentErrorExt},
+    browser_registry::DEFAULT_BROWSER_REGISTRY_ENV,
     prompt_policy::PromptPolicy,
     source_archive::SourceArchiveConfig,
 };
@@ -55,6 +56,8 @@ pub struct BrowserConfig {
     pub tar_wait_minutes: u16,
     pub profile_dir_env: String,
     pub state_dir_env: String,
+    #[serde(default = "default_profile_registry_env")]
+    pub profile_registry_env: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
@@ -207,6 +210,7 @@ impl Default for JailgunConfig {
                 tar_wait_minutes: 30,
                 profile_dir_env: "JAILGUN_CHROME_PROFILE_DIR".into(),
                 state_dir_env: "JAILGUN_CHROME_STATE_DIR".into(),
+                profile_registry_env: DEFAULT_BROWSER_REGISTRY_ENV.into(),
             },
             paths: PathConfig {
                 artifacts_dir: "artifacts".into(),
@@ -227,11 +231,16 @@ impl Default for JailgunConfig {
             },
             prompt_policy: PromptPolicy {
                 deny_github_write_by_default: true,
+                allow_write_prompts: false,
                 allow_info_prompts: false,
                 allowed_repositories: Vec::new(),
             },
         }
     }
+}
+
+fn default_profile_registry_env() -> String {
+    DEFAULT_BROWSER_REGISTRY_ENV.into()
 }
 
 #[cfg(test)]

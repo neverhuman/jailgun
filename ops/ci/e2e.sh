@@ -14,7 +14,7 @@ ci_require_cmd python3
 workers="${JAILGUN_WORKERS:-5}"
 
 ci_log "validate the deterministic test config"
-cargo run --quiet -p jailgun-cli -- validate-config \
+cargo run --quiet -p jailgun-cli --bin jailgun -- validate-config \
   --config test-fixtures/jailgun.test.toml > /dev/null
 
 ci_log "run fake backend integration tests against deploy_remote"

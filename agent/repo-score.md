@@ -7,15 +7,15 @@
 - Target stack ID: `rust-ts-vite-react-postgres-bounded-python`
 - Target stack: `Rust core + TypeScript/React/Vite + PostgreSQL + generated contracts + exception-only Python AI/data service`
 - Repo: `.`
-- Run ID: `1780292842`
-- Started at: `1780292842`
-- Elapsed: `13307` ms
+- Run ID: `1790311586`
+- Started at: `1790311586`
+- Elapsed: `2137` ms
 - Scope: `full`
-- Raw score: `87`
-- Final score: `70`
+- Raw score: `97`
+- Final score: `97`
 - Decision: `advisory`
 - Minimum score: `85`
-- Caps applied: `fallback-soup-in-product-code, authz-or-data-isolation-gap`
+- Caps applied: `none`
 
 ## Hard Rule Caps
 
@@ -34,7 +34,7 @@
 | `too-much-python-in-product-surface` | 72 | no |
 | `boundary-reclassification-evidence-gap` | 72 | no |
 | `vibe-placeholders-in-product-code` | 68 | no |
-| `fallback-soup-in-product-code` | 70 | yes |
+| `fallback-soup-in-product-code` | 70 | no |
 | `future-hostile-dead-language-in-product-code` | 64 | no |
 | `severe-duplication-in-product-code` | 70 | no |
 | `generated-zone-mutation-risk` | 76 | no |
@@ -46,7 +46,7 @@
 | `secret-like-content-detected` | 60 | no |
 | `false-green-test-risk` | 76 | no |
 | `destructive-migration-risk` | 70 | no |
-| `authz-or-data-isolation-gap` | 78 | yes |
+| `authz-or-data-isolation-gap` | 78 | no |
 | `input-boundary-gap` | 78 | no |
 | `agent-tool-supply-chain-gap` | 78 | no |
 | `release-readiness-gap` | 80 | no |
@@ -70,9 +70,9 @@
 
 ## Copy-Code Redundancy
 
-- Status: `review` hard=`0` warning=`2` files=`61`
+- Status: `review` hard=`0` warning=`10` files=`178`
 - Policy: min-lines=`10` min-tokens=`100` max-findings=`50` include-tests=`false` strict=`false`
-- Duplicate volume: lines=`2` tokens=`2` bytes=`20`
+- Duplicate volume: lines=`45` tokens=`111` bytes=`1094`
 
 - Notes:
   - hard classes are limited to exact active-source file matches and substantial exact same-name units
@@ -81,24 +81,32 @@
 
 | Kind | Severity | Language | Lines | Tokens | Instances | Reason |
 | --- | --- | --- | ---: | ---: | --- | --- |
+| `ExactUnitSameName` | `Warning` | `rust` | 14 | 37 | `crates/jailgun-cli/src/jailhard/browser.rs:97-111, crates/jailgun-orchestrator/src/agent/accounts.rs:83-97` | `same-name semantic unit copied across multiple files` |
+| `ExactUnitSameName` | `Warning` | `rust` | 12 | 46 | `crates/jailgun-cli/src/auth/bridge.rs:30-42, crates/jailgun-cli/src/jailhard/browser.rs:174-186` | `same-name semantic unit copied across multiple files` |
+| `ExactUnitSameName` | `Warning` | `rust` | 3 | 2 | `crates/jailgun-deploy/src/fake/ci_tracker.rs:15-18, crates/jailgun-deploy/src/fake/job.rs:15-18, crates/jailgun-deploy/src/fake/upload.rs:14-17` | `same-name semantic unit copied across multiple files` |
+| `ExactUnitDifferentName` | `Warning` | `rust` | 2 | 1 | `crates/jailgun-core/src/browser_registry/leases/lock.rs:75-77, crates/jailgun-core/src/browser_registry/leases/lock.rs:80-82, crates/jailgun-core/src/browser_registry/storage.rs:54-56, crates/jailgun-core/src/browser_registry/storage.rs:70-72` | `same body appears under different names across files` |
+| `ExactUnitSameName` | `Warning` | `rust` | 4 | 12 | `crates/jailgun-cli/src/auth/mod.rs:138-142, crates/jailgun-orchestrator/src/run/bridge_flow.rs:183-187` | `same-name semantic unit copied across multiple files` |
+| `ExactUnitDifferentName` | `Warning` | `rust` | 2 | 1 | `crates/jailgun-core/src/agent/request.rs:243-245, crates/jailgun-core/src/browser_registry/leases/store.rs:125-127, crates/jailgun-orchestrator/src/bridge/command.rs:45-47` | `same body appears under different names across files` |
+| `ExactUnitSameName` | `Warning` | `rust` | 3 | 4 | `crates/jailgun-deploy/src/shell/job.rs:20-23, crates/jailgun-deploy/src/shell/upload.rs:15-18` | `same-name semantic unit copied across multiple files` |
+| `ExactUnitSameName` | `Warning` | `rust` | 2 | 5 | `crates/jailgun-deploy/src/deploy/events.rs:10-12, crates/jailgun-orchestrator/src/run/publish.rs:4-6` | `same-name semantic unit copied across multiple files` |
+| `ExactUnitSameName` | `Warning` | `rust` | 2 | 3 | `crates/jailgun-deploy/src/shell.rs:17-19, crates/jailgun-deploy/src/util.rs:6-8` | `same-name semantic unit copied across multiple files` |
 | `ExactUnitDifferentName` | `Warning` | `rust` | 1 | 0 | `crates/jailgun-core/src/agent_error.rs:35-36, crates/jailgun-deploy/src/deploy/model.rs:151-152, crates/jailgun-server/src/bus.rs:27-28` | `same body appears under different names across files` |
-| `ExactUnitDifferentName` | `Warning` | `rust` | 1 | 2 | `crates/jailgun-deploy/src/deploy/events.rs:195-196, crates/jailgun-orchestrator/src/run/mod.rs:816-817` | `same body appears under different names across files` |
 
 ## Dimensions
 
 | Dimension | Weight | Score | Weighted | Evidence |
 | --- | ---: | ---: | ---: | --- |
-| Ownership and navigation surface | 13 | 98 | 12.74 | root `AGENTS.md` present; owner map present |
+| Ownership and navigation surface | 13 | 100 | 13.00 | root `AGENTS.md` present; owner map present |
 | Contract and boundary integrity | 13 | 88 | 11.44 | contract surface found; generated contract artifacts found |
 | Proof lanes and test routing | 12 | 100 | 12.00 | one-command setup/validation lane found; deterministic fast lane found |
 | Security and supply-chain posture | 12 | 100 | 12.00 | lockfile present; secret or dependency scan tooling found |
-| Code shape and semantic surface | 12 | 27 | 3.24 | largest authored code file: crates/jailgun-orchestrator/src/run/mod.rs (1014 LOC); code file exceeds 500 LOC |
+| Code shape and semantic surface | 12 | 100 | 12.00 | largest authored code file: crates/jailgun-core/src/browser_registry/leases.rs (331 LOC); most code files stay under 300 LOC |
 | Data truth and workflow safety | 8 | 100 | 8.00 | database surface present; structured db boundary manifest present |
 | Observability and repair evidence | 8 | 88 | 7.04 | observability libraries or patterns found; ops/observability directory present |
 | Context economy and agent instructions | 7 | 93 | 6.51 | root `AGENTS.md` present; root `AGENTS.md` stays short |
 | Jankurai tool adoption and CI replacement | 7 | 100 | 7.00 | control-plane files present; applicable=17 |
 | Python containment and polyglot hygiene | 4 | 100 | 4.00 | no Python files in scope |
-| Build speed signals | 4 | 70 | 2.80 | build acceleration markers found; targeted test/build commands found |
+| Build speed signals | 4 | 95 | 3.80 | build acceleration markers found; targeted test/build commands found |
 
 ## Reference Profile Structure
 
@@ -122,18 +130,6 @@
 - Web surface: `true`
 - Layered UX lane: `true`
 - Missing: `none`
-
-### Ingested UX QA report (`target/jankurai/ux-qa.json`)
-- Report count: `2`
-- Worst decision: `pass`
-- Total violations: `0`
-- Summary errors / warnings: `0` / `0`
-- Artifact counts: `accessibility=2, aria-snapshot=2, screenshot=2`
-- Artifact fingerprints: `6`
-- Visual baseline counts: missing=`0` changed=`0` review=`0` block=`0`
-- Missing required states: `0` report(s) `none`
-- Missing required artifacts: `0` report(s) `none`
-- Accessibility violations / incomplete / passes: `0` / `0` / `24`
 
 ## Tool Adoption
 
@@ -174,47 +170,7 @@ No audited runtime boundary reclassifications declared.
 
 ## Findings
 
-1. `medium` `shape` `.`
-   Rule: `HLT-001-DEAD-MARKER`
-   Check: `HLT-001-DEAD-MARKER:shape` `soft` confidence `0.76`
-   Route: TLR `Entropy`, lane `fast`, owner `tools`
-   Docs: `docs/audit-rubric.md#future-hostile-language-rule`
-   Reason: `Code shape and semantic surface` scored 27 below the standard floor of 85
-   Fix: split large or ambiguous authored code into smaller semantic modules with focused tests
-   Rerun: `just fast`
-   Fingerprint: `sha256:032bb4db2149ede5cc2a04c1944e4d7e8a90abcc7f4e0da9c1149d797483684d`
-   Evidence: largest authored code file: crates/jailgun-orchestrator/src/run/mod.rs (1014 LOC), code file exceeds 500 LOC, code file exceeds 1000 LOC, most code files stay under 300 LOC
-2. `medium` `proof` `Justfile`
-   Rule: `HLT-018-PERF-CONCURRENCY-DRIFT`
-   Check: `HLT-018-PERF-CONCURRENCY-DRIFT:proof` `soft` confidence `0.76`
-   Route: TLR `Verification`, lane `fast`, owner `ci-release`
-   Docs: `docs/testing.md`
-   Reason: `Build speed signals` scored 70 below the standard floor of 85
-   Fix: add fast deterministic build/test targets, caches, and narrow proof lanes for agent iteration
-   Rerun: `just fast`
-   Fingerprint: `sha256:a256a7390d4b91a5b0a95d6f092e524c8f4080f27fe2b62e28cf0801343d0fef`
-   Evidence: build acceleration markers found, targeted test/build commands found, locked dependency graph present, CI cache hint found
-3. `high` `vibe` `apps/browser-adapter/src/chatUpload.ts:424`
-   Rule: `HLT-001-DEAD-MARKER`
-   Check: `HLT-001-DEAD-MARKER:vibe` `hard` confidence `0.88`
-   Route: TLR `Entropy`, lane `fast`, owner `browser-adapter`
-   Docs: `docs/audit-rubric.md#future-hostile-language-rule`
-   Reason: fallback soup detected in product code
-   Fix: collapse fallback chains into explicit typed states with bounded retry policy, telemetry, and documented repair guidance
-   Rerun: `just fast`
-   Fingerprint: `sha256:45b72d17c740195c924e362c3f9581db6f23de62e382c555591148c96c3c2b35`
-   Evidence: apps/browser-adapter/src/chatUpload.ts:424 return null;
-4. `high` `security` `crates/jailgun-cli/src/main.rs:983`
-   Rule: `HLT-022-AUTHZ-ISOLATION-GAP`
-   Check: `HLT-022-AUTHZ-ISOLATION-GAP:security` `hard` confidence `0.88`
-   Route: TLR `Business truth`, lane `db`, owner `rust-cli`
-   Docs: `docs/audit-rubric.md#top-level-risk-mapping`
-   Matched term: `rls`
-   Reason: authz/data isolation requires negative proof evidence
-   Fix: add owner/non-owner authorization tests or RLS evidence for the touched data boundary
-   Rerun: `just fast`
-   Fingerprint: `sha256:b9ba8df40da33de885e0f0b175d3a2fe5afeafefdd9347dd065d0b988debbe8a`
-   Evidence: fn infers_github_owner_repo_from_supported_remote_urls() {
+No findings.
 
 ## Policy
 
@@ -224,11 +180,4 @@ No audited runtime boundary reclassifications declared.
 
 ## Agent Fix Queue
 
-1. `high` `HLT-022-AUTHZ-ISOLATION-GAP` `crates/jailgun-cli/src/main.rs` - add owner/non-owner authorization tests or RLS evidence for the touched data boundary
-   Route: `Business truth`/`db`
-2. `medium` `HLT-018-PERF-CONCURRENCY-DRIFT` `Justfile` - add fast deterministic build/test targets, caches, and narrow proof lanes for agent iteration
-   Route: `Verification`/`fast`
-3. `high` `HLT-001-DEAD-MARKER` `apps/browser-adapter/src/chatUpload.ts` - collapse fallback chains into explicit typed states with bounded retry policy, telemetry, and documented repair guidance
-   Route: `Entropy`/`fast`
-4. `medium` `HLT-001-DEAD-MARKER` `.` - split large or ambiguous authored code into smaller semantic modules with focused tests
-   Route: `Entropy`/`fast`
+No queued fixes.

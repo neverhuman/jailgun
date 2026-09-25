@@ -44,6 +44,13 @@
         "prompt-policy",
         "rate-limit-detected",
         "browser-log",
+        "auth-state",
+        "auth-action-needed",
+        "auth-code-requested",
+        "auth-code-submitted",
+        "auth-complete",
+        "auth-failed",
+        "session-expired",
         "error"
       ]
     },

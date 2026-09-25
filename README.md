@@ -1,7 +1,7 @@
 <img src="assets/jailgun.png" alt="Jailgun" width="100%">
 
 <!-- jankurai-badge:start -->
-[![Jankurai score: 70/100 advisory](agent/jankurai-badge.svg)](agent/repo-score.md)
+[![Jankurai score: 97/100 advisory](agent/jankurai-badge.svg)](agent/repo-score.md)
 <!-- jankurai-badge:end -->
 
 # Jailgun
@@ -9,9 +9,31 @@
 Jailgun runs authenticated ChatGPT tab batches, captures generated source
 archives, validates receipts, and deploys through a Rust-owned safety layer.
 
+**Version 0.2.0.** The headless server drives persistent browser accounts,
+takes an operator verification code from the CLI or
+`POST /api/browser/accounts/{id}/auth/code`, ingests runs on `POST /api/runs`
+using canonical `browser.account_ids` routing, and exposes auth and run status
+through `/mcp` (`jailgun.run`, `jailgun.auth_status`, `jailgun.submit_code`,
+`jailgun.run_status`, `jailgun.run_summary`). Passwords are not stored. See
+[CHANGELOG.md](CHANGELOG.md) and the
+[headless two-account setup](docs/HEADLESS_TWO_ACCOUNT_SETUP.md).
+
 The repository is intentionally example-first. Real credentials, browser
 profiles, local paths, remotes, prompts, archives, logs, and receipts are local
 runtime state and are ignored by Git.
+
+Agent entrypoint: [AGENTS.md](AGENTS.md).
+
+## Quick Start
+
+```bash
+cargo build --workspace
+bash ops/ci/rust.sh
+bash ops/ci/jankurai.sh
+```
+
+Start from `config/jailgun.example.toml` for local configuration, then keep
+operator secrets in ignored local files or environment variables.
 
 ## Layout
 
@@ -19,9 +41,10 @@ runtime state and are ignored by Git.
   receipts, prompt policy, and repository string audits.
 - `crates/jailgun-deploy` owns remote cleanup and deploy orchestration behind
   testable traits.
-- `crates/jailgun-server` serves REST snapshots and WebSocket events.
-- `crates/jailgun-cli` exposes config validation, tar validation, scanning, and
-  dashboard serving.
+- `crates/jailgun-server` serves REST snapshots, HTTP run ingestion, browser
+  account auth, the `/mcp` control-plane tools, and WebSocket events.
+- `crates/jailgun-cli` exposes config validation, tar validation, scanning,
+  auth setup, `jailhard`, and dashboard serving.
 - `apps/browser-adapter` contains DOM-only TypeScript helpers for the browser
   automation boundary.
 - `apps/dashboard` is a Vite/React dashboard that works with fixture data.
@@ -45,10 +68,50 @@ Start from `config/jailgun.example.toml` and write local values to an ignored
 `config/jailgun.local.toml` or environment variables. Use `.env.example` as the
 environment reference.
 
+### Remote Chrome over SSH
+
+Jailgun can attach to a Chrome instance that stays on another machine as long
+as that machine keeps the Chrome DevTools Protocol bound to `127.0.0.1` and the
+browser profile and state remain local there. The Mac only needs the forwarded
+CDP endpoint, not the browser UI.
+
+Use the helpers in `scripts/` to bring up a loopback-only SSH forward and keep
+it alive with `launchd`:
+
+- `scripts/chrome-cdp-tunnel.sh` opens `127.0.0.1:9224` on the Mac and forwards
+  it to the remote machine's loopback CDP port.
+- `scripts/chrome-cdp-launchd.sh` writes and loads a LaunchAgent so the tunnel
+  restarts after login or disconnect.
+
+When the tunnel is up, run `jailgun` or `chrome-bridge` on the Mac with
+`JAILGUN_CDP_URL=http://127.0.0.1:9224`.
+
+The tunnel helper uses SSH key authentication, `StrictHostKeyChecking=yes`, and
+a pinned `known_hosts` file so the CDP endpoint is only exposed through the
+trusted SSH connection.
+
 Remote cleanup policy defaults to `preserve-reset`. Clean divergent remote
 checkouts are preserved under a timestamped ref and receipt before reset.
 Dirty checkouts, missing `origin/main`, failed ref creation, and failed receipt
 writes stop the deploy.
+
+## Headless server with two authenticated accounts
+
+Jailgun can run as a **headless server** that drives **two persistent ChatGPT
+(Google) accounts** — each its own Chrome process, profile, and CDP port — so
+you log in **once per account** and the sessions persist across restarts. Auth
+is operator-driven (no passwords stored, codes never logged): the browser runs
+**headed under Xvfb** on the server, you complete the one-time Google login over
+a noVNC view, and you paste the verification code via the CLI or the
+`POST /api/browser/accounts/{id}/auth/code` endpoint. The server exposes `/mcp`
+for discovery, auth status, run status, and run summaries
+(`jailgun.run` / `jailgun.auth_status` / `jailgun.submit_code` /
+`jailgun.run_status` / `jailgun.run_summary`). JMCP submits compatible runs
+through `/api/runs` using canonical `browser.account_ids` routing, then tracks
+progress through `/mcp`.
+
+**Full step-by-step walkthrough (with placeholder accounts + commands):**
+[`docs/HEADLESS_TWO_ACCOUNT_SETUP.md`](docs/HEADLESS_TWO_ACCOUNT_SETUP.md).
 
 ## Telegram notifications (optional)
 
@@ -95,3 +158,13 @@ To enable it on your machine:
 
 Run history and deploy events also fan out over the dashboard's WebSocket
 endpoint regardless of Telegram setup.
+
+## Release
+
+Current version: **0.2.0** (2026-09-25).
+
+This release records the headless auth control plane, HTTP run ingestion,
+artifact and tar download recovery, and the module splits that pulled deploy
+shell backends, browser-adapter DOM contracts, orchestrator run flow, and the
+server auth/MCP/run surface into smaller modules. The change list is in
+[CHANGELOG.md](CHANGELOG.md).

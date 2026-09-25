@@ -61,7 +61,9 @@ export function App() {
 
 function RunsTable({ runs, activeRunId }: { runs: RunSnapshot[]; activeRunId: string }) {
   const others = runs.filter((run) => run.run_id !== activeRunId);
-  if (others.length === 0) return null;
+  if (others.length === 0) {
+    return <></>;
+  }
   return (
     <table>
       <thead>

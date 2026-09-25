@@ -18,8 +18,24 @@ pub fn map_bridge_event(
     };
     let event = match event {
         BridgeEvent::BridgeReady(_) => return None,
-        BridgeEvent::TabOpened(payload) => base(EventKind::TabOpened, "tab opened")
-            .with_field("page_url", payload.page_url.clone()),
+        BridgeEvent::TabOpened(payload) => {
+            let mut event = base(EventKind::TabOpened, "tab opened")
+                .with_field("page_url", payload.page_url.clone());
+            if !payload.browser_profile.is_empty() {
+                event = event.with_field("browser_profile", payload.browser_profile.clone());
+            }
+            if !payload.browser_profile_dir.is_empty() {
+                event =
+                    event.with_field("browser_profile_dir", payload.browser_profile_dir.clone());
+            }
+            if let Some(slot) = payload.browser_slot {
+                event = event.with_field("browser_slot", slot.to_string());
+            }
+            if !payload.cdp_url.is_empty() {
+                event = event.with_field("cdp_url", payload.cdp_url.clone());
+            }
+            event
+        }
         BridgeEvent::ArchiveUploaded(payload) => base(EventKind::TabOpened, "archive uploaded")
             .with_field("sha256", payload.sha256.clone())
             .with_field("size_bytes", payload.size_bytes.to_string())
@@ -35,11 +51,17 @@ pub fn map_bridge_event(
             .with_field("remote_url", payload.remote_url.clone())
             .with_field("target_path", payload.target_path.clone()),
         BridgeEvent::DownloadComplete(payload) => {
-            base(EventKind::DownloadReceipt, "download complete")
+            let mut event = base(EventKind::DownloadReceipt, "download complete")
                 .with_field("sha256", payload.sha256.clone())
                 .with_field("size_bytes", payload.size_bytes.to_string())
                 .with_field("local_path", payload.local_path.clone())
                 .with_field("receipt_path", payload.receipt_path.clone())
+                .with_field("original_name", payload.original_name.clone())
+                .with_field("local_name", payload.local_name.clone());
+            if let Some(file_kind) = payload.file_kind.as_ref() {
+                event = event.with_field("file_kind", file_kind.clone());
+            }
+            event
         }
         BridgeEvent::ToolPromptDetected(_) => return None,
         BridgeEvent::PromptPolicyApplied(payload) => {
@@ -79,6 +101,50 @@ pub fn map_bridge_event(
             }
             event
         }
+        BridgeEvent::AuthState(payload) => {
+            let mut event = base(EventKind::AuthState, "auth state updated")
+                .with_field("state", payload.state.clone())
+                .with_field("page_url", payload.page_url.clone())
+                .with_field("composer_detected", payload.composer_detected.to_string())
+                .with_field("code_requested", payload.code_requested.to_string());
+            if let Some(reason) = payload.reason.as_ref() {
+                event = event.with_field("reason", reason.clone());
+            }
+            event
+        }
+        BridgeEvent::AuthActionNeeded(payload) => base(
+            EventKind::AuthActionNeeded,
+            "manual browser auth action needed",
+        )
+        .with_severity(Severity::Warn)
+        .with_field("action", payload.action.clone())
+        .with_field("reason", payload.reason.clone()),
+        BridgeEvent::AuthCodeRequested(payload) => {
+            let mut event = base(EventKind::AuthCodeRequested, "auth email code requested")
+                .with_field("channel", payload.channel.clone());
+            if let Some(destination_hint) = payload.destination_hint.as_ref() {
+                event = event.with_field("destination_hint", destination_hint.clone());
+            }
+            event
+        }
+        BridgeEvent::AuthCodeSubmitted(payload) => {
+            base(EventKind::AuthCodeSubmitted, "auth code submitted")
+                .with_field("accepted", payload.accepted.to_string())
+        }
+        BridgeEvent::AuthComplete(payload) => base(EventKind::AuthComplete, "auth complete")
+            .with_field("page_url", payload.page_url.clone())
+            .with_field("composer_detected", payload.composer_detected.to_string()),
+        BridgeEvent::AuthFailed(payload) => base(EventKind::AuthFailed, "auth failed")
+            .with_severity(Severity::Error)
+            .with_field("reason", payload.reason.clone())
+            .with_field(
+                "manual_browser_required",
+                payload.manual_browser_required.to_string(),
+            ),
+        BridgeEvent::SessionExpired(payload) => base(EventKind::SessionExpired, "session expired")
+            .with_severity(Severity::Warn)
+            .with_field("page_url", payload.page_url.clone())
+            .with_field("reason", payload.reason.clone()),
         BridgeEvent::Pong => return None,
         BridgeEvent::BridgeShuttingDown(_) => return None,
         BridgeEvent::Error(payload) => base(EventKind::Error, &payload.message)
@@ -132,7 +198,10 @@ mod tests {
             receipt_path: "/tmp/r/x.tar.gz".into(),
             original_name: "x.tar.gz".into(),
             local_name: "x.tar.gz".into(),
+            file_kind: Some("downloaded-archive".into()),
             download_url: None,
+            entry_count: None,
+            download_latency_ms: None,
             started_at: "2026-05-31T12:00:00Z".into(),
             finished_at: "2026-05-31T12:00:05Z".into(),
         });

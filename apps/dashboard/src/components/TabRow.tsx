@@ -96,5 +96,5 @@ function FinishStatePill({ passed, failed, summary }: FinishStatePillProps) {
       </span>
     );
   }
-  return null;
+  return <></>;
 }

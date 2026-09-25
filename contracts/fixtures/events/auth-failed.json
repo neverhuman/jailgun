@@ -1,0 +1,12 @@
+{
+  "run_id": "auth-acct-fixture",
+  "tab_id": null,
+  "timestamp": "2026-05-31T12:06:55Z",
+  "kind": "auth-failed",
+  "severity": "error",
+  "message": "auth failed",
+  "fields": {
+    "reason": "manual browser required",
+    "manual_browser_required": "true"
+  }
+}

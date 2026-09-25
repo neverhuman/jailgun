@@ -1,0 +1,12 @@
+{
+  "run_id": "auth-acct-fixture",
+  "tab_id": null,
+  "timestamp": "2026-05-31T12:06:54Z",
+  "kind": "auth-complete",
+  "severity": "info",
+  "message": "auth complete",
+  "fields": {
+    "page_url": "https://chatgpt.com/",
+    "composer_detected": "true"
+  }
+}

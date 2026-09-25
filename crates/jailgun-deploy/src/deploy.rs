@@ -8,22 +8,22 @@
 //! `crate::fake`.
 
 use jailgun_core::{EventKind, JailgunEvent, Severity};
-use time::{format_description::well_known::Rfc3339, OffsetDateTime};
 use tokio::sync::broadcast;
 
 mod events;
 mod model;
+mod receipt;
+mod runtime;
 
 pub use model::{DeployError, DeployOutcome, DeployReceipt, DeployRequest, JsonReceiptWriter};
 
-use events::{
-    phase_str, publish, publish_ci_progress, publish_error, publish_finished,
-    publish_status_progress,
-};
+use events::{publish, publish_error, publish_finished};
+use receipt::build_receipt;
+use runtime::{poll_until_terminal, timestamp_now, track_ci};
 
 use crate::{
     ci::{CiState, CiTracker},
-    job::{JobHandle, JobPhase, JobSpec, JobStatus, RemoteJobBackend},
+    job::{JobPhase, JobSpec, JobStatus, RemoteJobBackend},
     upload::RemoteUploadBackend,
     util::truncate_log_tail,
 };
@@ -226,158 +226,4 @@ where
 
     publish_finished(events, &req, &receipt);
     Ok(receipt)
-}
-
-#[allow(clippy::too_many_arguments)]
-fn build_receipt(
-    req: &DeployRequest,
-    started_at: String,
-    finished_at: String,
-    local_sha256: String,
-    remote_sha256: String,
-    remote_archive_path: String,
-    job_handle: JobHandle,
-    final_status: JobStatus,
-    ci_state: CiState,
-    log_tail: String,
-    outcome: DeployOutcome,
-) -> DeployReceipt {
-    DeployReceipt {
-        run_id: req.run_id.clone(),
-        tab_id: req.tab_id,
-        remote_host: req.remote_host.clone(),
-        remote_dir: req.remote_dir.clone(),
-        started_at,
-        finished_at,
-        local_archive_path: req.local_archive_path.clone(),
-        local_sha256,
-        remote_sha256,
-        remote_archive_path,
-        job_handle,
-        final_status,
-        ci_state,
-        ci_repo: req.ci_repo.clone(),
-        log_tail,
-        outcome,
-        receipt_path: None,
-    }
-}
-
-async fn poll_until_terminal<J>(
-    job: &mut J,
-    handle: &JobHandle,
-    req: &DeployRequest,
-    events: &broadcast::Sender<JailgunEvent>,
-) -> Result<JobStatus, DeployError>
-where
-    J: RemoteJobBackend + Send,
-{
-    let deadline = std::time::Instant::now()
-        + std::time::Duration::from_secs(req.status_max_minutes as u64 * 60);
-    let poll_interval = std::time::Duration::from_secs(req.status_poll_seconds as u64);
-    let mut consecutive_errors: u8 = 0;
-    let mut last_seen: JobStatus = JobStatus::default();
-    loop {
-        if std::time::Instant::now() >= deadline {
-            publish(
-                events,
-                JailgunEvent::new(
-                    req.run_id.clone(),
-                    EventKind::DeployFinished,
-                    "deploy timeout",
-                )
-                .with_tab(req.tab_id)
-                .with_severity(Severity::Error)
-                .with_field("outcome", "timed-out")
-                .with_field("reason", "status_max_minutes exceeded"),
-            );
-            return Err(DeployError::Timeout(req.status_max_minutes));
-        }
-        tokio::time::sleep(poll_interval).await;
-        match job.fetch_status(handle).await {
-            Ok(status) => {
-                consecutive_errors = 0;
-                publish_status_progress(events, req, &status);
-                if status.phase.is_terminal() {
-                    return Ok(status);
-                }
-                last_seen = status;
-            }
-            Err(error) => {
-                consecutive_errors = consecutive_errors.saturating_add(1);
-                tracing::warn!(?error, attempts = consecutive_errors, "status fetch failed");
-                publish(
-                    events,
-                    JailgunEvent::new(
-                        req.run_id.clone(),
-                        EventKind::RemoteSafety,
-                        "status fetch error",
-                    )
-                    .with_tab(req.tab_id)
-                    .with_severity(Severity::Warn)
-                    .with_field("phase", "status-fetch-error")
-                    .with_field("attempts", consecutive_errors.to_string())
-                    .with_field("last_phase", phase_str(&last_seen.phase).to_string()),
-                );
-                if consecutive_errors >= 5 {
-                    return Err(error);
-                }
-            }
-        }
-    }
-}
-
-async fn track_ci<C: CiTracker + Send>(
-    ci: &mut C,
-    status: &JobStatus,
-    req: &DeployRequest,
-    events: &broadcast::Sender<JailgunEvent>,
-) -> CiState {
-    let Some(commit_sha) = status.post_head.as_ref() else {
-        return CiState::Unknown;
-    };
-    let interval = std::time::Duration::from_secs(req.ci_poll_seconds as u64);
-    let mut last_observed = CiState::Unknown;
-    for attempt in 1..=req.ci_max_attempts {
-        match ci.check(commit_sha, &req.ci_branch).await {
-            Ok(state) => {
-                publish_ci_progress(events, req, &state, attempt);
-                if state.is_terminal() {
-                    if let CiState::Failed { run_id, .. } = &state {
-                        let excerpt = ci.capture_failure_log(run_id, 16 * 1024).await.ok();
-                        let mut final_state = state.clone();
-                        if let CiState::Failed { log_excerpt, .. } = &mut final_state {
-                            *log_excerpt = excerpt;
-                        }
-                        return final_state;
-                    }
-                    return state;
-                }
-                last_observed = state;
-            }
-            Err(error) => {
-                tracing::warn!(?error, attempt, "CI check failed");
-                publish(
-                    events,
-                    JailgunEvent::new(
-                        req.run_id.clone(),
-                        EventKind::RemoteSafety,
-                        "ci tracker transient error",
-                    )
-                    .with_tab(req.tab_id)
-                    .with_severity(Severity::Warn)
-                    .with_field("phase", "ci-error")
-                    .with_field("attempt", attempt.to_string()),
-                );
-            }
-        }
-        tokio::time::sleep(interval).await;
-    }
-    last_observed
-}
-
-fn timestamp_now() -> String {
-    OffsetDateTime::now_utc()
-        .format(&Rfc3339)
-        .unwrap_or_else(|_| "1970-01-01T00:00:00Z".to_string())
 }

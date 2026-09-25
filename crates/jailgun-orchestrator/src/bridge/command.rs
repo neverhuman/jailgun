@@ -15,7 +15,8 @@ pub struct HelloPayload {
 pub struct OpenTabPayload {
     pub chat_url: String,
     pub model: String,
-    pub profile_dir: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub profile_dir: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
@@ -25,6 +26,8 @@ pub struct UploadArchivePayload {
     pub ref_name: String,
     pub prefix: String,
     pub archive_filename: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub local_archive_path: Option<String>,
     #[serde(default)]
     pub tmp_parent: Option<String>,
     #[serde(default = "default_delete_after_upload")]
@@ -74,6 +77,43 @@ pub struct ApproveOrDenyPayload {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct AuthStatusPayload {
+    pub chat_url: String,
+    #[serde(default)]
+    pub profile_dir: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct AuthBeginPayload {
+    pub chat_url: String,
+    pub email_hint: String,
+    #[serde(default)]
+    pub prefer_email_code: bool,
+    #[serde(default)]
+    pub profile_dir: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct AuthSelectEmailCodePayload {
+    #[serde(default)]
+    pub profile_dir: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct AuthSubmitCodePayload {
+    pub code: String,
+    #[serde(default)]
+    pub profile_dir: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct AuthScreenshotPayload {
+    pub path: String,
+    #[serde(default)]
+    pub profile_dir: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct ShutdownPayload {
     pub drain_timeout_ms: u64,
 }
@@ -88,6 +128,12 @@ pub enum BridgeCommand {
     StopGeneration,
     CloseTab(CloseTabPayload),
     ApproveOrDeny(ApproveOrDenyPayload),
+    AuthStatus(AuthStatusPayload),
+    AuthBegin(AuthBeginPayload),
+    AuthSelectEmailCode(AuthSelectEmailCodePayload),
+    AuthSubmitCode(AuthSubmitCodePayload),
+    AuthScreenshot(AuthScreenshotPayload),
+    AuthCancel,
     Shutdown(ShutdownPayload),
     Ping,
 }
@@ -103,6 +149,12 @@ impl BridgeCommand {
             BridgeCommand::StopGeneration => "stop-generation",
             BridgeCommand::CloseTab(_) => "close-tab",
             BridgeCommand::ApproveOrDeny(_) => "approve-or-deny",
+            BridgeCommand::AuthStatus(_) => "auth-status",
+            BridgeCommand::AuthBegin(_) => "auth-begin",
+            BridgeCommand::AuthSelectEmailCode(_) => "auth-select-email-code",
+            BridgeCommand::AuthSubmitCode(_) => "auth-submit-code",
+            BridgeCommand::AuthScreenshot(_) => "auth-screenshot",
+            BridgeCommand::AuthCancel => "auth-cancel",
             BridgeCommand::Shutdown(_) => "shutdown",
             BridgeCommand::Ping => "ping",
         }
@@ -118,6 +170,12 @@ impl BridgeCommand {
             BridgeCommand::StopGeneration => serde_json::json!({}),
             BridgeCommand::CloseTab(p) => super::protocol::to_value(p),
             BridgeCommand::ApproveOrDeny(p) => super::protocol::to_value(p),
+            BridgeCommand::AuthStatus(p) => super::protocol::to_value(p),
+            BridgeCommand::AuthBegin(p) => super::protocol::to_value(p),
+            BridgeCommand::AuthSelectEmailCode(p) => super::protocol::to_value(p),
+            BridgeCommand::AuthSubmitCode(p) => super::protocol::to_value(p),
+            BridgeCommand::AuthScreenshot(p) => super::protocol::to_value(p),
+            BridgeCommand::AuthCancel => serde_json::json!({}),
             BridgeCommand::Shutdown(p) => super::protocol::to_value(p),
             BridgeCommand::Ping => serde_json::json!({}),
         }
@@ -133,6 +191,14 @@ impl BridgeCommand {
             "stop-generation" => BridgeCommand::StopGeneration,
             "close-tab" => BridgeCommand::CloseTab(serde_json::from_value(payload)?),
             "approve-or-deny" => BridgeCommand::ApproveOrDeny(serde_json::from_value(payload)?),
+            "auth-status" => BridgeCommand::AuthStatus(serde_json::from_value(payload)?),
+            "auth-begin" => BridgeCommand::AuthBegin(serde_json::from_value(payload)?),
+            "auth-select-email-code" => {
+                BridgeCommand::AuthSelectEmailCode(serde_json::from_value(payload)?)
+            }
+            "auth-submit-code" => BridgeCommand::AuthSubmitCode(serde_json::from_value(payload)?),
+            "auth-screenshot" => BridgeCommand::AuthScreenshot(serde_json::from_value(payload)?),
+            "auth-cancel" => BridgeCommand::AuthCancel,
             "shutdown" => BridgeCommand::Shutdown(serde_json::from_value(payload)?),
             "ping" => BridgeCommand::Ping,
             other => return Err(ProtocolError::UnknownCommand(other.to_string())),
@@ -151,11 +217,46 @@ mod tests {
         let cmd = BridgeCommand::OpenTab(OpenTabPayload {
             chat_url: "https://chatgpt.com/".into(),
             model: "pro-extended".into(),
-            profile_dir: "/tmp/profile".into(),
+            profile_dir: Some("/tmp/profile".into()),
         });
         let envelope = envelope_for_command(&cmd, "run-test", "2026-05-31T12:00:00Z", Some(2));
         let line = encode_envelope(&envelope).expect("encode");
         assert!(line.ends_with('\n'));
+        let decoded = decode_envelope(line.trim_end()).expect("decode");
+        let typed = BridgeCommand::decode(&decoded.kind, decoded.payload).expect("typed");
+        assert_eq!(typed, cmd);
+    }
+
+    #[test]
+    fn roundtrip_auth_submit_code_command_redacts_by_type_not_payload() {
+        let cmd = BridgeCommand::AuthSubmitCode(AuthSubmitCodePayload {
+            code: "123456".into(),
+            profile_dir: Some("/tmp/profile".into()),
+        });
+        let envelope = envelope_for_command(&cmd, "auth-run", "2026-05-31T12:00:00Z", None);
+        let line = encode_envelope(&envelope).expect("encode");
+        let decoded = decode_envelope(line.trim_end()).expect("decode");
+        assert_eq!(decoded.kind, "auth-submit-code");
+        let typed = BridgeCommand::decode(&decoded.kind, decoded.payload).expect("typed");
+        assert_eq!(typed, cmd);
+    }
+
+    #[test]
+    fn roundtrip_upload_archive_with_local_archive_path() {
+        let cmd = BridgeCommand::UploadArchive(UploadArchivePayload {
+            repo_url: "local://jailhard".into(),
+            ref_name: "HEAD".into(),
+            prefix: "source/".into(),
+            archive_filename: "source.tar.gz".into(),
+            local_archive_path: Some("/tmp/jailgun-hardening/source.tar.gz".into()),
+            tmp_parent: None,
+            delete_after_upload: true,
+            confirm_selectors: Vec::new(),
+            timeout_ms: 45_000,
+        });
+        let envelope = envelope_for_command(&cmd, "run-test", "2026-05-31T12:00:00Z", Some(1));
+        let line = encode_envelope(&envelope).expect("encode");
+        assert!(line.contains("local_archive_path"));
         let decoded = decode_envelope(line.trim_end()).expect("decode");
         let typed = BridgeCommand::decode(&decoded.kind, decoded.payload).expect("typed");
         assert_eq!(typed, cmd);

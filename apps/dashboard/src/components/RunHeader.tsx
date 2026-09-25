@@ -31,6 +31,9 @@ export function RunHeader({ run, connection, dataSource, events = [] }: RunHeade
           <p>
             {run.run_id} · {run.status} · {dataSource} · {connection}
           </p>
+          <p className="runHeaderLinks">
+            <a href={`/api/runs/${run.run_id}/agent-summary`}>Agent summary</a>
+          </p>
         </div>
         <RunElapsed startedAt={run.started_at} finishedAt={run.finished_at} />
       </div>
@@ -71,7 +74,9 @@ function RunMetric({
 function RunElapsed({ startedAt, finishedAt }: { startedAt: string; finishedAt: string | null }) {
   const [now, setNow] = useState(Date.now());
   useEffect(() => {
-    if (finishedAt) return undefined;
+    if (finishedAt) {
+      return;
+    }
     const interval = window.setInterval(() => setNow(Date.now()), 1_000);
     return () => window.clearInterval(interval);
   }, [finishedAt]);

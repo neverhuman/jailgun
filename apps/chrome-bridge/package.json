@@ -1,12 +1,13 @@
 {
   "name": "@jailgun/chrome-bridge",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "private": true,
   "type": "module",
   "bin": {
     "jailgun-chrome-bridge": "./bin/chrome-bridge.mjs"
   },
   "scripts": {
+    "smoke:cdp-recovery": "node bin/cdp-recovery-smoke.mjs",
     "test": "node bin/chrome-bridge.mjs --self-test"
   },
   "dependencies": {

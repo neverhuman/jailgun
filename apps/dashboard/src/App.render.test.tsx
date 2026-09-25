@@ -10,6 +10,10 @@ it('renders the run header and per-tab rows', async () => {
   render(<App />);
   expect(await screen.findByText('fixture-run', { exact: false })).toBeInTheDocument();
   expect(screen.getByLabelText('run progress metrics')).toBeInTheDocument();
+  expect(screen.getByRole('link', { name: 'Agent summary' })).toHaveAttribute(
+    'href',
+    '/api/runs/fixture-run/agent-summary'
+  );
   expect(screen.getByLabelText('tab 1 row')).toBeInTheDocument();
   expect(screen.getByLabelText('tab 2 row')).toBeInTheDocument();
   expect(screen.getByLabelText('tab 3 row')).toBeInTheDocument();
