@@ -36,6 +36,7 @@ jobs:
           python3 -m pip install --user zizmor
           echo "$HOME/go/bin" >> "$GITHUB_PATH"
           echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+      - run: sudo apt-get update && sudo apt-get install -y ripgrep
       - run: npm ci
       - run: bash ops/ci/security.sh
       - uses: actions/dependency-review-action@2031cfc080254a8a887f58cffee85186f0e49e48
