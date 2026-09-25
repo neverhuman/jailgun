@@ -9,6 +9,15 @@
 Jailgun runs authenticated ChatGPT tab batches, captures generated source
 archives, validates receipts, and deploys through a Rust-owned safety layer.
 
+**Version 0.2.0.** The headless server drives persistent browser accounts,
+takes an operator verification code from the CLI or
+`POST /api/browser/accounts/{id}/auth/code`, ingests runs on `POST /api/runs`
+using canonical `browser.account_ids` routing, and exposes auth and run status
+through `/mcp` (`jailgun.run`, `jailgun.auth_status`, `jailgun.submit_code`,
+`jailgun.run_status`, `jailgun.run_summary`). Passwords are not stored. See
+[CHANGELOG.md](CHANGELOG.md) and the
+[headless two-account setup](docs/HEADLESS_TWO_ACCOUNT_SETUP.md).
+
 The repository is intentionally example-first. Real credentials, browser
 profiles, local paths, remotes, prompts, archives, logs, and receipts are local
 runtime state and are ignored by Git.
@@ -32,9 +41,10 @@ operator secrets in ignored local files or environment variables.
   receipts, prompt policy, and repository string audits.
 - `crates/jailgun-deploy` owns remote cleanup and deploy orchestration behind
   testable traits.
-- `crates/jailgun-server` serves REST snapshots and WebSocket events.
-- `crates/jailgun-cli` exposes config validation, tar validation, scanning, and
-  dashboard serving.
+- `crates/jailgun-server` serves REST snapshots, HTTP run ingestion, browser
+  account auth, the `/mcp` control-plane tools, and WebSocket events.
+- `crates/jailgun-cli` exposes config validation, tar validation, scanning,
+  auth setup, `jailhard`, and dashboard serving.
 - `apps/browser-adapter` contains DOM-only TypeScript helpers for the browser
   automation boundary.
 - `apps/dashboard` is a Vite/React dashboard that works with fixture data.
@@ -148,3 +158,13 @@ To enable it on your machine:
 
 Run history and deploy events also fan out over the dashboard's WebSocket
 endpoint regardless of Telegram setup.
+
+## Release
+
+Current version: **0.2.0** (2026-09-25).
+
+This release records the headless auth control plane, HTTP run ingestion,
+artifact and tar download recovery, and the module splits that pulled deploy
+shell backends, browser-adapter DOM contracts, orchestrator run flow, and the
+server auth/MCP/run surface into smaller modules. The change list is in
+[CHANGELOG.md](CHANGELOG.md).

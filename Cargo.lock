@@ -812,7 +812,7 @@ checksum = "8f42a60cbdf9a97f5d2305f08a87dc4e09308d1276d28c869c684d7777685682"
 
 [[package]]
 name = "jailgun-cli"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -837,7 +837,7 @@ dependencies = [
 
 [[package]]
 name = "jailgun-core"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "flate2",
  "proptest",
@@ -853,7 +853,7 @@ dependencies = [
 
 [[package]]
 name = "jailgun-deploy"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "async-trait",
  "jailgun-core",
@@ -868,7 +868,7 @@ dependencies = [
 
 [[package]]
 name = "jailgun-notify"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "jailgun-core",
  "reqwest",
@@ -881,7 +881,7 @@ dependencies = [
 
 [[package]]
 name = "jailgun-orchestrator"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -901,7 +901,7 @@ dependencies = [
 
 [[package]]
 name = "jailgun-server"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "anyhow",
  "async-trait",
