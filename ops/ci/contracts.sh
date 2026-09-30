@@ -6,6 +6,7 @@ script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "$script_dir/lib.sh"
 ci_enter_repo_root "$script_dir"
 ci_require_cmd node
+ci_require_cmd cargo
 
 mode="--check"
 if [[ "${1:-}" == "--write" ]]; then

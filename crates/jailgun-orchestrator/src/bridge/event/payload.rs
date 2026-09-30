@@ -188,6 +188,8 @@ pub struct AuthCodeSubmittedPayload {
 pub struct AuthCompletePayload {
     pub page_url: String,
     #[serde(default)]
+    pub account_identity: Option<jailgun_core::ProviderIdentity>,
+    #[serde(default)]
     pub composer_detected: bool,
 }
 

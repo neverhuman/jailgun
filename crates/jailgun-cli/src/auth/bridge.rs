@@ -1,4 +1,4 @@
-use std::{collections::BTreeMap, env, path::PathBuf};
+use std::collections::BTreeMap;
 
 use anyhow::{Context, Result};
 use jailgun_core::BrowserAccount;
@@ -7,24 +7,7 @@ use jailgun_orchestrator::bridge::{envelope_for_command, BridgeCommand, BridgeHa
 use super::timestamp_now;
 
 pub(super) fn auth_bridge_command(args: Vec<String>) -> Result<Vec<String>> {
-    if !args.is_empty() {
-        return Ok(args);
-    }
-    if let Ok(value) = env::var("JAILGUN_BRIDGE_CMD") {
-        let parts = value
-            .split_whitespace()
-            .map(str::to_string)
-            .collect::<Vec<_>>();
-        if !parts.is_empty() {
-            return Ok(parts);
-        }
-    }
-    let workspace_script = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-        .join("../../apps/chrome-bridge/bin/chrome-bridge.mjs");
-    if workspace_script.exists() {
-        return Ok(vec!["node".into(), workspace_script.display().to_string()]);
-    }
-    anyhow::bail!("bridge command must be provided with --bridge-cmd or JAILGUN_BRIDGE_CMD")
+    jailgun_orchestrator::support::bridge_command(args)
 }
 
 pub(super) fn parse_env_overrides(values: Vec<String>) -> Result<BTreeMap<String, String>> {

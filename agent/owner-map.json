@@ -13,7 +13,7 @@
     "assets/": "repo-governance",
     "docs/": "repo-governance",
     "contracts/": "contracts",
-    "db/": "repo-governance",
+    "db/": "rust-workflow",
     "config/": "rust-core",
     "prompts/examples/": "rust-core",
     "crates/jailgun-core/": "rust-core",
@@ -35,6 +35,13 @@
     "package.json": "ci-release",
     "package-lock.json": "ci-release",
     "Cargo.toml": "ci-release",
-    "Cargo.lock": "ci-release"
+    "Cargo.lock": "ci-release",
+    ".node-version": "ci-release",
+    "artifacts/ux-qa/": "dashboard-ui",
+    "LICENSE": "repo-governance",
+    "CONTRIBUTING.md": "repo-governance",
+    "SECURITY.md": "repo-governance",
+    "crates/jailgun-workflow/": "rust-workflow",
+    ".python-version": "ci-release"
   }
 }

@@ -1,0 +1,121 @@
+/* Shared concept workspace styles; the archive monitor keeps its existing layout. */
+.conceptShell { display: flex; flex-direction: column; max-width: 1200px; margin: auto; padding: var(--space-9) var(--space-7); line-height: 1.55; }
+.conceptShell #workspace { flex: 1; min-width: 0; }
+.conceptShell h1 { font-size: var(--font-title); letter-spacing: -.03em; }
+.conceptShell h2 { font-size: var(--font-heading); line-height: 1.25; letter-spacing: -.02em; }
+.conceptShell h3 { font-size: var(--font-subheading); line-height: 1.4; }
+.conceptShell p + p, .conceptShell p + .actions { margin-top: 10px; }
+.conceptHeader { display: flex; align-items: center; justify-content: space-between; gap: var(--space-6); margin-bottom: var(--space-7); }
+.conceptHeader p { color: #4d6154; margin-top: 10px; }
+.localLabel, .eyebrow { color: #405b49; font-size: var(--font-xs); text-transform: uppercase; letter-spacing: .08em; font-weight: 650; }
+.localLabel { white-space: nowrap; border: 1px solid #bccdbf; border-radius: 20px; padding: 6px var(--space-3); }
+.conceptNav { display: flex; gap: var(--space-2); border-bottom: 1px solid #cdd9cd; margin: var(--space-5) 0 var(--space-7); padding-bottom: var(--space-3); }
+.conceptNav a { text-decoration: none; color: #3e5547; border-radius: 7px; padding: 10px 18px; font-weight: 650; }
+.conceptNav a[aria-current] { background: var(--color-primary); color: var(--color-surface); }
+.conceptShell :focus-visible, .skipLink:focus { outline: 3px solid var(--color-focus); outline-offset: 3px; }
+.skipLink { position: absolute; top: 0; left: 8px; padding: var(--space-3); background: var(--color-surface); transform: translateY(-110%); z-index: 50; }
+.skipLink:focus { transform: none; }
+.conceptPanel { background: var(--color-surface); border: 1px solid var(--color-border); border-radius: var(--radius-panel); padding: var(--space-7); min-width: 0; }
+.conceptPanel > * + * { margin-top: 18px; }
+.conceptPanel > .eyebrow + h2 { margin-top: 6px; }
+.conceptShell .subtle { color: var(--color-subtle); font-size: var(--font-small); }
+.conceptShell label { display: block; font-weight: 600; font-size: var(--font-small); margin-bottom: 6px; }
+.conceptShell input:not([type=checkbox]), .conceptShell select, .conceptShell textarea { width: 100%; min-width: 0; border: 1px solid var(--color-input-border); border-radius: var(--radius-control); padding: 10px var(--space-3); background: var(--color-surface); color: var(--color-text); }
+.conceptShell textarea { resize: vertical; line-height: 1.5; }
+.conceptShell button { cursor: pointer; padding: 10px var(--space-4); border-radius: var(--radius-control); font-weight: 600; min-height: 44px; }
+.conceptShell button:disabled { cursor: default; opacity: .55; }
+.primaryButton { border: 1px solid var(--color-primary); background: var(--color-primary); color: var(--color-surface); }
+.secondaryButton { border: 1px solid #9eafa1; background: #f5f8f3; color: var(--color-primary); }
+.quietButton { border: 1px solid transparent; background: transparent; color: #395543; text-decoration: underline; text-underline-offset: 3px; }
+.conceptShell button:not(:disabled):hover { filter: brightness(.94); }
+.conceptShell .actions { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
+.conceptForm { display: grid; gap: var(--space-3); }
+.conceptForm label { margin: var(--space-3) 0 0; }
+.formColumns { display: grid; grid-template-columns: 2fr 1fr; gap: var(--space-5); }
+.formColumns label { margin: 0 0 6px; }
+.criteriaEditor { border-top: 1px solid var(--color-border); padding-top: 18px; margin-top: 10px; }
+.conceptShell summary { cursor: pointer; font-weight: 600; padding: var(--space-1) 0; }
+.conceptShell details[open] > summary { margin-bottom: var(--space-3); }
+.criterionRow { display: grid; grid-template-columns: minmax(0, 1fr) 120px auto; gap: 10px; align-items: end; margin-bottom: var(--space-3); }
+.conceptShell .criterionRow label { margin: 0; }
+.accountList { display: grid; gap: var(--space-4); }
+.accountCard, .candidateCard { border: 1px solid var(--color-border); border-radius: 8px; padding: var(--space-5); min-width: 0; }
+.accountCard > * + *, .candidateCard > * + * { margin-top: 14px; }
+.cardHeading { display: flex; justify-content: space-between; gap: var(--space-3); align-items: start; }
+.cardHeading h3 { overflow-wrap: anywhere; }
+.statusPill { flex-shrink: 0; border-radius: 20px; padding: 3px 10px; background: var(--color-status-neutral-bg); color: var(--color-status-neutral-text); font-size: var(--font-xs); font-weight: 650; }
+.status-ready, .status-completed, .status-complete { background: var(--color-status-success-bg); color: var(--color-status-success-text); }
+.status-failed, .status-mismatch, .status-expired { background: var(--color-status-error-bg); color: var(--color-status-error-text); }
+.status-partial, .status-paused, .status-waiting-for-auth, .status-verifying, .status-reconciliation-required { background: var(--color-status-warning-bg); color: var(--color-status-warning-text); }
+.status-running, .status-starting { background: var(--color-status-active-bg); color: var(--color-status-active-text); }
+.connectForm { border-top: 1px solid var(--color-border); padding-top: 22px; }
+.connectForm .actions input { flex: 1 1 260px; }
+.modelChoice { display: grid; gap: 10px; grid-template-columns: minmax(0, 1fr) auto; align-items: start; }
+.modelChoice label { grid-column: 1 / -1; }
+.modelChoice .observedModel { grid-column: 1 / -1; overflow-wrap: anywhere; }
+.identityConfirmation { background: #f4f8f0; padding: var(--space-4); border-radius: var(--radius-control); }
+.runSelector { margin-bottom: 22px; }
+.conceptExcerpt { font-size: var(--font-subheading); white-space: pre-wrap; overflow-wrap: anywhere; max-height: 12em; overflow: auto; }
+.workflowStages { list-style: none; display: grid; grid-template-columns: repeat(5, 1fr); padding: 0; gap: var(--space-2); }
+.workflowStages li { display: grid; padding: var(--space-3); border-radius: var(--radius-control); border: 1px solid var(--color-border); background: var(--color-background); }
+.workflowStages li.stageCompleted { border-color: #bad6bd; background: #eaf5e9; }
+.workflowStages span { font-size: var(--font-xs); color: #425848; }
+.runFacts { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: var(--space-4); border-bottom: 1px solid var(--color-border); padding-bottom: var(--space-5); }
+.runFacts dt { color: var(--color-subtle); }
+.runFacts dd { margin-top: var(--space-1); font-weight: 600; font-size: var(--font-small); }
+.candidateGrid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
+.candidateCard .cardHeading { flex-wrap: wrap; }
+.candidateCard h3 { flex: 1 1 210px; }
+.conceptShell a { color: var(--color-link); text-underline-offset: 3px; overflow-wrap: anywhere; }
+.conceptShell .conceptNav a[aria-current] { color: var(--color-surface); }
+.artifactReader { border-top: 1px solid var(--color-border); padding-top: var(--space-6); }
+.artifactReader > * + * { margin-top: var(--space-5); }
+.conceptMarkdown { max-width: 78ch; line-height: 1.75; overflow-wrap: anywhere; }
+.conceptMarkdown > * + * { margin-top: 18px; }
+.conceptMarkdown h3 { margin-top: var(--space-7); }
+.conceptMarkdown pre, .jsonOutput { padding: var(--space-4); background: #f1f5ef; border-radius: var(--radius-control); overflow: auto; white-space: pre; }
+.conceptMarkdown pre code { font-size: 13px; }
+.conceptMarkdown blockquote { border-left: 3px solid #92aa91; margin-left: 0; padding-left: 18px; }
+.tableScroll { max-width: 100%; overflow: auto; }
+.ranking table { table-layout: auto; min-width: 550px; }
+.ranking th { color: #3e5547; }
+.ranking tr > :first-child { white-space: nowrap; width: 4ch; }
+.ranking tr > :nth-child(2), .ranking tr > :nth-child(4) { min-width: 26ch; }
+.ranking tr > :nth-child(3) { min-width: 12ch; }
+.comparisonScrollHint { max-width: 65ch; }
+.ranking th, .ranking td { vertical-align: top; font-size: var(--font-small); }
+.ranking td > p { margin-bottom: 10px; }
+.conceptShell .notice { padding: 18px; box-shadow: none; }
+.conceptShell .errorState p + button { margin-top: var(--space-3); }
+.conceptShell .errorState h2 + p { margin-top: var(--space-3); }
+.operationStatus { min-height: 28px; margin-bottom: var(--space-3); }
+.conceptFooter { display: flex; justify-content: space-between; gap: var(--space-6); font-size: var(--font-xs); color: var(--color-subtle); margin-top: var(--space-7); }
+.conceptFooter a { flex-shrink: 0; }
+.tokenPanel { margin-top: var(--space-5); }
+.tokenControls > * + *, .tokenControls form > * + * { margin-top: var(--space-4); }
+.tokenControls fieldset { border: 1px solid #cdd9cd; border-radius: var(--radius-control); padding: var(--space-3); }
+.conceptShell .checkboxLabel { display: flex; align-items: center; gap: var(--space-2); min-height: 32px; }
+.tokenList { padding-left: var(--space-5); }
+.tokenList > li + li { margin-top: var(--space-5); }
+.pairing { margin: 5vh auto; line-height: 1.55; }
+.pairing > * + * { margin-top: 22px; }
+.pairing h2 { font-size: var(--font-heading); }
+@media (max-width: 700px) {
+  .conceptShell { padding: 22px 14px; }
+  .conceptHeader { align-items: start; }
+  .localLabel { display: none; }
+  .conceptNav { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+  .conceptNav a { padding: 10px var(--space-3); text-align: center; }
+  .conceptPanel { padding: var(--space-5) var(--space-4); }
+  .formColumns, .candidateGrid, .modelChoice { grid-template-columns: minmax(0, 1fr); }
+  .criterionRow { grid-template-columns: minmax(0, 1fr) 100px; }
+  .criterionRow button { grid-column: 1 / -1; justify-self: start; padding-left: 0; }
+  .workflowStages { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .runFacts { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .conceptFooter, .cardHeading { flex-wrap: wrap; }
+  .accountCard, .candidateCard { padding: var(--space-4); }
+}
+@media (prefers-reduced-motion: reduce) { .progressSegment { animation: none !important; } }
+.loginViewer { margin: 1rem 0; }
+.loginScreen { width: 100%; aspect-ratio: 1280 / 900; max-height: 65vh; min-height: 240px; background: #101b16; overflow: hidden; border: 1px solid #567766; border-radius: .5rem; }
+.loginScreen canvas:focus-visible { outline: 3px solid #b6ff9a; outline-offset: -3px; }

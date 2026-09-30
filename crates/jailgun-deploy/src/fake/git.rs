@@ -73,7 +73,13 @@ impl RemoteGitBackend for FakeRemoteGit {
             .unwrap_or_else(|| self.synthesize_receipt_path(receipt)))
     }
 
-    async fn reset_hard(&mut self, _remote_dir: &str, _target: &str) -> Result<(), CleanupError> {
+    async fn reset_preserved(
+        &mut self,
+        _remote_dir: &str,
+        _expected_head: &str,
+        _preserved_ref: &str,
+        _target: &str,
+    ) -> Result<(), CleanupError> {
         if matches!(self.outcome, FakeOutcome::CleanupDivergent) {
             if let Ok(mut guard) = self.snapshots.lock() {
                 guard.clear();

@@ -133,20 +133,6 @@ pub(super) fn path_to_slash(path: &Path) -> String {
         .join("/")
 }
 
-pub(super) fn resolve_config_path(path: &Path) -> PathBuf {
-    if path.is_absolute() || path.exists() {
-        return path.to_path_buf();
-    }
-    let workspace_path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-        .join("../../")
-        .join(path);
-    if workspace_path.exists() {
-        workspace_path
-    } else {
-        path.to_path_buf()
-    }
-}
-
 pub(super) fn sha256_bytes(bytes: &[u8]) -> String {
     let mut hasher = Sha256::new();
     hasher.update(bytes);

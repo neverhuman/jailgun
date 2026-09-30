@@ -1,12 +1,12 @@
 use std::sync::Arc;
 
 use axum::{
-    extract::{Path as AxumPath, State},
+    extract::{Path as AxumPath, Query, State},
     http::{HeaderMap, StatusCode},
     response::{IntoResponse, Response},
-    Json,
+    Extension, Json,
 };
-use jailgun_core::{validate_run_id, JailgunAgentRunSummary, JailgunEvent, RunSnapshot};
+use jailgun_core::{validate_run_id, JailgunAgentRunSummary, JailgunEvent};
 use serde_json::json;
 
 use crate::{
@@ -14,22 +14,81 @@ use crate::{
     state::AppState,
 };
 
-pub(crate) async fn get_runs(State(state): State<Arc<AppState>>) -> Json<Vec<RunSnapshot>> {
-    Json(state.runs.read().await.clone())
+#[derive(serde::Deserialize, Default)]
+#[serde(deny_unknown_fields)]
+pub(crate) struct RunFilter {
+    kind: Option<String>,
+}
+
+pub(crate) async fn get_runs(
+    State(state): State<Arc<AppState>>,
+    Extension(principal): Extension<crate::auth::Principal>,
+    filter: Result<Query<RunFilter>, axum::extract::rejection::QueryRejection>,
+) -> Response {
+    let filter = match crate::concepts::query(filter) {
+        Ok(filter) => filter,
+        Err(error) => return error.into_response(),
+    };
+    if filter.kind.as_deref() == Some("archive") && !principal.is_operator() {
+        return crate::auth::error(
+            StatusCode::FORBIDDEN,
+            "operator-required",
+            "Archive runs require the operator credential.",
+        );
+    }
+    if filter
+        .kind
+        .as_deref()
+        .is_some_and(|kind| !["archive", "concept"].contains(&kind))
+    {
+        return crate::concepts::ApiError(jailgun_workflow::Error::action(
+            "invalid-request",
+            "Unknown run kind.",
+            "Choose archive or concept.",
+        ))
+        .into_response();
+    }
+    if filter.kind.as_deref() != Some("archive")
+        && (state.workflow.is_some() || filter.kind.as_deref() == Some("concept"))
+    {
+        match crate::concepts::store(&state) {
+            Ok(store) => {
+                return match store.runs().await {
+                    Ok(runs) => Json(
+                        runs.into_iter()
+                            .filter(|run| principal.permits_account(&run.request.account_id))
+                            .collect::<Vec<_>>(),
+                    )
+                    .into_response(),
+                    Err(error) => crate::concepts::ApiError(error).into_response(),
+                };
+            }
+            Err(error) => return error.into_response(),
+        }
+    }
+    Json(state.runs.read().await.clone()).into_response()
 }
 
 pub(crate) async fn get_run(
     State(state): State<Arc<AppState>>,
     AxumPath(run_id): AxumPath<String>,
 ) -> Response {
+    if let Some(store) = state.workflow.as_ref() {
+        match store.run(run_id.clone()).await {
+            Ok(run) => return Json(run).into_response(),
+            Err(error) if error.code() == "not-found" => (),
+            Err(error) => return crate::concepts::ApiError(error).into_response(),
+        }
+    }
     let runs = state.runs.read().await;
     match runs.iter().find(|run| run.run_id == run_id) {
         Some(run) => Json(run).into_response(),
-        None => (
-            StatusCode::NOT_FOUND,
-            Json(json!({ "error": "run not found" })),
-        )
-            .into_response(),
+        None => crate::concepts::ApiError(jailgun_workflow::Error::action(
+            "not-found",
+            "The requested run does not exist.",
+            "List available runs and use a returned run ID.",
+        ))
+        .into_response(),
     }
 }
 
@@ -125,14 +184,8 @@ pub(crate) async fn post_event(
     headers: HeaderMap,
     Json(event): Json<JailgunEvent>,
 ) -> StatusCode {
-    let Some(expected) = state.ingest_token.as_deref() else {
-        return StatusCode::SERVICE_UNAVAILABLE;
-    };
-    let provided = headers
-        .get("x-jailgun-token")
-        .and_then(|value| value.to_str().ok());
-    if provided != Some(expected) {
-        return StatusCode::UNAUTHORIZED;
+    if let Some(response) = crate::auth::unauthorized(&state, &headers) {
+        return response.status();
     }
     record_event(&state, event.clone()).await;
     if let Some(tx) = state.event_bus.as_ref() {

@@ -30,7 +30,7 @@ TAB_INDEX={tab_index}
 JOB_ID={job_id}
 STASH_ON_FAILURE={stash}
 
-JOB_DIR="/tmp/jailgun-runs/$JOB_ID"
+JOB_DIR="$(dirname "$(dirname "$ARCHIVE_PATH")")"
 STATUS_PATH="$JOB_DIR/status.json"
 LOG_PATH="$JOB_DIR/launch.log"
 FAILURE_MARKER="$JOB_DIR/deploy.failed"
@@ -110,7 +110,7 @@ write_status() {{
     printf '"finished_at":%s,' "$(opt_string "$FINISHED_AT")"
     printf '"failed_at":%s' "$(opt_string "$FAILED_AT")"
     printf '}}\n'
-  }} > "$TMP"
+  }} > "$TMP" || return 1
   mv "$TMP" "$STATUS_PATH"
 }}
 
@@ -128,7 +128,11 @@ write_failure_marker() {{
 }}
 
 git_head() {{ git rev-parse HEAD 2>/dev/null || true; }}
-git_dirty() {{ test -n "$(git status --porcelain 2>/dev/null || true)"; }}
+git_dirty() {{
+  local STATUS
+  STATUS="$(git status --porcelain=v1 --untracked-files=all)" || return 0
+  test -n "$STATUS"
+}}
 
 collect_commit_stats() {{
   if [ -z "$PRE_HEAD" ] || [ -z "$POST_HEAD" ] || [ "$PRE_HEAD" = "$POST_HEAD" ]; then
@@ -186,30 +190,55 @@ preserve_and_reset() {{
   [ -z "$EXIT_CODE" ] && EXIT_CODE="$CODE"
   local CUR; CUR="$(git_head)"
   POST_HEAD="$CUR"
+  if [ -z "$CUR" ] || [ -z "$PRE_HEAD" ]; then
+    fail_now "$CODE" "preservation-head-unavailable"
+  fi
 
   if [ -n "$CUR" ] && [ -n "$PRE_HEAD" ] && [ "$CUR" != "$PRE_HEAD" ]; then
     local PREF="jailgun-failed/$JOB_ID"
-    if git update-ref "refs/heads/$PREF" "$CUR" 2>/dev/null; then
+    if git update-ref "refs/heads/$PREF" "$CUR" '' 2>/dev/null && [ "$(git rev-parse --verify "refs/heads/$PREF")" = "$CUR" ]; then
       PRESERVED_REF="$PREF"
       PRESERVED_SHA="$CUR"
       PRESERVED_PATCH="$PATCH_DIR/tab-$TAB_INDEX.patch"
       git diff --binary "$PRE_HEAD" "$CUR" > "$PRESERVED_PATCH" 2>/dev/null || PRESERVED_PATCH=""
+    else
+      fail_now "$CODE" "preservation-ref-failed"
     fi
   fi
 
-  if [ "$STASH_ON_FAILURE" = "1" ] && git_dirty; then
+  if git_dirty; then
+    if [ "$STASH_ON_FAILURE" != "1" ]; then
+      fail_now "$CODE" "dirty-work-not-preserved"
+    fi
     if git stash push -u -m "jailgun-failed $RUN_ID tab $TAB_INDEX" >/dev/null 2>&1; then
       PRESERVED_STASH="stash@{{0}}"
       local STASH_SHA; STASH_SHA="$(git rev-parse -q --verify refs/stash 2>/dev/null || true)"
       if [ -n "$STASH_SHA" ]; then
         local SREF="jailgun-failed/$JOB_ID-stash"
-        git update-ref "refs/heads/$SREF" "$STASH_SHA" 2>/dev/null && PRESERVED_STASH_REF="$SREF"
+        if git update-ref "refs/heads/$SREF" "$STASH_SHA" '' 2>/dev/null && [ "$(git rev-parse --verify "refs/heads/$SREF")" = "$STASH_SHA" ]; then
+          PRESERVED_STASH_REF="$SREF"
+        else
+          fail_now "$CODE" "preservation-stash-ref-failed"
+        fi
+      else
+        fail_now "$CODE" "preservation-stash-missing"
       fi
+    else
+      fail_now "$CODE" "preservation-stash-failed"
     fi
   fi
 
   RESET_TO="$PRE_HEAD"
-  if [ -n "$PRE_HEAD" ] && git reset --hard "$PRE_HEAD" >/dev/null 2>&1 && git clean -fd >/dev/null 2>&1; then
+  if ! write_status "running" || ! sync; then
+    fail_now "$CODE" "preservation-receipt-failed"
+  fi
+  if [ "$(git_head)" != "$CUR" ] || git_dirty; then
+    fail_now "$CODE" "checkout-changed-after-preservation"
+  fi
+  if [ -n "$PRESERVED_REF" ] && [ "$(git rev-parse --verify "refs/heads/$PRESERVED_REF")" != "$CUR" ]; then
+    fail_now "$CODE" "preservation-ref-changed"
+  fi
+  if git reset --hard "$PRE_HEAD" >/dev/null 2>&1; then
     POST_HEAD="$(git_head)"
     if [ "$POST_HEAD" = "$PRE_HEAD" ] && ! git_dirty; then
       RESET_OK="true"
@@ -230,7 +259,12 @@ trap 'fail_now "$?" "unexpected-error"' ERR
 
 write_status "queued"
 cd "$REMOTE_DIR"
+GIT_DIR="$(git rev-parse --absolute-git-dir)"
+MUTATION_LOCK="$GIT_DIR/jailgun-mutation.lock"
+mkdir "$MUTATION_LOCK" || fail_now 47 "checkout-owned"
+trap 'rmdir "$MUTATION_LOCK"' EXIT
 PRE_HEAD="$(git_head)"
+[ -n "$PRE_HEAD" ] || fail_now 48 "checkout-head-unavailable"
 write_status "running"
 
 if [ -f "$FAILURE_MARKER" ]; then

@@ -7,9 +7,9 @@
       "lane": "audit"
     },
     "README.md": {
-      "command": "bash ops/ci/jankurai.sh",
-      "purpose": "verify badge, generated report links, and repo guidance stay aligned",
-      "lane": "audit"
+      "command": "bash ops/ci/docs.sh && bash ops/ci/release.sh && bash ops/ci/security.sh && bash ops/ci/jankurai.sh",
+      "purpose": "verify documentation links, JSON examples, executable CLI help surfaces and genuine synthetic screenshot provenance",
+      "lane": "docs"
     },
     "CHANGELOG.md": {
       "command": "bash ops/ci/release.sh && bash ops/ci/jankurai.sh",
@@ -52,9 +52,9 @@
       "lane": "audit"
     },
     "docs/": {
-      "command": "bash ops/ci/release.sh && bash ops/ci/jankurai.sh",
-      "purpose": "verify documentation remains routed through governance and release lanes",
-      "lane": "audit"
+      "command": "bash ops/ci/docs.sh && bash ops/ci/release.sh && bash ops/ci/security.sh && bash ops/ci/jankurai.sh",
+      "purpose": "verify documentation links, JSON examples, executable CLI help surfaces and genuine synthetic screenshot provenance",
+      "lane": "docs"
     },
     "docs/release.md": {
       "command": "bash ops/ci/release.sh",
@@ -77,9 +77,9 @@
       "lane": "contract"
     },
     "db/": {
-      "command": "bash ops/ci/release.sh && bash ops/ci/jankurai.sh",
-      "purpose": "verify data-boundary docs, migration lanes, and constraint lanes stay governance-only until SQL exists",
-      "lane": "release"
+      "command": "bash ops/ci/db.sh && bash ops/ci/release.sh && bash ops/ci/jankurai.sh",
+      "purpose": "execute SQLite migration, constraints, crash recovery, backup and restore proofs",
+      "lane": "db"
     },
     "config/": {
       "command": "bash ops/ci/scan.sh",
@@ -160,6 +160,336 @@
       "command": "bash ops/ci/node.sh && bash ops/ci/security.sh",
       "purpose": "verify locked Node dependencies typecheck, test, build, and audit",
       "lane": "web"
+    },
+    ".node-version": {
+      "command": "bash ops/ci/node.sh",
+      "purpose": "verify the pinned Node release executes the locked workspaces",
+      "lane": "web"
+    },
+    "artifacts/ux-qa/": {
+      "command": "bash ops/ci/ux-qa.sh",
+      "purpose": "execute real browser checks and hash generated artifacts",
+      "lane": "web"
+    },
+    "LICENSE": {
+      "command": "bash ops/ci/release.sh && bash ops/ci/jankurai.sh",
+      "purpose": "verify public repository guidance and ownership",
+      "lane": "release"
+    },
+    "CONTRIBUTING.md": {
+      "command": "bash ops/ci/release.sh && bash ops/ci/jankurai.sh",
+      "purpose": "verify public repository guidance and ownership",
+      "lane": "release"
+    },
+    "SECURITY.md": {
+      "command": "bash ops/ci/release.sh && bash ops/ci/jankurai.sh",
+      "purpose": "verify public repository guidance and ownership",
+      "lane": "release"
+    },
+    "crates/jailgun-workflow/": {
+      "command": "bash ops/ci/rust.sh && bash ops/ci/db.sh && bash ops/ci/security.sh",
+      "purpose": "verify workflow state transitions, persistence, bounded scheduling, artifact integrity, and dependency security",
+      "lane": "rust"
+    },
+    "crates/jailgun-orchestrator/src/concept/": {
+      "command": "bash ops/ci/rust.sh && bash ops/ci/e2e.sh",
+      "purpose": "verify durable orchestration, scoped browser ownership, five/ten-candidate captures and accepted-turn restart recovery",
+      "lane": "rust"
+    },
+    "apps/chrome-bridge/bin/concept-bridge.mjs": {
+      "command": "bash ops/ci/node.sh && bash ops/ci/e2e.sh && bash ops/ci/security.sh",
+      "purpose": "exercise the supervised account browser with real sandboxed Chrome and verify production dependencies",
+      "lane": "web"
+    },
+    "apps/dashboard/src/generated/": {
+      "command": "bash ops/ci/contracts.sh && bash ops/ci/node.sh",
+      "purpose": "verify frontend workflow types are generated from canonical Rust contracts without drift",
+      "lane": "contract"
+    },
+    "crates/jailgun-server/examples/": {
+      "command": "bash ops/ci/rust.sh && bash ops/ci/e2e.sh",
+      "purpose": "verify real account onboarding, fresh restart authentication and authenticated concept HTTP workflows",
+      "lane": "rust"
+    },
+    "crates/jailgun-cli/src/commands/concept_daemon.rs": {
+      "command": "bash ops/ci/rust.sh && bash ops/ci/e2e.sh && bash ops/ci/security.sh",
+      "purpose": "verify daemon ownership, explicit operator pairing and absence of startup credentials in process logs",
+      "lane": "rust"
+    },
+    "crates/jailgun-server/src/mcp/": {
+      "command": "bash ops/ci/rust.sh && bash ops/ci/e2e.sh && bash ops/ci/security.sh",
+      "purpose": "verify official SDK interoperability, schemas, operator/automation boundaries and real browser concept workflows through MCP",
+      "lane": "rust"
+    },
+    "crates/jailgun-cli/src/commands/mcp.rs": {
+      "command": "bash ops/ci/rust.sh && bash ops/ci/e2e.sh && bash ops/ci/security.sh",
+      "purpose": "prove direct loopback REST/MCP routing, scoped non-owner read and mutation denial, invalid credential rejection and per-request revocation through the official SDK gateway",
+      "lane": "rust"
+    },
+    "crates/jailgun-cli/src/concept_cli/": {
+      "command": "bash ops/ci/rust.sh && bash ops/ci/e2e.sh && bash ops/ci/security.sh",
+      "purpose": "verify subprocess CLI contracts, daemon reuse, private artifact exports and real browser five/ten-candidate workflows",
+      "lane": "rust"
+    },
+    "crates/jailgun-cli/tests/": {
+      "command": "bash ops/ci/rust.sh && bash ops/ci/e2e.sh",
+      "purpose": "execute command-line and daemon lifecycle regressions and full provider fixture workflows",
+      "lane": "rust"
+    },
+    "crates/jailgun-server/src/login_view.rs": {
+      "command": "bash ops/ci/rust.sh && bash ops/ci/e2e.sh && bash ops/ci/security.sh",
+      "purpose": "verify operator-cookie authorization, Origin rejection, display isolation, private RFB keyboard login and closure on cancellation/expiry",
+      "lane": "rust"
+    },
+    "scripts/build-bundle.mjs": {
+      "command": "bash ops/ci/package.sh && bash ops/ci/security.sh && bash ops/ci/jankurai.sh",
+      "purpose": "verify native bundle hashes, dependency inventory, installation isolation, upgrade preservation and packaged daemon operation",
+      "lane": "package"
+    },
+    "scripts/check-package.mjs": {
+      "command": "bash ops/ci/package.sh && bash ops/ci/security.sh && bash ops/ci/jankurai.sh",
+      "purpose": "verify native bundle hashes, dependency inventory, installation isolation, upgrade preservation and packaged daemon operation",
+      "lane": "package"
+    },
+    "scripts/distribution/": {
+      "command": "bash ops/ci/package.sh && bash ops/ci/security.sh && bash ops/ci/jankurai.sh",
+      "purpose": "verify native bundle hashes, dependency inventory, installation isolation, upgrade preservation and packaged daemon operation",
+      "lane": "package"
+    },
+    "scripts/install.sh": {
+      "command": "bash ops/ci/package.sh && bash ops/ci/security.sh && bash ops/ci/jankurai.sh",
+      "purpose": "verify native bundle hashes, dependency inventory, installation isolation, upgrade preservation and packaged daemon operation",
+      "lane": "package"
+    },
+    "ops/distribution/": {
+      "command": "bash ops/ci/package.sh && bash ops/ci/security.sh && bash ops/ci/jankurai.sh",
+      "purpose": "verify native bundle hashes, dependency inventory, installation isolation, upgrade preservation and packaged daemon operation",
+      "lane": "package"
+    },
+    "ops/ci/package.sh": {
+      "command": "bash ops/ci/package.sh && bash ops/ci/security.sh && bash ops/ci/jankurai.sh",
+      "purpose": "verify native bundle hashes, dependency inventory, installation isolation, upgrade preservation and packaged daemon operation",
+      "lane": "package"
+    },
+    "scripts/source-sbom.mjs": {
+      "command": "bash ops/ci/security.sh && bash ops/ci/jankurai.sh",
+      "purpose": "verify that source SBOM inputs exclude ignored profiles, credentials, runtime state and build/test installations; verify actual Syft output against the Git inventory",
+      "lane": "security"
+    },
+    "scripts/source-sbom.test.mjs": {
+      "command": "bash ops/ci/security.sh && bash ops/ci/jankurai.sh",
+      "purpose": "verify that source SBOM inputs exclude ignored profiles, credentials, runtime state and build/test installations; verify actual Syft output against the Git inventory",
+      "lane": "security"
+    },
+    "scripts/bootstrap.sh": {
+      "command": "bash ops/ci/package.sh && bash ops/ci/security.sh && bash ops/ci/jankurai.sh",
+      "purpose": "verify pinned build tools, locked native builds, checksum-verified installation and preservation of runtime state",
+      "lane": "package"
+    },
+    "crates/jailgun-server/tests/account_reconnect.rs": {
+      "command": "bash ops/ci/rust.sh && bash ops/ci/e2e.sh",
+      "purpose": "verify ordered account readiness, reconnect and cancellation with delayed real-browser probes, fresh models and retained results",
+      "lane": "rust"
+    },
+    "crates/jailgun-cli/src/commands/data.rs": {
+      "command": "bash ops/ci/rust.sh && bash ops/ci/db.sh && bash ops/ci/security.sh",
+      "purpose": "verify offline CLI ownership, matching-schema backups, exclusive restore destinations, artifact integrity and completed-result retention",
+      "lane": "db"
+    },
+    "scripts/check-docs.mjs": {
+      "command": "bash ops/ci/docs.sh && bash ops/ci/release.sh && bash ops/ci/security.sh && bash ops/ci/jankurai.sh",
+      "purpose": "verify documentation links, JSON examples, executable CLI help surfaces and genuine synthetic screenshot provenance",
+      "lane": "docs"
+    },
+    "ops/ci/docs.sh": {
+      "command": "bash ops/ci/docs.sh && bash ops/ci/release.sh && bash ops/ci/security.sh && bash ops/ci/jankurai.sh",
+      "purpose": "verify documentation links, JSON examples, executable CLI help surfaces and genuine synthetic screenshot provenance",
+      "lane": "docs"
+    },
+    "scripts/publish-doc-screenshot.mjs": {
+      "command": "bash ops/ci/ux-qa.sh && node scripts/publish-doc-screenshot.mjs && bash ops/ci/docs.sh && bash ops/ci/jankurai.sh",
+      "purpose": "capture the actual dashboard in Chromium and publish only the fixed synthetic state with verified hashes and source inputs",
+      "lane": "web"
+    },
+    "assets/dashboard-results.png": {
+      "command": "bash ops/ci/ux-qa.sh && node scripts/publish-doc-screenshot.mjs && bash ops/ci/docs.sh && bash ops/ci/jankurai.sh",
+      "purpose": "capture the actual dashboard in Chromium and publish only the fixed synthetic state with verified hashes and source inputs",
+      "lane": "web"
+    },
+    "assets/dashboard-results.json": {
+      "command": "bash ops/ci/ux-qa.sh && node scripts/publish-doc-screenshot.mjs && bash ops/ci/docs.sh && bash ops/ci/jankurai.sh",
+      "purpose": "capture the actual dashboard in Chromium and publish only the fixed synthetic state with verified hashes and source inputs",
+      "lane": "web"
+    },
+    ".python-version": {
+      "command": "bash ops/ci/db.sh && bash ops/ci/release.sh && bash ops/ci/security.sh && bash ops/ci/jankurai.sh",
+      "purpose": "verify pinned Python executes persistence and release controls and remains included in CI setup",
+      "lane": "db"
+    },
+    "ops/ci/platform.sh": {
+      "command": "bash ops/ci/platform.sh && bash ops/ci/security.sh && bash ops/ci/jankurai.sh",
+      "purpose": "verify complete native synthetic compatibility and distribution acceptance on the current supported host",
+      "lane": "package"
+    },
+    "crates/jailgun-server/src/control.rs": {
+      "command": "bash ops/ci/rust.sh && bash ops/ci/e2e.sh && bash ops/ci/security.sh",
+      "purpose": "verify authenticated instance shutdown, local runtime ownership, operator-only authorization and durable stop/restart behavior",
+      "lane": "rust"
+    },
+    "crates/jailgun-core/src/installation.rs": {
+      "command": "bash ops/ci/rust.sh && bash ops/ci/e2e.sh && bash ops/ci/security.sh",
+      "purpose": "verify authenticated instance shutdown, local runtime ownership, operator-only authorization and durable stop/restart behavior",
+      "lane": "rust"
+    },
+    "crates/jailgun-core/src/startup_unit.rs": {
+      "command": "bash ops/ci/rust.sh && bash ops/ci/package.sh && bash ops/ci/security.sh",
+      "purpose": "verify private native definitions, exclusive output, stable installed executable paths and actual native start/restart/graceful-stop/unload behavior",
+      "lane": "package"
+    },
+    "crates/jailgun-core/tests/startup_unit.rs": {
+      "command": "bash ops/ci/rust.sh && bash ops/ci/package.sh && bash ops/ci/security.sh",
+      "purpose": "verify private native definitions, exclusive output, stable installed executable paths and actual native start/restart/graceful-stop/unload behavior",
+      "lane": "package"
+    },
+    "crates/jailgun-cli/src/concept_cli/startup.rs": {
+      "command": "bash ops/ci/rust.sh && bash ops/ci/package.sh && bash ops/ci/security.sh",
+      "purpose": "verify private native definitions, exclusive output, stable installed executable paths and actual native start/restart/graceful-stop/unload behavior",
+      "lane": "package"
+    },
+    "crates/jailgun-cli/src/concept_cli/startup_paths.rs": {
+      "command": "bash ops/ci/rust.sh && bash ops/ci/package.sh && bash ops/ci/security.sh",
+      "purpose": "verify private native definitions, exclusive output, stable installed executable paths and actual native start/restart/graceful-stop/unload behavior",
+      "lane": "package"
+    },
+    "crates/jailgun-cli/tests/daemon_lifecycle/startup.rs": {
+      "command": "bash ops/ci/rust.sh && bash ops/ci/package.sh && bash ops/ci/security.sh",
+      "purpose": "verify private native definitions, exclusive output, stable installed executable paths and actual native start/restart/graceful-stop/unload behavior",
+      "lane": "package"
+    },
+    "scripts/distribution/clean/": {
+      "command": "bash ops/ci/package.sh && bash ops/ci/security.sh && bash ops/ci/jankurai.sh",
+      "purpose": "execute checksum-verified installation and private daemon persistence operations in an isolated pinned Ubuntu image without a source checkout or developer toolchain; verify sanitized source-bound evidence and owned container cleanup",
+      "lane": "package"
+    },
+    "crates/jailgun-core/src/browser_registry/profile_ownership.rs": {
+      "command": "bash ops/ci/rust.sh && bash ops/ci/db.sh && bash ops/ci/e2e.sh && bash ops/ci/security.sh",
+      "purpose": "verify shared atomic profile ownership, same-owner retries, migration isolation and blocked archive scheduling for invalid owner markers",
+      "lane": "rust"
+    },
+    "crates/jailgun-core/src/browser_registry/account.rs": {
+      "command": "bash ops/ci/rust.sh && bash ops/ci/db.sh && bash ops/ci/e2e.sh && bash ops/ci/security.sh",
+      "purpose": "verify shared atomic profile ownership, same-owner retries, migration isolation and blocked archive scheduling for invalid owner markers",
+      "lane": "rust"
+    },
+    "crates/jailgun-core/src/browser_registry/leases.rs": {
+      "command": "bash ops/ci/rust.sh && bash ops/ci/db.sh && bash ops/ci/e2e.sh && bash ops/ci/security.sh",
+      "purpose": "verify shared atomic profile ownership, same-owner retries, migration isolation and blocked archive scheduling for invalid owner markers",
+      "lane": "rust"
+    },
+    "crates/jailgun-core/tests/profile_ownership.rs": {
+      "command": "bash ops/ci/rust.sh && bash ops/ci/db.sh && bash ops/ci/e2e.sh && bash ops/ci/security.sh",
+      "purpose": "verify shared atomic profile ownership, same-owner retries, migration isolation and blocked archive scheduling for invalid owner markers",
+      "lane": "rust"
+    },
+    "crates/jailgun-orchestrator/src/concept/supervisor.rs": {
+      "command": "bash ops/ci/rust.sh && bash ops/ci/e2e.sh",
+      "purpose": "verify ordered account readiness, reconnect and cancellation with delayed real-browser probes, fresh models and retained results",
+      "lane": "rust"
+    },
+    "crates/jailgun-orchestrator/src/concept/supervisor/observe.rs": {
+      "command": "bash ops/ci/rust.sh && bash ops/ci/e2e.sh",
+      "purpose": "verify ordered account readiness, reconnect and cancellation with delayed real-browser probes, fresh models and retained results",
+      "lane": "rust"
+    },
+    "crates/jailgun-server/examples/account_browser_proof/reconnect.rs": {
+      "command": "bash ops/ci/rust.sh && bash ops/ci/e2e.sh",
+      "purpose": "verify ordered account readiness, reconnect and cancellation with delayed real-browser probes, fresh models and retained results",
+      "lane": "rust"
+    },
+    "crates/jailgun-cli/src/commands/server.rs": {
+      "command": "bash ops/ci/rust.sh && bash ops/ci/e2e.sh && bash ops/ci/security.sh",
+      "purpose": "verify daemon ownership, explicit operator pairing and absence of startup credentials in process logs",
+      "lane": "rust"
+    },
+    "scripts/check-concept-daemon.mjs": {
+      "command": "bash ops/ci/rust.sh && bash ops/ci/e2e.sh && bash ops/ci/security.sh",
+      "purpose": "verify daemon ownership, explicit operator pairing and absence of startup credentials in process logs",
+      "lane": "rust"
+    },
+    "scripts/check-dashboard-auth.mjs": {
+      "command": "bash ops/ci/rust.sh && bash ops/ci/e2e.sh && bash ops/ci/security.sh",
+      "purpose": "verify daemon ownership, explicit operator pairing and absence of startup credentials in process logs",
+      "lane": "rust"
+    },
+    "apps/fake-chatgpt/src/concept.mjs": {
+      "command": "bash ops/ci/node.sh && bash ops/ci/e2e.sh",
+      "purpose": "execute interactive synthetic login and controlled authentication delay through the production browser adapter",
+      "lane": "node"
+    },
+    "crates/jailgun-cli/src/concept_cli/client.rs": {
+      "command": "bash ops/ci/rust.sh && bash ops/ci/e2e.sh && bash ops/ci/security.sh",
+      "purpose": "prove direct loopback REST/MCP routing, scoped non-owner read and mutation denial, invalid credential rejection and per-request revocation through the official SDK gateway",
+      "lane": "rust"
+    },
+    "crates/jailgun-cli/tests/concept_commands/local_transport.rs": {
+      "command": "bash ops/ci/rust.sh && bash ops/ci/e2e.sh && bash ops/ci/security.sh",
+      "purpose": "prove direct loopback REST/MCP routing, scoped non-owner read and mutation denial, invalid credential rejection and per-request revocation through the official SDK gateway",
+      "lane": "rust"
+    },
+    "crates/jailgun-core/src/managed_installation.rs": {
+      "command": "bash ops/ci/rust.sh && bash ops/ci/package.sh && bash ops/ci/security.sh",
+      "purpose": "verify process-use locks across installed binaries and upgrades, exact inventory removal, interruption recovery, unknown/changed-file refusal and preservation of private runtime data",
+      "lane": "package"
+    },
+    "crates/jailgun-core/src/managed_installation/": {
+      "command": "bash ops/ci/rust.sh && bash ops/ci/package.sh && bash ops/ci/security.sh",
+      "purpose": "verify process-use locks across installed binaries and upgrades, exact inventory removal, interruption recovery, unknown/changed-file refusal and preservation of private runtime data",
+      "lane": "package"
+    },
+    "crates/jailgun-core/tests/managed_installation.rs": {
+      "command": "bash ops/ci/rust.sh && bash ops/ci/package.sh && bash ops/ci/security.sh",
+      "purpose": "verify process-use locks across installed binaries and upgrades, exact inventory removal, interruption recovery, unknown/changed-file refusal and preservation of private runtime data",
+      "lane": "package"
+    },
+    "crates/jailgun-cli/src/commands/uninstall.rs": {
+      "command": "bash ops/ci/rust.sh && bash ops/ci/package.sh && bash ops/ci/security.sh",
+      "purpose": "verify process-use locks across installed binaries and upgrades, exact inventory removal, interruption recovery, unknown/changed-file refusal and preservation of private runtime data",
+      "lane": "package"
+    },
+    "crates/jailgun-cli/tests/managed_uninstall.rs": {
+      "command": "bash ops/ci/rust.sh && bash ops/ci/package.sh && bash ops/ci/security.sh",
+      "purpose": "verify process-use locks across installed binaries and upgrades, exact inventory removal, interruption recovery, unknown/changed-file refusal and preservation of private runtime data",
+      "lane": "package"
+    },
+    "crates/jailgun-server/tests/account_isolation.rs": {
+      "command": "bash ops/ci/rust.sh && bash ops/ci/node.sh && bash ops/ci/e2e.sh && bash ops/ci/security.sh",
+      "purpose": "verify independent provider cookies, account expiry and conversation custody plus two real browser profiles with unaffected workflows and restart reuse",
+      "lane": "web"
+    },
+    "crates/jailgun-server/examples/account_browser_proof/isolation.rs": {
+      "command": "bash ops/ci/rust.sh && bash ops/ci/node.sh && bash ops/ci/e2e.sh && bash ops/ci/security.sh",
+      "purpose": "verify independent provider cookies, account expiry and conversation custody plus two real browser profiles with unaffected workflows and restart reuse",
+      "lane": "web"
+    },
+    "apps/fake-chatgpt/test/concept.test.mjs": {
+      "command": "bash ops/ci/rust.sh && bash ops/ci/node.sh && bash ops/ci/e2e.sh && bash ops/ci/security.sh",
+      "purpose": "verify independent provider cookies, account expiry and conversation custody plus two real browser profiles with unaffected workflows and restart reuse",
+      "lane": "web"
+    },
+    "crates/jailgun-server/src/worker.rs": {
+      "command": "bash ops/ci/worker.sh && bash ops/ci/rust.sh && bash ops/ci/security.sh",
+      "purpose": "verify isolated tabs, injected execution, model and effort controls, job lifecycle, bounded errors and content-addressed tar object transfer",
+      "lane": "rust"
+    },
+    "docs/worker-mcp.md": {
+      "command": "bash ops/ci/docs.sh && bash ops/ci/security.sh && bash ops/ci/jankurai.sh",
+      "purpose": "verify complete worker MCP setup, encrypted forwarding, tool examples, integrity rules and failure guidance",
+      "lane": "documentation"
+    },
+    "ops/ci/worker.sh": {
+      "command": "bash ops/ci/worker.sh && bash ops/ci/security.sh && bash ops/ci/jankurai.sh",
+      "purpose": "prove worker API behavior without a live model, browser, credentials or external setup",
+      "lane": "rust"
     }
   }
 }

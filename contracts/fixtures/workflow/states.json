@@ -1,0 +1,3397 @@
+{
+  "account-disconnected": {
+    "account_id": "demo-account",
+    "email": "demo@example.invalid",
+    "error_code": null,
+    "lifecycle": "disconnected",
+    "login_expires_ms": 900000,
+    "login_view_available": false,
+    "model": null,
+    "observation": null,
+    "observed_ms": null
+  },
+  "account-login-required": {
+    "account_id": "demo-account",
+    "email": "demo@example.invalid",
+    "error_code": null,
+    "lifecycle": "login-required",
+    "login_expires_ms": 900000,
+    "login_view_available": false,
+    "model": null,
+    "observation": null,
+    "observed_ms": null
+  },
+  "account-ready": {
+    "account_id": "demo-account",
+    "email": "demo@example.invalid",
+    "error_code": null,
+    "lifecycle": "ready",
+    "login_expires_ms": null,
+    "login_view_available": false,
+    "model": {
+      "mode": "current"
+    },
+    "observation": {
+      "available_models": [
+        "Synthetic model",
+        "Synthetic reasoning"
+      ],
+      "identity": {
+        "email": "demo@example.invalid",
+        "id": "synthetic-demo-identity"
+      },
+      "model": "Synthetic model"
+    },
+    "observed_ms": 0
+  },
+  "account-starting": {
+    "account_id": "demo-account",
+    "email": "demo@example.invalid",
+    "error_code": null,
+    "lifecycle": "starting",
+    "login_expires_ms": 900000,
+    "login_view_available": false,
+    "model": null,
+    "observation": null,
+    "observed_ms": null
+  },
+  "account-verifying": {
+    "account_id": "demo-account",
+    "email": "demo@example.invalid",
+    "error_code": null,
+    "lifecycle": "verifying",
+    "login_expires_ms": 900000,
+    "login_view_available": false,
+    "model": null,
+    "observation": {
+      "available_models": [
+        "Synthetic model",
+        "Synthetic reasoning"
+      ],
+      "identity": {
+        "email": "demo@example.invalid",
+        "id": "synthetic-demo-identity"
+      },
+      "model": "Synthetic model"
+    },
+    "observed_ms": 0
+  },
+  "account-waiting-for-user": {
+    "account_id": "demo-account",
+    "email": "demo@example.invalid",
+    "error_code": null,
+    "lifecycle": "waiting-for-user",
+    "login_expires_ms": 900000,
+    "login_view_available": false,
+    "model": null,
+    "observation": null,
+    "observed_ms": null
+  },
+  "accounts": [
+    {
+      "active": 0,
+      "capacity": 10,
+      "cooldown_until_ms": 0,
+      "id": "demo-account",
+      "next_submit_ms": 335000,
+      "rate_limit_count": 0,
+      "readiness": "ready"
+    }
+  ],
+  "after-compare": {
+    "allow_incomplete": true,
+    "artifacts": [
+      {
+        "attempt_id": "00000000-0000-4000-8000-000000000011",
+        "byte_length": 312,
+        "completion": "complete",
+        "created_ms": 110,
+        "id": "00000000-0000-4000-8000-000000000020",
+        "media_type": "text/markdown; charset=utf-8",
+        "name": "candidate-1.md",
+        "run_id": "00000000-0000-4000-8000-000000000001",
+        "sha256": "6aef98842f9e637f70cf6c476b86f385b615d99288578335ba6eb1d9beab4ff6"
+      },
+      {
+        "attempt_id": "00000000-0000-4000-8000-000000000011",
+        "byte_length": 349,
+        "completion": "complete",
+        "created_ms": 110,
+        "id": "00000000-0000-4000-8000-000000000021",
+        "media_type": "application/json",
+        "name": "candidate-1.summary.json",
+        "run_id": "00000000-0000-4000-8000-000000000001",
+        "sha256": "8789c237b9b78bad58a4ea18de87e28a1bdaea816a57331b2f361d29fab3eccb"
+      },
+      {
+        "attempt_id": "00000000-0000-4000-8000-000000000012",
+        "byte_length": 312,
+        "completion": "complete",
+        "created_ms": 35110,
+        "id": "00000000-0000-4000-8000-000000000022",
+        "media_type": "text/markdown; charset=utf-8",
+        "name": "candidate-2.md",
+        "run_id": "00000000-0000-4000-8000-000000000001",
+        "sha256": "6aef98842f9e637f70cf6c476b86f385b615d99288578335ba6eb1d9beab4ff6"
+      },
+      {
+        "attempt_id": "00000000-0000-4000-8000-000000000012",
+        "byte_length": 349,
+        "completion": "complete",
+        "created_ms": 35110,
+        "id": "00000000-0000-4000-8000-000000000023",
+        "media_type": "application/json",
+        "name": "candidate-2.summary.json",
+        "run_id": "00000000-0000-4000-8000-000000000001",
+        "sha256": "8789c237b9b78bad58a4ea18de87e28a1bdaea816a57331b2f361d29fab3eccb"
+      },
+      {
+        "attempt_id": "00000000-0000-4000-8000-000000000013",
+        "byte_length": 312,
+        "completion": "complete",
+        "created_ms": 70110,
+        "id": "00000000-0000-4000-8000-000000000024",
+        "media_type": "text/markdown; charset=utf-8",
+        "name": "candidate-3.md",
+        "run_id": "00000000-0000-4000-8000-000000000001",
+        "sha256": "6aef98842f9e637f70cf6c476b86f385b615d99288578335ba6eb1d9beab4ff6"
+      },
+      {
+        "attempt_id": "00000000-0000-4000-8000-000000000013",
+        "byte_length": 349,
+        "completion": "complete",
+        "created_ms": 70110,
+        "id": "00000000-0000-4000-8000-000000000025",
+        "media_type": "application/json",
+        "name": "candidate-3.summary.json",
+        "run_id": "00000000-0000-4000-8000-000000000001",
+        "sha256": "8789c237b9b78bad58a4ea18de87e28a1bdaea816a57331b2f361d29fab3eccb"
+      },
+      {
+        "attempt_id": "00000000-0000-4000-8000-000000000014",
+        "byte_length": 312,
+        "completion": "partial",
+        "created_ms": 105110,
+        "id": "00000000-0000-4000-8000-000000000026",
+        "media_type": "text/markdown; charset=utf-8",
+        "name": "candidate-4.md",
+        "run_id": "00000000-0000-4000-8000-000000000001",
+        "sha256": "6aef98842f9e637f70cf6c476b86f385b615d99288578335ba6eb1d9beab4ff6"
+      },
+      {
+        "attempt_id": "00000000-0000-4000-8000-000000000015",
+        "byte_length": 312,
+        "completion": "partial",
+        "created_ms": 140110,
+        "id": "00000000-0000-4000-8000-000000000027",
+        "media_type": "text/markdown; charset=utf-8",
+        "name": "candidate-5.md",
+        "run_id": "00000000-0000-4000-8000-000000000001",
+        "sha256": "6aef98842f9e637f70cf6c476b86f385b615d99288578335ba6eb1d9beab4ff6"
+      },
+      {
+        "attempt_id": "00000000-0000-4000-8000-000000000016",
+        "byte_length": 312,
+        "completion": "complete",
+        "created_ms": 200100,
+        "id": "00000000-0000-4000-8000-000000000028",
+        "media_type": "text/markdown; charset=utf-8",
+        "name": "compare.md",
+        "run_id": "00000000-0000-4000-8000-000000000001",
+        "sha256": "517ec772bed53bb42832ee69ae9277828642599ae151705bb5d8512879fe6087"
+      },
+      {
+        "attempt_id": "00000000-0000-4000-8000-000000000016",
+        "byte_length": 3464,
+        "completion": "complete",
+        "created_ms": 200100,
+        "id": "00000000-0000-4000-8000-000000000029",
+        "media_type": "application/json",
+        "name": "comparison.json",
+        "run_id": "00000000-0000-4000-8000-000000000001",
+        "sha256": "6f24ea621c7f67ab12ee8c23186f4019cf2350057e7c4ffb1c74e84e665f15a1"
+      }
+    ],
+    "configuration": {
+      "max_attempts": 2,
+      "max_jitter_ms": 5000,
+      "model": {
+        "mode": "current"
+      },
+      "overall_deadline_ms": 10800000,
+      "perspectives": [
+        "User needs and practical value: identify the people, concrete problems, and useful outcomes.",
+        "Novel approaches and differentiation: propose a distinct approach and explain meaningful differences.",
+        "Technical feasibility and implementation: describe a buildable approach, dependencies, and validation.",
+        "Constraints, cost, and operational simplicity: minimize unnecessary complexity and explain resource tradeoffs.",
+        "Adversarial critique and failure prevention: design around plausible failures and misuse, with mitigations."
+      ],
+      "response_timeout_ms": 1800000,
+      "stage_char_limit": 128000,
+      "submission_spacing_ms": 30000,
+      "summary_char_limit": 6000,
+      "template_version": "1"
+    },
+    "created_ms": 2,
+    "deadline_ms": 10800002,
+    "id": "00000000-0000-4000-8000-000000000001",
+    "pause_reason": null,
+    "request": {
+      "account_id": "demo-account",
+      "candidate_count": 5,
+      "concept": "A neighborhood tool library with a small volunteer team",
+      "constraints": "Use existing community space. Test demand before purchasing equipment.",
+      "criteria": [
+        {
+          "name": "Usefulness",
+          "weight": 30
+        },
+        {
+          "name": "Feasibility",
+          "weight": 25
+        },
+        {
+          "name": "Novelty",
+          "weight": 20
+        },
+        {
+          "name": "Supporting evidence",
+          "weight": 15
+        },
+        {
+          "name": "Risk management",
+          "weight": 10
+        }
+      ],
+      "idempotency_key": "synthetic-demo"
+    },
+    "status": "running",
+    "submission_limit": 18,
+    "submissions": 6,
+    "tasks": [
+      {
+        "attempts": 1,
+        "error_code": null,
+        "id": "00000000-0000-4000-8000-000000000002",
+        "position": 1,
+        "stage": "explore",
+        "status": "completed",
+        "summary": {
+          "assumptions": [
+            "Volunteer availability needs testing"
+          ],
+          "next_steps": [
+            "Interview potential borrowers"
+          ],
+          "proposal": "Pilot a shared tool shelf at the community center with a reservation notebook and a weekly volunteer shift.",
+          "strengths": [
+            "Low initial cost"
+          ],
+          "weaknesses": [
+            "Limited opening hours"
+          ]
+        }
+      },
+      {
+        "attempts": 1,
+        "error_code": null,
+        "id": "00000000-0000-4000-8000-000000000003",
+        "position": 2,
+        "stage": "explore",
+        "status": "completed",
+        "summary": {
+          "assumptions": [
+            "Volunteer availability needs testing"
+          ],
+          "next_steps": [
+            "Interview potential borrowers"
+          ],
+          "proposal": "Pilot a shared tool shelf at the community center with a reservation notebook and a weekly volunteer shift.",
+          "strengths": [
+            "Low initial cost"
+          ],
+          "weaknesses": [
+            "Limited opening hours"
+          ]
+        }
+      },
+      {
+        "attempts": 1,
+        "error_code": null,
+        "id": "00000000-0000-4000-8000-000000000004",
+        "position": 3,
+        "stage": "explore",
+        "status": "completed",
+        "summary": {
+          "assumptions": [
+            "Volunteer availability needs testing"
+          ],
+          "next_steps": [
+            "Interview potential borrowers"
+          ],
+          "proposal": "Pilot a shared tool shelf at the community center with a reservation notebook and a weekly volunteer shift.",
+          "strengths": [
+            "Low initial cost"
+          ],
+          "weaknesses": [
+            "Limited opening hours"
+          ]
+        }
+      },
+      {
+        "attempts": 1,
+        "error_code": "stream-interrupted",
+        "id": "00000000-0000-4000-8000-000000000005",
+        "position": 4,
+        "stage": "explore",
+        "status": "excluded",
+        "summary": null
+      },
+      {
+        "attempts": 1,
+        "error_code": "stream-interrupted",
+        "id": "00000000-0000-4000-8000-000000000006",
+        "position": 5,
+        "stage": "explore",
+        "status": "excluded",
+        "summary": null
+      },
+      {
+        "attempts": 1,
+        "error_code": null,
+        "id": "00000000-0000-4000-8000-000000000007",
+        "position": 0,
+        "stage": "compare",
+        "status": "completed",
+        "summary": null
+      },
+      {
+        "attempts": 0,
+        "error_code": null,
+        "id": "00000000-0000-4000-8000-000000000008",
+        "position": 0,
+        "stage": "synthesize",
+        "status": "queued",
+        "summary": null
+      },
+      {
+        "attempts": 0,
+        "error_code": null,
+        "id": "00000000-0000-4000-8000-000000000009",
+        "position": 0,
+        "stage": "critique",
+        "status": "queued",
+        "summary": null
+      },
+      {
+        "attempts": 0,
+        "error_code": null,
+        "id": "00000000-0000-4000-8000-000000000010",
+        "position": 0,
+        "stage": "revise",
+        "status": "queued",
+        "summary": null
+      }
+    ]
+  },
+  "after-critique": {
+    "allow_incomplete": true,
+    "artifacts": [
+      {
+        "attempt_id": "00000000-0000-4000-8000-000000000011",
+        "byte_length": 312,
+        "completion": "complete",
+        "created_ms": 110,
+        "id": "00000000-0000-4000-8000-000000000020",
+        "media_type": "text/markdown; charset=utf-8",
+        "name": "candidate-1.md",
+        "run_id": "00000000-0000-4000-8000-000000000001",
+        "sha256": "6aef98842f9e637f70cf6c476b86f385b615d99288578335ba6eb1d9beab4ff6"
+      },
+      {
+        "attempt_id": "00000000-0000-4000-8000-000000000011",
+        "byte_length": 349,
+        "completion": "complete",
+        "created_ms": 110,
+        "id": "00000000-0000-4000-8000-000000000021",
+        "media_type": "application/json",
+        "name": "candidate-1.summary.json",
+        "run_id": "00000000-0000-4000-8000-000000000001",
+        "sha256": "8789c237b9b78bad58a4ea18de87e28a1bdaea816a57331b2f361d29fab3eccb"
+      },
+      {
+        "attempt_id": "00000000-0000-4000-8000-000000000012",
+        "byte_length": 312,
+        "completion": "complete",
+        "created_ms": 35110,
+        "id": "00000000-0000-4000-8000-000000000022",
+        "media_type": "text/markdown; charset=utf-8",
+        "name": "candidate-2.md",
+        "run_id": "00000000-0000-4000-8000-000000000001",
+        "sha256": "6aef98842f9e637f70cf6c476b86f385b615d99288578335ba6eb1d9beab4ff6"
+      },
+      {
+        "attempt_id": "00000000-0000-4000-8000-000000000012",
+        "byte_length": 349,
+        "completion": "complete",
+        "created_ms": 35110,
+        "id": "00000000-0000-4000-8000-000000000023",
+        "media_type": "application/json",
+        "name": "candidate-2.summary.json",
+        "run_id": "00000000-0000-4000-8000-000000000001",
+        "sha256": "8789c237b9b78bad58a4ea18de87e28a1bdaea816a57331b2f361d29fab3eccb"
+      },
+      {
+        "attempt_id": "00000000-0000-4000-8000-000000000013",
+        "byte_length": 312,
+        "completion": "complete",
+        "created_ms": 70110,
+        "id": "00000000-0000-4000-8000-000000000024",
+        "media_type": "text/markdown; charset=utf-8",
+        "name": "candidate-3.md",
+        "run_id": "00000000-0000-4000-8000-000000000001",
+        "sha256": "6aef98842f9e637f70cf6c476b86f385b615d99288578335ba6eb1d9beab4ff6"
+      },
+      {
+        "attempt_id": "00000000-0000-4000-8000-000000000013",
+        "byte_length": 349,
+        "completion": "complete",
+        "created_ms": 70110,
+        "id": "00000000-0000-4000-8000-000000000025",
+        "media_type": "application/json",
+        "name": "candidate-3.summary.json",
+        "run_id": "00000000-0000-4000-8000-000000000001",
+        "sha256": "8789c237b9b78bad58a4ea18de87e28a1bdaea816a57331b2f361d29fab3eccb"
+      },
+      {
+        "attempt_id": "00000000-0000-4000-8000-000000000014",
+        "byte_length": 312,
+        "completion": "partial",
+        "created_ms": 105110,
+        "id": "00000000-0000-4000-8000-000000000026",
+        "media_type": "text/markdown; charset=utf-8",
+        "name": "candidate-4.md",
+        "run_id": "00000000-0000-4000-8000-000000000001",
+        "sha256": "6aef98842f9e637f70cf6c476b86f385b615d99288578335ba6eb1d9beab4ff6"
+      },
+      {
+        "attempt_id": "00000000-0000-4000-8000-000000000015",
+        "byte_length": 312,
+        "completion": "partial",
+        "created_ms": 140110,
+        "id": "00000000-0000-4000-8000-000000000027",
+        "media_type": "text/markdown; charset=utf-8",
+        "name": "candidate-5.md",
+        "run_id": "00000000-0000-4000-8000-000000000001",
+        "sha256": "6aef98842f9e637f70cf6c476b86f385b615d99288578335ba6eb1d9beab4ff6"
+      },
+      {
+        "attempt_id": "00000000-0000-4000-8000-000000000016",
+        "byte_length": 312,
+        "completion": "complete",
+        "created_ms": 200100,
+        "id": "00000000-0000-4000-8000-000000000028",
+        "media_type": "text/markdown; charset=utf-8",
+        "name": "compare.md",
+        "run_id": "00000000-0000-4000-8000-000000000001",
+        "sha256": "517ec772bed53bb42832ee69ae9277828642599ae151705bb5d8512879fe6087"
+      },
+      {
+        "attempt_id": "00000000-0000-4000-8000-000000000016",
+        "byte_length": 3464,
+        "completion": "complete",
+        "created_ms": 200100,
+        "id": "00000000-0000-4000-8000-000000000029",
+        "media_type": "application/json",
+        "name": "comparison.json",
+        "run_id": "00000000-0000-4000-8000-000000000001",
+        "sha256": "6f24ea621c7f67ab12ee8c23186f4019cf2350057e7c4ffb1c74e84e665f15a1"
+      },
+      {
+        "attempt_id": "00000000-0000-4000-8000-000000000017",
+        "byte_length": 315,
+        "completion": "complete",
+        "created_ms": 235100,
+        "id": "00000000-0000-4000-8000-000000000030",
+        "media_type": "text/markdown; charset=utf-8",
+        "name": "synthesize.md",
+        "run_id": "00000000-0000-4000-8000-000000000001",
+        "sha256": "e586bca775c46b764122f9e0baa9488a9c81f3e9eef4669b323d1b082377a8d1"
+      },
+      {
+        "attempt_id": "00000000-0000-4000-8000-000000000018",
+        "byte_length": 170,
+        "completion": "complete",
+        "created_ms": 270100,
+        "id": "00000000-0000-4000-8000-000000000031",
+        "media_type": "text/markdown; charset=utf-8",
+        "name": "critique.md",
+        "run_id": "00000000-0000-4000-8000-000000000001",
+        "sha256": "6785b49f77efcaf9068130c23f6651db984668de51f8e657b7d42699ea769dcb"
+      }
+    ],
+    "configuration": {
+      "max_attempts": 2,
+      "max_jitter_ms": 5000,
+      "model": {
+        "mode": "current"
+      },
+      "overall_deadline_ms": 10800000,
+      "perspectives": [
+        "User needs and practical value: identify the people, concrete problems, and useful outcomes.",
+        "Novel approaches and differentiation: propose a distinct approach and explain meaningful differences.",
+        "Technical feasibility and implementation: describe a buildable approach, dependencies, and validation.",
+        "Constraints, cost, and operational simplicity: minimize unnecessary complexity and explain resource tradeoffs.",
+        "Adversarial critique and failure prevention: design around plausible failures and misuse, with mitigations."
+      ],
+      "response_timeout_ms": 1800000,
+      "stage_char_limit": 128000,
+      "submission_spacing_ms": 30000,
+      "summary_char_limit": 6000,
+      "template_version": "1"
+    },
+    "created_ms": 2,
+    "deadline_ms": 10800002,
+    "id": "00000000-0000-4000-8000-000000000001",
+    "pause_reason": null,
+    "request": {
+      "account_id": "demo-account",
+      "candidate_count": 5,
+      "concept": "A neighborhood tool library with a small volunteer team",
+      "constraints": "Use existing community space. Test demand before purchasing equipment.",
+      "criteria": [
+        {
+          "name": "Usefulness",
+          "weight": 30
+        },
+        {
+          "name": "Feasibility",
+          "weight": 25
+        },
+        {
+          "name": "Novelty",
+          "weight": 20
+        },
+        {
+          "name": "Supporting evidence",
+          "weight": 15
+        },
+        {
+          "name": "Risk management",
+          "weight": 10
+        }
+      ],
+      "idempotency_key": "synthetic-demo"
+    },
+    "status": "running",
+    "submission_limit": 18,
+    "submissions": 8,
+    "tasks": [
+      {
+        "attempts": 1,
+        "error_code": null,
+        "id": "00000000-0000-4000-8000-000000000002",
+        "position": 1,
+        "stage": "explore",
+        "status": "completed",
+        "summary": {
+          "assumptions": [
+            "Volunteer availability needs testing"
+          ],
+          "next_steps": [
+            "Interview potential borrowers"
+          ],
+          "proposal": "Pilot a shared tool shelf at the community center with a reservation notebook and a weekly volunteer shift.",
+          "strengths": [
+            "Low initial cost"
+          ],
+          "weaknesses": [
+            "Limited opening hours"
+          ]
+        }
+      },
+      {
+        "attempts": 1,
+        "error_code": null,
+        "id": "00000000-0000-4000-8000-000000000003",
+        "position": 2,
+        "stage": "explore",
+        "status": "completed",
+        "summary": {
+          "assumptions": [
+            "Volunteer availability needs testing"
+          ],
+          "next_steps": [
+            "Interview potential borrowers"
+          ],
+          "proposal": "Pilot a shared tool shelf at the community center with a reservation notebook and a weekly volunteer shift.",
+          "strengths": [
+            "Low initial cost"
+          ],
+          "weaknesses": [
+            "Limited opening hours"
+          ]
+        }
+      },
+      {
+        "attempts": 1,
+        "error_code": null,
+        "id": "00000000-0000-4000-8000-000000000004",
+        "position": 3,
+        "stage": "explore",
+        "status": "completed",
+        "summary": {
+          "assumptions": [
+            "Volunteer availability needs testing"
+          ],
+          "next_steps": [
+            "Interview potential borrowers"
+          ],
+          "proposal": "Pilot a shared tool shelf at the community center with a reservation notebook and a weekly volunteer shift.",
+          "strengths": [
+            "Low initial cost"
+          ],
+          "weaknesses": [
+            "Limited opening hours"
+          ]
+        }
+      },
+      {
+        "attempts": 1,
+        "error_code": "stream-interrupted",
+        "id": "00000000-0000-4000-8000-000000000005",
+        "position": 4,
+        "stage": "explore",
+        "status": "excluded",
+        "summary": null
+      },
+      {
+        "attempts": 1,
+        "error_code": "stream-interrupted",
+        "id": "00000000-0000-4000-8000-000000000006",
+        "position": 5,
+        "stage": "explore",
+        "status": "excluded",
+        "summary": null
+      },
+      {
+        "attempts": 1,
+        "error_code": null,
+        "id": "00000000-0000-4000-8000-000000000007",
+        "position": 0,
+        "stage": "compare",
+        "status": "completed",
+        "summary": null
+      },
+      {
+        "attempts": 1,
+        "error_code": null,
+        "id": "00000000-0000-4000-8000-000000000008",
+        "position": 0,
+        "stage": "synthesize",
+        "status": "completed",
+        "summary": null
+      },
+      {
+        "attempts": 1,
+        "error_code": null,
+        "id": "00000000-0000-4000-8000-000000000009",
+        "position": 0,
+        "stage": "critique",
+        "status": "completed",
+        "summary": null
+      },
+      {
+        "attempts": 0,
+        "error_code": null,
+        "id": "00000000-0000-4000-8000-000000000010",
+        "position": 0,
+        "stage": "revise",
+        "status": "queued",
+        "summary": null
+      }
+    ]
+  },
+  "after-revise": {
+    "allow_incomplete": true,
+    "artifacts": [
+      {
+        "attempt_id": "00000000-0000-4000-8000-000000000011",
+        "byte_length": 312,
+        "completion": "complete",
+        "created_ms": 110,
+        "id": "00000000-0000-4000-8000-000000000020",
+        "media_type": "text/markdown; charset=utf-8",
+        "name": "candidate-1.md",
+        "run_id": "00000000-0000-4000-8000-000000000001",
+        "sha256": "6aef98842f9e637f70cf6c476b86f385b615d99288578335ba6eb1d9beab4ff6"
+      },
+      {
+        "attempt_id": "00000000-0000-4000-8000-000000000011",
+        "byte_length": 349,
+        "completion": "complete",
+        "created_ms": 110,
+        "id": "00000000-0000-4000-8000-000000000021",
+        "media_type": "application/json",
+        "name": "candidate-1.summary.json",
+        "run_id": "00000000-0000-4000-8000-000000000001",
+        "sha256": "8789c237b9b78bad58a4ea18de87e28a1bdaea816a57331b2f361d29fab3eccb"
+      },
+      {
+        "attempt_id": "00000000-0000-4000-8000-000000000012",
+        "byte_length": 312,
+        "completion": "complete",
+        "created_ms": 35110,
+        "id": "00000000-0000-4000-8000-000000000022",
+        "media_type": "text/markdown; charset=utf-8",
+        "name": "candidate-2.md",
+        "run_id": "00000000-0000-4000-8000-000000000001",
+        "sha256": "6aef98842f9e637f70cf6c476b86f385b615d99288578335ba6eb1d9beab4ff6"
+      },
+      {
+        "attempt_id": "00000000-0000-4000-8000-000000000012",
+        "byte_length": 349,
+        "completion": "complete",
+        "created_ms": 35110,
+        "id": "00000000-0000-4000-8000-000000000023",
+        "media_type": "application/json",
+        "name": "candidate-2.summary.json",
+        "run_id": "00000000-0000-4000-8000-000000000001",
+        "sha256": "8789c237b9b78bad58a4ea18de87e28a1bdaea816a57331b2f361d29fab3eccb"
+      },
+      {
+        "attempt_id": "00000000-0000-4000-8000-000000000013",
+        "byte_length": 312,
+        "completion": "complete",
+        "created_ms": 70110,
+        "id": "00000000-0000-4000-8000-000000000024",
+        "media_type": "text/markdown; charset=utf-8",
+        "name": "candidate-3.md",
+        "run_id": "00000000-0000-4000-8000-000000000001",
+        "sha256": "6aef98842f9e637f70cf6c476b86f385b615d99288578335ba6eb1d9beab4ff6"
+      },
+      {
+        "attempt_id": "00000000-0000-4000-8000-000000000013",
+        "byte_length": 349,
+        "completion": "complete",
+        "created_ms": 70110,
+        "id": "00000000-0000-4000-8000-000000000025",
+        "media_type": "application/json",
+        "name": "candidate-3.summary.json",
+        "run_id": "00000000-0000-4000-8000-000000000001",
+        "sha256": "8789c237b9b78bad58a4ea18de87e28a1bdaea816a57331b2f361d29fab3eccb"
+      },
+      {
+        "attempt_id": "00000000-0000-4000-8000-000000000014",
+        "byte_length": 312,
+        "completion": "partial",
+        "created_ms": 105110,
+        "id": "00000000-0000-4000-8000-000000000026",
+        "media_type": "text/markdown; charset=utf-8",
+        "name": "candidate-4.md",
+        "run_id": "00000000-0000-4000-8000-000000000001",
+        "sha256": "6aef98842f9e637f70cf6c476b86f385b615d99288578335ba6eb1d9beab4ff6"
+      },
+      {
+        "attempt_id": "00000000-0000-4000-8000-000000000015",
+        "byte_length": 312,
+        "completion": "partial",
+        "created_ms": 140110,
+        "id": "00000000-0000-4000-8000-000000000027",
+        "media_type": "text/markdown; charset=utf-8",
+        "name": "candidate-5.md",
+        "run_id": "00000000-0000-4000-8000-000000000001",
+        "sha256": "6aef98842f9e637f70cf6c476b86f385b615d99288578335ba6eb1d9beab4ff6"
+      },
+      {
+        "attempt_id": "00000000-0000-4000-8000-000000000016",
+        "byte_length": 312,
+        "completion": "complete",
+        "created_ms": 200100,
+        "id": "00000000-0000-4000-8000-000000000028",
+        "media_type": "text/markdown; charset=utf-8",
+        "name": "compare.md",
+        "run_id": "00000000-0000-4000-8000-000000000001",
+        "sha256": "517ec772bed53bb42832ee69ae9277828642599ae151705bb5d8512879fe6087"
+      },
+      {
+        "attempt_id": "00000000-0000-4000-8000-000000000016",
+        "byte_length": 3464,
+        "completion": "complete",
+        "created_ms": 200100,
+        "id": "00000000-0000-4000-8000-000000000029",
+        "media_type": "application/json",
+        "name": "comparison.json",
+        "run_id": "00000000-0000-4000-8000-000000000001",
+        "sha256": "6f24ea621c7f67ab12ee8c23186f4019cf2350057e7c4ffb1c74e84e665f15a1"
+      },
+      {
+        "attempt_id": "00000000-0000-4000-8000-000000000017",
+        "byte_length": 315,
+        "completion": "complete",
+        "created_ms": 235100,
+        "id": "00000000-0000-4000-8000-000000000030",
+        "media_type": "text/markdown; charset=utf-8",
+        "name": "synthesize.md",
+        "run_id": "00000000-0000-4000-8000-000000000001",
+        "sha256": "e586bca775c46b764122f9e0baa9488a9c81f3e9eef4669b323d1b082377a8d1"
+      },
+      {
+        "attempt_id": "00000000-0000-4000-8000-000000000018",
+        "byte_length": 170,
+        "completion": "complete",
+        "created_ms": 270100,
+        "id": "00000000-0000-4000-8000-000000000031",
+        "media_type": "text/markdown; charset=utf-8",
+        "name": "critique.md",
+        "run_id": "00000000-0000-4000-8000-000000000001",
+        "sha256": "6785b49f77efcaf9068130c23f6651db984668de51f8e657b7d42699ea769dcb"
+      },
+      {
+        "attempt_id": "00000000-0000-4000-8000-000000000019",
+        "byte_length": 906,
+        "completion": "complete",
+        "created_ms": 305100,
+        "id": "00000000-0000-4000-8000-000000000032",
+        "media_type": "text/markdown; charset=utf-8",
+        "name": "final.md",
+        "run_id": "00000000-0000-4000-8000-000000000001",
+        "sha256": "6d22c953fcf14fb6ee7e18c0f4fcc13d80964b0126be9f7a8acc436ebf2018ff"
+      },
+      {
+        "attempt_id": null,
+        "byte_length": 7869,
+        "completion": "complete",
+        "created_ms": 305100,
+        "id": "00000000-0000-4000-8000-000000000033",
+        "media_type": "application/json",
+        "name": "result.json",
+        "run_id": "00000000-0000-4000-8000-000000000001",
+        "sha256": "17436e36c7d87d435eb40c460cc0010441f0bf12e01c03feca028da74a910e55"
+      }
+    ],
+    "configuration": {
+      "max_attempts": 2,
+      "max_jitter_ms": 5000,
+      "model": {
+        "mode": "current"
+      },
+      "overall_deadline_ms": 10800000,
+      "perspectives": [
+        "User needs and practical value: identify the people, concrete problems, and useful outcomes.",
+        "Novel approaches and differentiation: propose a distinct approach and explain meaningful differences.",
+        "Technical feasibility and implementation: describe a buildable approach, dependencies, and validation.",
+        "Constraints, cost, and operational simplicity: minimize unnecessary complexity and explain resource tradeoffs.",
+        "Adversarial critique and failure prevention: design around plausible failures and misuse, with mitigations."
+      ],
+      "response_timeout_ms": 1800000,
+      "stage_char_limit": 128000,
+      "submission_spacing_ms": 30000,
+      "summary_char_limit": 6000,
+      "template_version": "1"
+    },
+    "created_ms": 2,
+    "deadline_ms": 10800002,
+    "id": "00000000-0000-4000-8000-000000000001",
+    "pause_reason": null,
+    "request": {
+      "account_id": "demo-account",
+      "candidate_count": 5,
+      "concept": "A neighborhood tool library with a small volunteer team",
+      "constraints": "Use existing community space. Test demand before purchasing equipment.",
+      "criteria": [
+        {
+          "name": "Usefulness",
+          "weight": 30
+        },
+        {
+          "name": "Feasibility",
+          "weight": 25
+        },
+        {
+          "name": "Novelty",
+          "weight": 20
+        },
+        {
+          "name": "Supporting evidence",
+          "weight": 15
+        },
+        {
+          "name": "Risk management",
+          "weight": 10
+        }
+      ],
+      "idempotency_key": "synthetic-demo"
+    },
+    "status": "completed",
+    "submission_limit": 18,
+    "submissions": 9,
+    "tasks": [
+      {
+        "attempts": 1,
+        "error_code": null,
+        "id": "00000000-0000-4000-8000-000000000002",
+        "position": 1,
+        "stage": "explore",
+        "status": "completed",
+        "summary": {
+          "assumptions": [
+            "Volunteer availability needs testing"
+          ],
+          "next_steps": [
+            "Interview potential borrowers"
+          ],
+          "proposal": "Pilot a shared tool shelf at the community center with a reservation notebook and a weekly volunteer shift.",
+          "strengths": [
+            "Low initial cost"
+          ],
+          "weaknesses": [
+            "Limited opening hours"
+          ]
+        }
+      },
+      {
+        "attempts": 1,
+        "error_code": null,
+        "id": "00000000-0000-4000-8000-000000000003",
+        "position": 2,
+        "stage": "explore",
+        "status": "completed",
+        "summary": {
+          "assumptions": [
+            "Volunteer availability needs testing"
+          ],
+          "next_steps": [
+            "Interview potential borrowers"
+          ],
+          "proposal": "Pilot a shared tool shelf at the community center with a reservation notebook and a weekly volunteer shift.",
+          "strengths": [
+            "Low initial cost"
+          ],
+          "weaknesses": [
+            "Limited opening hours"
+          ]
+        }
+      },
+      {
+        "attempts": 1,
+        "error_code": null,
+        "id": "00000000-0000-4000-8000-000000000004",
+        "position": 3,
+        "stage": "explore",
+        "status": "completed",
+        "summary": {
+          "assumptions": [
+            "Volunteer availability needs testing"
+          ],
+          "next_steps": [
+            "Interview potential borrowers"
+          ],
+          "proposal": "Pilot a shared tool shelf at the community center with a reservation notebook and a weekly volunteer shift.",
+          "strengths": [
+            "Low initial cost"
+          ],
+          "weaknesses": [
+            "Limited opening hours"
+          ]
+        }
+      },
+      {
+        "attempts": 1,
+        "error_code": "stream-interrupted",
+        "id": "00000000-0000-4000-8000-000000000005",
+        "position": 4,
+        "stage": "explore",
+        "status": "excluded",
+        "summary": null
+      },
+      {
+        "attempts": 1,
+        "error_code": "stream-interrupted",
+        "id": "00000000-0000-4000-8000-000000000006",
+        "position": 5,
+        "stage": "explore",
+        "status": "excluded",
+        "summary": null
+      },
+      {
+        "attempts": 1,
+        "error_code": null,
+        "id": "00000000-0000-4000-8000-000000000007",
+        "position": 0,
+        "stage": "compare",
+        "status": "completed",
+        "summary": null
+      },
+      {
+        "attempts": 1,
+        "error_code": null,
+        "id": "00000000-0000-4000-8000-000000000008",
+        "position": 0,
+        "stage": "synthesize",
+        "status": "completed",
+        "summary": null
+      },
+      {
+        "attempts": 1,
+        "error_code": null,
+        "id": "00000000-0000-4000-8000-000000000009",
+        "position": 0,
+        "stage": "critique",
+        "status": "completed",
+        "summary": null
+      },
+      {
+        "attempts": 1,
+        "error_code": null,
+        "id": "00000000-0000-4000-8000-000000000010",
+        "position": 0,
+        "stage": "revise",
+        "status": "completed",
+        "summary": null
+      }
+    ]
+  },
+  "after-synthesize": {
+    "allow_incomplete": true,
+    "artifacts": [
+      {
+        "attempt_id": "00000000-0000-4000-8000-000000000011",
+        "byte_length": 312,
+        "completion": "complete",
+        "created_ms": 110,
+        "id": "00000000-0000-4000-8000-000000000020",
+        "media_type": "text/markdown; charset=utf-8",
+        "name": "candidate-1.md",
+        "run_id": "00000000-0000-4000-8000-000000000001",
+        "sha256": "6aef98842f9e637f70cf6c476b86f385b615d99288578335ba6eb1d9beab4ff6"
+      },
+      {
+        "attempt_id": "00000000-0000-4000-8000-000000000011",
+        "byte_length": 349,
+        "completion": "complete",
+        "created_ms": 110,
+        "id": "00000000-0000-4000-8000-000000000021",
+        "media_type": "application/json",
+        "name": "candidate-1.summary.json",
+        "run_id": "00000000-0000-4000-8000-000000000001",
+        "sha256": "8789c237b9b78bad58a4ea18de87e28a1bdaea816a57331b2f361d29fab3eccb"
+      },
+      {
+        "attempt_id": "00000000-0000-4000-8000-000000000012",
+        "byte_length": 312,
+        "completion": "complete",
+        "created_ms": 35110,
+        "id": "00000000-0000-4000-8000-000000000022",
+        "media_type": "text/markdown; charset=utf-8",
+        "name": "candidate-2.md",
+        "run_id": "00000000-0000-4000-8000-000000000001",
+        "sha256": "6aef98842f9e637f70cf6c476b86f385b615d99288578335ba6eb1d9beab4ff6"
+      },
+      {
+        "attempt_id": "00000000-0000-4000-8000-000000000012",
+        "byte_length": 349,
+        "completion": "complete",
+        "created_ms": 35110,
+        "id": "00000000-0000-4000-8000-000000000023",
+        "media_type": "application/json",
+        "name": "candidate-2.summary.json",
+        "run_id": "00000000-0000-4000-8000-000000000001",
+        "sha256": "8789c237b9b78bad58a4ea18de87e28a1bdaea816a57331b2f361d29fab3eccb"
+      },
+      {
+        "attempt_id": "00000000-0000-4000-8000-000000000013",
+        "byte_length": 312,
+        "completion": "complete",
+        "created_ms": 70110,
+        "id": "00000000-0000-4000-8000-000000000024",
+        "media_type": "text/markdown; charset=utf-8",
+        "name": "candidate-3.md",
+        "run_id": "00000000-0000-4000-8000-000000000001",
+        "sha256": "6aef98842f9e637f70cf6c476b86f385b615d99288578335ba6eb1d9beab4ff6"
+      },
+      {
+        "attempt_id": "00000000-0000-4000-8000-000000000013",
+        "byte_length": 349,
+        "completion": "complete",
+        "created_ms": 70110,
+        "id": "00000000-0000-4000-8000-000000000025",
+        "media_type": "application/json",
+        "name": "candidate-3.summary.json",
+        "run_id": "00000000-0000-4000-8000-000000000001",
+        "sha256": "8789c237b9b78bad58a4ea18de87e28a1bdaea816a57331b2f361d29fab3eccb"
+      },
+      {
+        "attempt_id": "00000000-0000-4000-8000-000000000014",
+        "byte_length": 312,
+        "completion": "partial",
+        "created_ms": 105110,
+        "id": "00000000-0000-4000-8000-000000000026",
+        "media_type": "text/markdown; charset=utf-8",
+        "name": "candidate-4.md",
+        "run_id": "00000000-0000-4000-8000-000000000001",
+        "sha256": "6aef98842f9e637f70cf6c476b86f385b615d99288578335ba6eb1d9beab4ff6"
+      },
+      {
+        "attempt_id": "00000000-0000-4000-8000-000000000015",
+        "byte_length": 312,
+        "completion": "partial",
+        "created_ms": 140110,
+        "id": "00000000-0000-4000-8000-000000000027",
+        "media_type": "text/markdown; charset=utf-8",
+        "name": "candidate-5.md",
+        "run_id": "00000000-0000-4000-8000-000000000001",
+        "sha256": "6aef98842f9e637f70cf6c476b86f385b615d99288578335ba6eb1d9beab4ff6"
+      },
+      {
+        "attempt_id": "00000000-0000-4000-8000-000000000016",
+        "byte_length": 312,
+        "completion": "complete",
+        "created_ms": 200100,
+        "id": "00000000-0000-4000-8000-000000000028",
+        "media_type": "text/markdown; charset=utf-8",
+        "name": "compare.md",
+        "run_id": "00000000-0000-4000-8000-000000000001",
+        "sha256": "517ec772bed53bb42832ee69ae9277828642599ae151705bb5d8512879fe6087"
+      },
+      {
+        "attempt_id": "00000000-0000-4000-8000-000000000016",
+        "byte_length": 3464,
+        "completion": "complete",
+        "created_ms": 200100,
+        "id": "00000000-0000-4000-8000-000000000029",
+        "media_type": "application/json",
+        "name": "comparison.json",
+        "run_id": "00000000-0000-4000-8000-000000000001",
+        "sha256": "6f24ea621c7f67ab12ee8c23186f4019cf2350057e7c4ffb1c74e84e665f15a1"
+      },
+      {
+        "attempt_id": "00000000-0000-4000-8000-000000000017",
+        "byte_length": 315,
+        "completion": "complete",
+        "created_ms": 235100,
+        "id": "00000000-0000-4000-8000-000000000030",
+        "media_type": "text/markdown; charset=utf-8",
+        "name": "synthesize.md",
+        "run_id": "00000000-0000-4000-8000-000000000001",
+        "sha256": "e586bca775c46b764122f9e0baa9488a9c81f3e9eef4669b323d1b082377a8d1"
+      }
+    ],
+    "configuration": {
+      "max_attempts": 2,
+      "max_jitter_ms": 5000,
+      "model": {
+        "mode": "current"
+      },
+      "overall_deadline_ms": 10800000,
+      "perspectives": [
+        "User needs and practical value: identify the people, concrete problems, and useful outcomes.",
+        "Novel approaches and differentiation: propose a distinct approach and explain meaningful differences.",
+        "Technical feasibility and implementation: describe a buildable approach, dependencies, and validation.",
+        "Constraints, cost, and operational simplicity: minimize unnecessary complexity and explain resource tradeoffs.",
+        "Adversarial critique and failure prevention: design around plausible failures and misuse, with mitigations."
+      ],
+      "response_timeout_ms": 1800000,
+      "stage_char_limit": 128000,
+      "submission_spacing_ms": 30000,
+      "summary_char_limit": 6000,
+      "template_version": "1"
+    },
+    "created_ms": 2,
+    "deadline_ms": 10800002,
+    "id": "00000000-0000-4000-8000-000000000001",
+    "pause_reason": null,
+    "request": {
+      "account_id": "demo-account",
+      "candidate_count": 5,
+      "concept": "A neighborhood tool library with a small volunteer team",
+      "constraints": "Use existing community space. Test demand before purchasing equipment.",
+      "criteria": [
+        {
+          "name": "Usefulness",
+          "weight": 30
+        },
+        {
+          "name": "Feasibility",
+          "weight": 25
+        },
+        {
+          "name": "Novelty",
+          "weight": 20
+        },
+        {
+          "name": "Supporting evidence",
+          "weight": 15
+        },
+        {
+          "name": "Risk management",
+          "weight": 10
+        }
+      ],
+      "idempotency_key": "synthetic-demo"
+    },
+    "status": "running",
+    "submission_limit": 18,
+    "submissions": 7,
+    "tasks": [
+      {
+        "attempts": 1,
+        "error_code": null,
+        "id": "00000000-0000-4000-8000-000000000002",
+        "position": 1,
+        "stage": "explore",
+        "status": "completed",
+        "summary": {
+          "assumptions": [
+            "Volunteer availability needs testing"
+          ],
+          "next_steps": [
+            "Interview potential borrowers"
+          ],
+          "proposal": "Pilot a shared tool shelf at the community center with a reservation notebook and a weekly volunteer shift.",
+          "strengths": [
+            "Low initial cost"
+          ],
+          "weaknesses": [
+            "Limited opening hours"
+          ]
+        }
+      },
+      {
+        "attempts": 1,
+        "error_code": null,
+        "id": "00000000-0000-4000-8000-000000000003",
+        "position": 2,
+        "stage": "explore",
+        "status": "completed",
+        "summary": {
+          "assumptions": [
+            "Volunteer availability needs testing"
+          ],
+          "next_steps": [
+            "Interview potential borrowers"
+          ],
+          "proposal": "Pilot a shared tool shelf at the community center with a reservation notebook and a weekly volunteer shift.",
+          "strengths": [
+            "Low initial cost"
+          ],
+          "weaknesses": [
+            "Limited opening hours"
+          ]
+        }
+      },
+      {
+        "attempts": 1,
+        "error_code": null,
+        "id": "00000000-0000-4000-8000-000000000004",
+        "position": 3,
+        "stage": "explore",
+        "status": "completed",
+        "summary": {
+          "assumptions": [
+            "Volunteer availability needs testing"
+          ],
+          "next_steps": [
+            "Interview potential borrowers"
+          ],
+          "proposal": "Pilot a shared tool shelf at the community center with a reservation notebook and a weekly volunteer shift.",
+          "strengths": [
+            "Low initial cost"
+          ],
+          "weaknesses": [
+            "Limited opening hours"
+          ]
+        }
+      },
+      {
+        "attempts": 1,
+        "error_code": "stream-interrupted",
+        "id": "00000000-0000-4000-8000-000000000005",
+        "position": 4,
+        "stage": "explore",
+        "status": "excluded",
+        "summary": null
+      },
+      {
+        "attempts": 1,
+        "error_code": "stream-interrupted",
+        "id": "00000000-0000-4000-8000-000000000006",
+        "position": 5,
+        "stage": "explore",
+        "status": "excluded",
+        "summary": null
+      },
+      {
+        "attempts": 1,
+        "error_code": null,
+        "id": "00000000-0000-4000-8000-000000000007",
+        "position": 0,
+        "stage": "compare",
+        "status": "completed",
+        "summary": null
+      },
+      {
+        "attempts": 1,
+        "error_code": null,
+        "id": "00000000-0000-4000-8000-000000000008",
+        "position": 0,
+        "stage": "synthesize",
+        "status": "completed",
+        "summary": null
+      },
+      {
+        "attempts": 0,
+        "error_code": null,
+        "id": "00000000-0000-4000-8000-000000000009",
+        "position": 0,
+        "stage": "critique",
+        "status": "queued",
+        "summary": null
+      },
+      {
+        "attempts": 0,
+        "error_code": null,
+        "id": "00000000-0000-4000-8000-000000000010",
+        "position": 0,
+        "stage": "revise",
+        "status": "queued",
+        "summary": null
+      }
+    ]
+  },
+  "artifacts": {
+    "00000000-0000-4000-8000-000000000020": "# explore perspective\n\nPilot a shared tool shelf at the community center with a reservation notebook and a weekly volunteer shift.\n\n- Test demand first.\n- Track maintenance work.\n\n```text\nPilot → measure → review\n```\n\n[Illustrative reference](https://example.invalid/tool-library)\n\nThis content is synthetic.",
+    "00000000-0000-4000-8000-000000000021": "{\n  \"proposal\": \"Pilot a shared tool shelf at the community center with a reservation notebook and a weekly volunteer shift.\",\n  \"strengths\": [\n    \"Low initial cost\"\n  ],\n  \"weaknesses\": [\n    \"Limited opening hours\"\n  ],\n  \"assumptions\": [\n    \"Volunteer availability needs testing\"\n  ],\n  \"next_steps\": [\n    \"Interview potential borrowers\"\n  ]\n}",
+    "00000000-0000-4000-8000-000000000022": "# explore perspective\n\nPilot a shared tool shelf at the community center with a reservation notebook and a weekly volunteer shift.\n\n- Test demand first.\n- Track maintenance work.\n\n```text\nPilot → measure → review\n```\n\n[Illustrative reference](https://example.invalid/tool-library)\n\nThis content is synthetic.",
+    "00000000-0000-4000-8000-000000000023": "{\n  \"proposal\": \"Pilot a shared tool shelf at the community center with a reservation notebook and a weekly volunteer shift.\",\n  \"strengths\": [\n    \"Low initial cost\"\n  ],\n  \"weaknesses\": [\n    \"Limited opening hours\"\n  ],\n  \"assumptions\": [\n    \"Volunteer availability needs testing\"\n  ],\n  \"next_steps\": [\n    \"Interview potential borrowers\"\n  ]\n}",
+    "00000000-0000-4000-8000-000000000024": "# explore perspective\n\nPilot a shared tool shelf at the community center with a reservation notebook and a weekly volunteer shift.\n\n- Test demand first.\n- Track maintenance work.\n\n```text\nPilot → measure → review\n```\n\n[Illustrative reference](https://example.invalid/tool-library)\n\nThis content is synthetic.",
+    "00000000-0000-4000-8000-000000000025": "{\n  \"proposal\": \"Pilot a shared tool shelf at the community center with a reservation notebook and a weekly volunteer shift.\",\n  \"strengths\": [\n    \"Low initial cost\"\n  ],\n  \"weaknesses\": [\n    \"Limited opening hours\"\n  ],\n  \"assumptions\": [\n    \"Volunteer availability needs testing\"\n  ],\n  \"next_steps\": [\n    \"Interview potential borrowers\"\n  ]\n}",
+    "00000000-0000-4000-8000-000000000026": "# explore perspective\n\nPilot a shared tool shelf at the community center with a reservation notebook and a weekly volunteer shift.\n\n- Test demand first.\n- Track maintenance work.\n\n```text\nPilot → measure → review\n```\n\n[Illustrative reference](https://example.invalid/tool-library)\n\nThis content is synthetic.",
+    "00000000-0000-4000-8000-000000000027": "# explore perspective\n\nPilot a shared tool shelf at the community center with a reservation notebook and a weekly volunteer shift.\n\n- Test demand first.\n- Track maintenance work.\n\n```text\nPilot → measure → review\n```\n\n[Illustrative reference](https://example.invalid/tool-library)\n\nThis content is synthetic.",
+    "00000000-0000-4000-8000-000000000028": "# compare perspective\n\nPilot a shared tool shelf at the community center with a reservation notebook and a weekly volunteer shift.\n\n- Test demand first.\n- Track maintenance work.\n\n```text\nPilot → measure → review\n```\n\n[Illustrative reference](https://example.invalid/tool-library)\n\nThis content is synthetic.",
+    "00000000-0000-4000-8000-000000000029": "{\n  \"basis\": \"model-generated judgments; not independently established facts\",\n  \"ranking\": [\n    {\n      \"weighted_score\": 83.0,\n      \"evaluation\": {\n        \"candidate\": 1,\n        \"scores\": [\n          {\n            \"criterion\": \"Usefulness\",\n            \"score\": 83,\n            \"rationale\": \"Synthetic score illustrating a model judgment.\"\n          },\n          {\n            \"criterion\": \"Feasibility\",\n            \"score\": 83,\n            \"rationale\": \"Synthetic score illustrating a model judgment.\"\n          },\n          {\n            \"criterion\": \"Novelty\",\n            \"score\": 83,\n            \"rationale\": \"Synthetic score illustrating a model judgment.\"\n          },\n          {\n            \"criterion\": \"Supporting evidence\",\n            \"score\": 83,\n            \"rationale\": \"Synthetic score illustrating a model judgment.\"\n          },\n          {\n            \"criterion\": \"Risk management\",\n            \"score\": 83,\n            \"rationale\": \"Synthetic score illustrating a model judgment.\"\n          }\n        ],\n        \"disagreements\": [\n          \"Convenience competes with volunteer workload.\"\n        ],\n        \"uncertainty\": \"Demand has not been independently established.\"\n      }\n    },\n    {\n      \"weighted_score\": 82.0,\n      \"evaluation\": {\n        \"candidate\": 2,\n        \"scores\": [\n          {\n            \"criterion\": \"Usefulness\",\n            \"score\": 82,\n            \"rationale\": \"Synthetic score illustrating a model judgment.\"\n          },\n          {\n            \"criterion\": \"Feasibility\",\n            \"score\": 82,\n            \"rationale\": \"Synthetic score illustrating a model judgment.\"\n          },\n          {\n            \"criterion\": \"Novelty\",\n            \"score\": 82,\n            \"rationale\": \"Synthetic score illustrating a model judgment.\"\n          },\n          {\n            \"criterion\": \"Supporting evidence\",\n            \"score\": 82,\n            \"rationale\": \"Synthetic score illustrating a model judgment.\"\n          },\n          {\n            \"criterion\": \"Risk management\",\n            \"score\": 82,\n            \"rationale\": \"Synthetic score illustrating a model judgment.\"\n          }\n        ],\n        \"disagreements\": [\n          \"Convenience competes with volunteer workload.\"\n        ],\n        \"uncertainty\": \"Demand has not been independently established.\"\n      }\n    },\n    {\n      \"weighted_score\": 81.0,\n      \"evaluation\": {\n        \"candidate\": 3,\n        \"scores\": [\n          {\n            \"criterion\": \"Usefulness\",\n            \"score\": 81,\n            \"rationale\": \"Synthetic score illustrating a model judgment.\"\n          },\n          {\n            \"criterion\": \"Feasibility\",\n            \"score\": 81,\n            \"rationale\": \"Synthetic score illustrating a model judgment.\"\n          },\n          {\n            \"criterion\": \"Novelty\",\n            \"score\": 81,\n            \"rationale\": \"Synthetic score illustrating a model judgment.\"\n          },\n          {\n            \"criterion\": \"Supporting evidence\",\n            \"score\": 81,\n            \"rationale\": \"Synthetic score illustrating a model judgment.\"\n          },\n          {\n            \"criterion\": \"Risk management\",\n            \"score\": 81,\n            \"rationale\": \"Synthetic score illustrating a model judgment.\"\n          }\n        ],\n        \"disagreements\": [\n          \"Convenience competes with volunteer workload.\"\n        ],\n        \"uncertainty\": \"Demand has not been independently established.\"\n      }\n    }\n  ]\n}",
+    "00000000-0000-4000-8000-000000000030": "# synthesize perspective\n\nPilot a shared tool shelf at the community center with a reservation notebook and a weekly volunteer shift.\n\n- Test demand first.\n- Track maintenance work.\n\n```text\nPilot → measure → review\n```\n\n[Illustrative reference](https://example.invalid/tool-library)\n\nThis content is synthetic.",
+    "00000000-0000-4000-8000-000000000031": "# Critique\n\nVolunteer availability and maintenance costs are untested. Limit the initial inventory, define a replacement budget, and record unmet demand before expanding.",
+    "00000000-0000-4000-8000-000000000032": "# A small tool library, tested first\n\nPilot a shared tool shelf at the community center with a reservation notebook and a weekly volunteer shift.\n\n## Why this proposal\n\nA small pilot tests demand and maintenance effort before committing to a larger collection.\n\n## Alternatives considered\n\n- A mobile collection reaches more people but requires transport.\n- A dedicated premises offers more space but increases fixed costs.\n\n## Tradeoffs and assumptions\n\nThis needs dependable volunteers and secure storage. Demand and replacement costs remain unverified. Start with hand tools and exclude equipment requiring specialist training.\n\n## Next steps\n\n1. Interview ten neighbors about tools they would borrow.\n2. Agree on storage, opening times and a replacement budget.\n3. Run a six-week pilot and review borrowing and maintenance records.\n\n*This is synthetic demonstration content, not a live model response.*",
+    "00000000-0000-4000-8000-000000000033": "{\n  \"final_artifact\": {\n    \"id\": \"00000000-0000-4000-8000-000000000032\",\n    \"run_id\": \"00000000-0000-4000-8000-000000000001\",\n    \"attempt_id\": \"00000000-0000-4000-8000-000000000019\",\n    \"name\": \"final.md\",\n    \"media_type\": \"text/markdown; charset=utf-8\",\n    \"sha256\": \"6d22c953fcf14fb6ee7e18c0f4fcc13d80964b0126be9f7a8acc436ebf2018ff\",\n    \"byte_length\": 906,\n    \"completion\": \"complete\",\n    \"created_ms\": 305100\n  },\n  \"schema_version\": 1,\n  \"run_id\": \"00000000-0000-4000-8000-000000000001\",\n  \"status\": \"completed\",\n  \"request\": {\n    \"concept\": \"A neighborhood tool library with a small volunteer team\",\n    \"account_id\": \"demo-account\",\n    \"candidate_count\": 5,\n    \"constraints\": \"Use existing community space. Test demand before purchasing equipment.\",\n    \"criteria\": [\n      {\n        \"name\": \"Usefulness\",\n        \"weight\": 30\n      },\n      {\n        \"name\": \"Feasibility\",\n        \"weight\": 25\n      },\n      {\n        \"name\": \"Novelty\",\n        \"weight\": 20\n      },\n      {\n        \"name\": \"Supporting evidence\",\n        \"weight\": 15\n      },\n      {\n        \"name\": \"Risk management\",\n        \"weight\": 10\n      }\n    ],\n    \"idempotency_key\": \"synthetic-demo\"\n  },\n  \"configuration\": {\n    \"template_version\": \"1\",\n    \"perspectives\": [\n      \"User needs and practical value: identify the people, concrete problems, and useful outcomes.\",\n      \"Novel approaches and differentiation: propose a distinct approach and explain meaningful differences.\",\n      \"Technical feasibility and implementation: describe a buildable approach, dependencies, and validation.\",\n      \"Constraints, cost, and operational simplicity: minimize unnecessary complexity and explain resource tradeoffs.\",\n      \"Adversarial critique and failure prevention: design around plausible failures and misuse, with mitigations.\"\n    ],\n    \"model\": {\n      \"mode\": \"current\"\n    },\n    \"submission_spacing_ms\": 30000,\n    \"max_jitter_ms\": 5000,\n    \"response_timeout_ms\": 1800000,\n    \"overall_deadline_ms\": 10800000,\n    \"max_attempts\": 2,\n    \"summary_char_limit\": 6000,\n    \"stage_char_limit\": 128000\n  },\n  \"excluded_candidates\": [\n    4,\n    5\n  ],\n  \"evaluation_notice\": \"Scores are model-generated judgments, not independently established facts.\",\n  \"artifacts\": [\n    {\n      \"id\": \"00000000-0000-4000-8000-000000000020\",\n      \"run_id\": \"00000000-0000-4000-8000-000000000001\",\n      \"attempt_id\": \"00000000-0000-4000-8000-000000000011\",\n      \"name\": \"candidate-1.md\",\n      \"media_type\": \"text/markdown; charset=utf-8\",\n      \"sha256\": \"6aef98842f9e637f70cf6c476b86f385b615d99288578335ba6eb1d9beab4ff6\",\n      \"byte_length\": 312,\n      \"completion\": \"complete\",\n      \"created_ms\": 110\n    },\n    {\n      \"id\": \"00000000-0000-4000-8000-000000000021\",\n      \"run_id\": \"00000000-0000-4000-8000-000000000001\",\n      \"attempt_id\": \"00000000-0000-4000-8000-000000000011\",\n      \"name\": \"candidate-1.summary.json\",\n      \"media_type\": \"application/json\",\n      \"sha256\": \"8789c237b9b78bad58a4ea18de87e28a1bdaea816a57331b2f361d29fab3eccb\",\n      \"byte_length\": 349,\n      \"completion\": \"complete\",\n      \"created_ms\": 110\n    },\n    {\n      \"id\": \"00000000-0000-4000-8000-000000000022\",\n      \"run_id\": \"00000000-0000-4000-8000-000000000001\",\n      \"attempt_id\": \"00000000-0000-4000-8000-000000000012\",\n      \"name\": \"candidate-2.md\",\n      \"media_type\": \"text/markdown; charset=utf-8\",\n      \"sha256\": \"6aef98842f9e637f70cf6c476b86f385b615d99288578335ba6eb1d9beab4ff6\",\n      \"byte_length\": 312,\n      \"completion\": \"complete\",\n      \"created_ms\": 35110\n    },\n    {\n      \"id\": \"00000000-0000-4000-8000-000000000023\",\n      \"run_id\": \"00000000-0000-4000-8000-000000000001\",\n      \"attempt_id\": \"00000000-0000-4000-8000-000000000012\",\n      \"name\": \"candidate-2.summary.json\",\n      \"media_type\": \"application/json\",\n      \"sha256\": \"8789c237b9b78bad58a4ea18de87e28a1bdaea816a57331b2f361d29fab3eccb\",\n      \"byte_length\": 349,\n      \"completion\": \"complete\",\n      \"created_ms\": 35110\n    },\n    {\n      \"id\": \"00000000-0000-4000-8000-000000000024\",\n      \"run_id\": \"00000000-0000-4000-8000-000000000001\",\n      \"attempt_id\": \"00000000-0000-4000-8000-000000000013\",\n      \"name\": \"candidate-3.md\",\n      \"media_type\": \"text/markdown; charset=utf-8\",\n      \"sha256\": \"6aef98842f9e637f70cf6c476b86f385b615d99288578335ba6eb1d9beab4ff6\",\n      \"byte_length\": 312,\n      \"completion\": \"complete\",\n      \"created_ms\": 70110\n    },\n    {\n      \"id\": \"00000000-0000-4000-8000-000000000025\",\n      \"run_id\": \"00000000-0000-4000-8000-000000000001\",\n      \"attempt_id\": \"00000000-0000-4000-8000-000000000013\",\n      \"name\": \"candidate-3.summary.json\",\n      \"media_type\": \"application/json\",\n      \"sha256\": \"8789c237b9b78bad58a4ea18de87e28a1bdaea816a57331b2f361d29fab3eccb\",\n      \"byte_length\": 349,\n      \"completion\": \"complete\",\n      \"created_ms\": 70110\n    },\n    {\n      \"id\": \"00000000-0000-4000-8000-000000000026\",\n      \"run_id\": \"00000000-0000-4000-8000-000000000001\",\n      \"attempt_id\": \"00000000-0000-4000-8000-000000000014\",\n      \"name\": \"candidate-4.md\",\n      \"media_type\": \"text/markdown; charset=utf-8\",\n      \"sha256\": \"6aef98842f9e637f70cf6c476b86f385b615d99288578335ba6eb1d9beab4ff6\",\n      \"byte_length\": 312,\n      \"completion\": \"partial\",\n      \"created_ms\": 105110\n    },\n    {\n      \"id\": \"00000000-0000-4000-8000-000000000027\",\n      \"run_id\": \"00000000-0000-4000-8000-000000000001\",\n      \"attempt_id\": \"00000000-0000-4000-8000-000000000015\",\n      \"name\": \"candidate-5.md\",\n      \"media_type\": \"text/markdown; charset=utf-8\",\n      \"sha256\": \"6aef98842f9e637f70cf6c476b86f385b615d99288578335ba6eb1d9beab4ff6\",\n      \"byte_length\": 312,\n      \"completion\": \"partial\",\n      \"created_ms\": 140110\n    },\n    {\n      \"id\": \"00000000-0000-4000-8000-000000000028\",\n      \"run_id\": \"00000000-0000-4000-8000-000000000001\",\n      \"attempt_id\": \"00000000-0000-4000-8000-000000000016\",\n      \"name\": \"compare.md\",\n      \"media_type\": \"text/markdown; charset=utf-8\",\n      \"sha256\": \"517ec772bed53bb42832ee69ae9277828642599ae151705bb5d8512879fe6087\",\n      \"byte_length\": 312,\n      \"completion\": \"complete\",\n      \"created_ms\": 200100\n    },\n    {\n      \"id\": \"00000000-0000-4000-8000-000000000029\",\n      \"run_id\": \"00000000-0000-4000-8000-000000000001\",\n      \"attempt_id\": \"00000000-0000-4000-8000-000000000016\",\n      \"name\": \"comparison.json\",\n      \"media_type\": \"application/json\",\n      \"sha256\": \"6f24ea621c7f67ab12ee8c23186f4019cf2350057e7c4ffb1c74e84e665f15a1\",\n      \"byte_length\": 3464,\n      \"completion\": \"complete\",\n      \"created_ms\": 200100\n    },\n    {\n      \"id\": \"00000000-0000-4000-8000-000000000030\",\n      \"run_id\": \"00000000-0000-4000-8000-000000000001\",\n      \"attempt_id\": \"00000000-0000-4000-8000-000000000017\",\n      \"name\": \"synthesize.md\",\n      \"media_type\": \"text/markdown; charset=utf-8\",\n      \"sha256\": \"e586bca775c46b764122f9e0baa9488a9c81f3e9eef4669b323d1b082377a8d1\",\n      \"byte_length\": 315,\n      \"completion\": \"complete\",\n      \"created_ms\": 235100\n    },\n    {\n      \"id\": \"00000000-0000-4000-8000-000000000031\",\n      \"run_id\": \"00000000-0000-4000-8000-000000000001\",\n      \"attempt_id\": \"00000000-0000-4000-8000-000000000018\",\n      \"name\": \"critique.md\",\n      \"media_type\": \"text/markdown; charset=utf-8\",\n      \"sha256\": \"6785b49f77efcaf9068130c23f6651db984668de51f8e657b7d42699ea769dcb\",\n      \"byte_length\": 170,\n      \"completion\": \"complete\",\n      \"created_ms\": 270100\n    },\n    {\n      \"id\": \"00000000-0000-4000-8000-000000000032\",\n      \"run_id\": \"00000000-0000-4000-8000-000000000001\",\n      \"attempt_id\": \"00000000-0000-4000-8000-000000000019\",\n      \"name\": \"final.md\",\n      \"media_type\": \"text/markdown; charset=utf-8\",\n      \"sha256\": \"6d22c953fcf14fb6ee7e18c0f4fcc13d80964b0126be9f7a8acc436ebf2018ff\",\n      \"byte_length\": 906,\n      \"completion\": \"complete\",\n      \"created_ms\": 305100\n    }\n  ]\n}"
+  },
+  "completed-attempts": [
+    {
+      "accepted_ms": 11,
+      "completed_ms": 110,
+      "conversation_id": "synthetic-1",
+      "conversation_url": "https://chatgpt.com/c/synthetic-1",
+      "created_ms": 10,
+      "error_code": null,
+      "id": "00000000-0000-4000-8000-000000000011",
+      "number": 1,
+      "observed_model": "Synthetic model",
+      "run_id": "00000000-0000-4000-8000-000000000001",
+      "state": "completed",
+      "task_id": "00000000-0000-4000-8000-000000000002",
+      "user_turn_id": "synthetic-user-1"
+    },
+    {
+      "accepted_ms": 35011,
+      "completed_ms": 35110,
+      "conversation_id": "synthetic-2",
+      "conversation_url": "https://chatgpt.com/c/synthetic-2",
+      "created_ms": 35010,
+      "error_code": null,
+      "id": "00000000-0000-4000-8000-000000000012",
+      "number": 1,
+      "observed_model": "Synthetic model",
+      "run_id": "00000000-0000-4000-8000-000000000001",
+      "state": "completed",
+      "task_id": "00000000-0000-4000-8000-000000000003",
+      "user_turn_id": "synthetic-user-2"
+    },
+    {
+      "accepted_ms": 70011,
+      "completed_ms": 70110,
+      "conversation_id": "synthetic-3",
+      "conversation_url": "https://chatgpt.com/c/synthetic-3",
+      "created_ms": 70010,
+      "error_code": null,
+      "id": "00000000-0000-4000-8000-000000000013",
+      "number": 1,
+      "observed_model": "Synthetic model",
+      "run_id": "00000000-0000-4000-8000-000000000001",
+      "state": "completed",
+      "task_id": "00000000-0000-4000-8000-000000000004",
+      "user_turn_id": "synthetic-user-3"
+    },
+    {
+      "accepted_ms": 105011,
+      "completed_ms": 105110,
+      "conversation_id": "synthetic-4",
+      "conversation_url": "https://chatgpt.com/c/synthetic-4",
+      "created_ms": 105010,
+      "error_code": "stream-interrupted",
+      "id": "00000000-0000-4000-8000-000000000014",
+      "number": 1,
+      "observed_model": "Synthetic model",
+      "run_id": "00000000-0000-4000-8000-000000000001",
+      "state": "partial",
+      "task_id": "00000000-0000-4000-8000-000000000005",
+      "user_turn_id": "synthetic-user-4"
+    },
+    {
+      "accepted_ms": 140011,
+      "completed_ms": 140110,
+      "conversation_id": "synthetic-5",
+      "conversation_url": "https://chatgpt.com/c/synthetic-5",
+      "created_ms": 140010,
+      "error_code": "stream-interrupted",
+      "id": "00000000-0000-4000-8000-000000000015",
+      "number": 1,
+      "observed_model": "Synthetic model",
+      "run_id": "00000000-0000-4000-8000-000000000001",
+      "state": "partial",
+      "task_id": "00000000-0000-4000-8000-000000000006",
+      "user_turn_id": "synthetic-user-5"
+    },
+    {
+      "accepted_ms": 200001,
+      "completed_ms": 200100,
+      "conversation_id": "synthetic-compare",
+      "conversation_url": "https://chatgpt.com/c/synthetic-compare",
+      "created_ms": 200000,
+      "error_code": null,
+      "id": "00000000-0000-4000-8000-000000000016",
+      "number": 1,
+      "observed_model": "Synthetic model",
+      "run_id": "00000000-0000-4000-8000-000000000001",
+      "state": "completed",
+      "task_id": "00000000-0000-4000-8000-000000000007",
+      "user_turn_id": "synthetic-user-compare"
+    },
+    {
+      "accepted_ms": 235001,
+      "completed_ms": 235100,
+      "conversation_id": "synthetic-synthesize",
+      "conversation_url": "https://chatgpt.com/c/synthetic-synthesize",
+      "created_ms": 235000,
+      "error_code": null,
+      "id": "00000000-0000-4000-8000-000000000017",
+      "number": 1,
+      "observed_model": "Synthetic model",
+      "run_id": "00000000-0000-4000-8000-000000000001",
+      "state": "completed",
+      "task_id": "00000000-0000-4000-8000-000000000008",
+      "user_turn_id": "synthetic-user-synthesize"
+    },
+    {
+      "accepted_ms": 270001,
+      "completed_ms": 270100,
+      "conversation_id": "synthetic-critique",
+      "conversation_url": "https://chatgpt.com/c/synthetic-critique",
+      "created_ms": 270000,
+      "error_code": null,
+      "id": "00000000-0000-4000-8000-000000000018",
+      "number": 1,
+      "observed_model": "Synthetic model",
+      "run_id": "00000000-0000-4000-8000-000000000001",
+      "state": "completed",
+      "task_id": "00000000-0000-4000-8000-000000000009",
+      "user_turn_id": "synthetic-user-critique"
+    },
+    {
+      "accepted_ms": 305001,
+      "completed_ms": 305100,
+      "conversation_id": "synthetic-revise",
+      "conversation_url": "https://chatgpt.com/c/synthetic-revise",
+      "created_ms": 305000,
+      "error_code": null,
+      "id": "00000000-0000-4000-8000-000000000019",
+      "number": 1,
+      "observed_model": "Synthetic model",
+      "run_id": "00000000-0000-4000-8000-000000000001",
+      "state": "completed",
+      "task_id": "00000000-0000-4000-8000-000000000010",
+      "user_turn_id": "synthetic-user-revise"
+    }
+  ],
+  "events": [
+    {
+      "created_ms": 2,
+      "data": {
+        "candidate_count": 5,
+        "status": "queued"
+      },
+      "kind": "run-created",
+      "run_id": "00000000-0000-4000-8000-000000000001",
+      "sequence": 1
+    },
+    {
+      "created_ms": 10,
+      "data": {
+        "account_id": "demo-account",
+        "attempt_id": "00000000-0000-4000-8000-000000000011",
+        "position": 1,
+        "reservation_id": "00000000-0000-4000-8000-000000000034",
+        "run_id": "00000000-0000-4000-8000-000000000001",
+        "stage": "explore",
+        "task_id": "00000000-0000-4000-8000-000000000002"
+      },
+      "kind": "attempt-prepared",
+      "run_id": "00000000-0000-4000-8000-000000000001",
+      "sequence": 2
+    },
+    {
+      "created_ms": 10,
+      "data": {
+        "attempt_id": "00000000-0000-4000-8000-000000000011"
+      },
+      "kind": "submission-started",
+      "run_id": "00000000-0000-4000-8000-000000000001",
+      "sequence": 3
+    },
+    {
+      "created_ms": 11,
+      "data": {
+        "attempt_id": "00000000-0000-4000-8000-000000000011",
+        "conversation_id": "synthetic-1",
+        "observed_model": "Synthetic model",
+        "user_turn_id": "synthetic-user-1"
+      },
+      "kind": "prompt-accepted",
+      "run_id": "00000000-0000-4000-8000-000000000001",
+      "sequence": 4
+    },
+    {
+      "created_ms": 110,
+      "data": {
+        "artifacts": [
+          {
+            "attempt_id": "00000000-0000-4000-8000-000000000011",
+            "byte_length": 312,
+            "completion": "complete",
+            "created_ms": 110,
+            "id": "00000000-0000-4000-8000-000000000020",
+            "media_type": "text/markdown; charset=utf-8",
+            "name": "candidate-1.md",
+            "run_id": "00000000-0000-4000-8000-000000000001",
+            "sha256": "6aef98842f9e637f70cf6c476b86f385b615d99288578335ba6eb1d9beab4ff6"
+          },
+          {
+            "attempt_id": "00000000-0000-4000-8000-000000000011",
+            "byte_length": 349,
+            "completion": "complete",
+            "created_ms": 110,
+            "id": "00000000-0000-4000-8000-000000000021",
+            "media_type": "application/json",
+            "name": "candidate-1.summary.json",
+            "run_id": "00000000-0000-4000-8000-000000000001",
+            "sha256": "8789c237b9b78bad58a4ea18de87e28a1bdaea816a57331b2f361d29fab3eccb"
+          }
+        ],
+        "attempt_id": "00000000-0000-4000-8000-000000000011",
+        "error_code": null,
+        "status": "completed"
+      },
+      "kind": "response-captured",
+      "run_id": "00000000-0000-4000-8000-000000000001",
+      "sequence": 5
+    },
+    {
+      "created_ms": 35010,
+      "data": {
+        "account_id": "demo-account",
+        "attempt_id": "00000000-0000-4000-8000-000000000012",
+        "position": 2,
+        "reservation_id": "00000000-0000-4000-8000-000000000035",
+        "run_id": "00000000-0000-4000-8000-000000000001",
+        "stage": "explore",
+        "task_id": "00000000-0000-4000-8000-000000000003"
+      },
+      "kind": "attempt-prepared",
+      "run_id": "00000000-0000-4000-8000-000000000001",
+      "sequence": 6
+    },
+    {
+      "created_ms": 35010,
+      "data": {
+        "attempt_id": "00000000-0000-4000-8000-000000000012"
+      },
+      "kind": "submission-started",
+      "run_id": "00000000-0000-4000-8000-000000000001",
+      "sequence": 7
+    },
+    {
+      "created_ms": 35011,
+      "data": {
+        "attempt_id": "00000000-0000-4000-8000-000000000012",
+        "conversation_id": "synthetic-2",
+        "observed_model": "Synthetic model",
+        "user_turn_id": "synthetic-user-2"
+      },
+      "kind": "prompt-accepted",
+      "run_id": "00000000-0000-4000-8000-000000000001",
+      "sequence": 8
+    },
+    {
+      "created_ms": 35110,
+      "data": {
+        "artifacts": [
+          {
+            "attempt_id": "00000000-0000-4000-8000-000000000012",
+            "byte_length": 312,
+            "completion": "complete",
+            "created_ms": 35110,
+            "id": "00000000-0000-4000-8000-000000000022",
+            "media_type": "text/markdown; charset=utf-8",
+            "name": "candidate-2.md",
+            "run_id": "00000000-0000-4000-8000-000000000001",
+            "sha256": "6aef98842f9e637f70cf6c476b86f385b615d99288578335ba6eb1d9beab4ff6"
+          },
+          {
+            "attempt_id": "00000000-0000-4000-8000-000000000012",
+            "byte_length": 349,
+            "completion": "complete",
+            "created_ms": 35110,
+            "id": "00000000-0000-4000-8000-000000000023",
+            "media_type": "application/json",
+            "name": "candidate-2.summary.json",
+            "run_id": "00000000-0000-4000-8000-000000000001",
+            "sha256": "8789c237b9b78bad58a4ea18de87e28a1bdaea816a57331b2f361d29fab3eccb"
+          }
+        ],
+        "attempt_id": "00000000-0000-4000-8000-000000000012",
+        "error_code": null,
+        "status": "completed"
+      },
+      "kind": "response-captured",
+      "run_id": "00000000-0000-4000-8000-000000000001",
+      "sequence": 9
+    },
+    {
+      "created_ms": 70010,
+      "data": {
+        "account_id": "demo-account",
+        "attempt_id": "00000000-0000-4000-8000-000000000013",
+        "position": 3,
+        "reservation_id": "00000000-0000-4000-8000-000000000036",
+        "run_id": "00000000-0000-4000-8000-000000000001",
+        "stage": "explore",
+        "task_id": "00000000-0000-4000-8000-000000000004"
+      },
+      "kind": "attempt-prepared",
+      "run_id": "00000000-0000-4000-8000-000000000001",
+      "sequence": 10
+    },
+    {
+      "created_ms": 70010,
+      "data": {
+        "attempt_id": "00000000-0000-4000-8000-000000000013"
+      },
+      "kind": "submission-started",
+      "run_id": "00000000-0000-4000-8000-000000000001",
+      "sequence": 11
+    },
+    {
+      "created_ms": 70011,
+      "data": {
+        "attempt_id": "00000000-0000-4000-8000-000000000013",
+        "conversation_id": "synthetic-3",
+        "observed_model": "Synthetic model",
+        "user_turn_id": "synthetic-user-3"
+      },
+      "kind": "prompt-accepted",
+      "run_id": "00000000-0000-4000-8000-000000000001",
+      "sequence": 12
+    },
+    {
+      "created_ms": 70110,
+      "data": {
+        "artifacts": [
+          {
+            "attempt_id": "00000000-0000-4000-8000-000000000013",
+            "byte_length": 312,
+            "completion": "complete",
+            "created_ms": 70110,
+            "id": "00000000-0000-4000-8000-000000000024",
+            "media_type": "text/markdown; charset=utf-8",
+            "name": "candidate-3.md",
+            "run_id": "00000000-0000-4000-8000-000000000001",
+            "sha256": "6aef98842f9e637f70cf6c476b86f385b615d99288578335ba6eb1d9beab4ff6"
+          },
+          {
+            "attempt_id": "00000000-0000-4000-8000-000000000013",
+            "byte_length": 349,
+            "completion": "complete",
+            "created_ms": 70110,
+            "id": "00000000-0000-4000-8000-000000000025",
+            "media_type": "application/json",
+            "name": "candidate-3.summary.json",
+            "run_id": "00000000-0000-4000-8000-000000000001",
+            "sha256": "8789c237b9b78bad58a4ea18de87e28a1bdaea816a57331b2f361d29fab3eccb"
+          }
+        ],
+        "attempt_id": "00000000-0000-4000-8000-000000000013",
+        "error_code": null,
+        "status": "completed"
+      },
+      "kind": "response-captured",
+      "run_id": "00000000-0000-4000-8000-000000000001",
+      "sequence": 13
+    },
+    {
+      "created_ms": 105010,
+      "data": {
+        "account_id": "demo-account",
+        "attempt_id": "00000000-0000-4000-8000-000000000014",
+        "position": 4,
+        "reservation_id": "00000000-0000-4000-8000-000000000037",
+        "run_id": "00000000-0000-4000-8000-000000000001",
+        "stage": "explore",
+        "task_id": "00000000-0000-4000-8000-000000000005"
+      },
+      "kind": "attempt-prepared",
+      "run_id": "00000000-0000-4000-8000-000000000001",
+      "sequence": 14
+    },
+    {
+      "created_ms": 105010,
+      "data": {
+        "attempt_id": "00000000-0000-4000-8000-000000000014"
+      },
+      "kind": "submission-started",
+      "run_id": "00000000-0000-4000-8000-000000000001",
+      "sequence": 15
+    },
+    {
+      "created_ms": 105011,
+      "data": {
+        "attempt_id": "00000000-0000-4000-8000-000000000014",
+        "conversation_id": "synthetic-4",
+        "observed_model": "Synthetic model",
+        "user_turn_id": "synthetic-user-4"
+      },
+      "kind": "prompt-accepted",
+      "run_id": "00000000-0000-4000-8000-000000000001",
+      "sequence": 16
+    },
+    {
+      "created_ms": 105110,
+      "data": {
+        "artifacts": [
+          {
+            "attempt_id": "00000000-0000-4000-8000-000000000014",
+            "byte_length": 312,
+            "completion": "partial",
+            "created_ms": 105110,
+            "id": "00000000-0000-4000-8000-000000000026",
+            "media_type": "text/markdown; charset=utf-8",
+            "name": "candidate-4.md",
+            "run_id": "00000000-0000-4000-8000-000000000001",
+            "sha256": "6aef98842f9e637f70cf6c476b86f385b615d99288578335ba6eb1d9beab4ff6"
+          }
+        ],
+        "attempt_id": "00000000-0000-4000-8000-000000000014",
+        "error_code": "stream-interrupted",
+        "status": "partial"
+      },
+      "kind": "response-captured",
+      "run_id": "00000000-0000-4000-8000-000000000001",
+      "sequence": 17
+    },
+    {
+      "created_ms": 140010,
+      "data": {
+        "account_id": "demo-account",
+        "attempt_id": "00000000-0000-4000-8000-000000000015",
+        "position": 5,
+        "reservation_id": "00000000-0000-4000-8000-000000000038",
+        "run_id": "00000000-0000-4000-8000-000000000001",
+        "stage": "explore",
+        "task_id": "00000000-0000-4000-8000-000000000006"
+      },
+      "kind": "attempt-prepared",
+      "run_id": "00000000-0000-4000-8000-000000000001",
+      "sequence": 18
+    },
+    {
+      "created_ms": 140010,
+      "data": {
+        "attempt_id": "00000000-0000-4000-8000-000000000015"
+      },
+      "kind": "submission-started",
+      "run_id": "00000000-0000-4000-8000-000000000001",
+      "sequence": 19
+    },
+    {
+      "created_ms": 140011,
+      "data": {
+        "attempt_id": "00000000-0000-4000-8000-000000000015",
+        "conversation_id": "synthetic-5",
+        "observed_model": "Synthetic model",
+        "user_turn_id": "synthetic-user-5"
+      },
+      "kind": "prompt-accepted",
+      "run_id": "00000000-0000-4000-8000-000000000001",
+      "sequence": 20
+    },
+    {
+      "created_ms": 140110,
+      "data": {
+        "artifacts": [
+          {
+            "attempt_id": "00000000-0000-4000-8000-000000000015",
+            "byte_length": 312,
+            "completion": "partial",
+            "created_ms": 140110,
+            "id": "00000000-0000-4000-8000-000000000027",
+            "media_type": "text/markdown; charset=utf-8",
+            "name": "candidate-5.md",
+            "run_id": "00000000-0000-4000-8000-000000000001",
+            "sha256": "6aef98842f9e637f70cf6c476b86f385b615d99288578335ba6eb1d9beab4ff6"
+          }
+        ],
+        "attempt_id": "00000000-0000-4000-8000-000000000015",
+        "error_code": "stream-interrupted",
+        "status": "partial"
+      },
+      "kind": "response-captured",
+      "run_id": "00000000-0000-4000-8000-000000000001",
+      "sequence": 21
+    },
+    {
+      "created_ms": 190000,
+      "data": {
+        "reason": "incomplete-results"
+      },
+      "kind": "run-paused",
+      "run_id": "00000000-0000-4000-8000-000000000001",
+      "sequence": 22
+    },
+    {
+      "created_ms": 200000,
+      "data": {
+        "allow_incomplete": true
+      },
+      "kind": "run-resumed",
+      "run_id": "00000000-0000-4000-8000-000000000001",
+      "sequence": 23
+    },
+    {
+      "created_ms": 200000,
+      "data": {
+        "account_id": "demo-account",
+        "attempt_id": "00000000-0000-4000-8000-000000000016",
+        "position": 0,
+        "reservation_id": "00000000-0000-4000-8000-000000000039",
+        "run_id": "00000000-0000-4000-8000-000000000001",
+        "stage": "compare",
+        "task_id": "00000000-0000-4000-8000-000000000007"
+      },
+      "kind": "attempt-prepared",
+      "run_id": "00000000-0000-4000-8000-000000000001",
+      "sequence": 24
+    },
+    {
+      "created_ms": 200000,
+      "data": {
+        "attempt_id": "00000000-0000-4000-8000-000000000016"
+      },
+      "kind": "submission-started",
+      "run_id": "00000000-0000-4000-8000-000000000001",
+      "sequence": 25
+    },
+    {
+      "created_ms": 200001,
+      "data": {
+        "attempt_id": "00000000-0000-4000-8000-000000000016",
+        "conversation_id": "synthetic-compare",
+        "observed_model": "Synthetic model",
+        "user_turn_id": "synthetic-user-compare"
+      },
+      "kind": "prompt-accepted",
+      "run_id": "00000000-0000-4000-8000-000000000001",
+      "sequence": 26
+    },
+    {
+      "created_ms": 200100,
+      "data": {
+        "artifacts": [
+          {
+            "attempt_id": "00000000-0000-4000-8000-000000000016",
+            "byte_length": 312,
+            "completion": "complete",
+            "created_ms": 200100,
+            "id": "00000000-0000-4000-8000-000000000028",
+            "media_type": "text/markdown; charset=utf-8",
+            "name": "compare.md",
+            "run_id": "00000000-0000-4000-8000-000000000001",
+            "sha256": "517ec772bed53bb42832ee69ae9277828642599ae151705bb5d8512879fe6087"
+          },
+          {
+            "attempt_id": "00000000-0000-4000-8000-000000000016",
+            "byte_length": 3464,
+            "completion": "complete",
+            "created_ms": 200100,
+            "id": "00000000-0000-4000-8000-000000000029",
+            "media_type": "application/json",
+            "name": "comparison.json",
+            "run_id": "00000000-0000-4000-8000-000000000001",
+            "sha256": "6f24ea621c7f67ab12ee8c23186f4019cf2350057e7c4ffb1c74e84e665f15a1"
+          }
+        ],
+        "attempt_id": "00000000-0000-4000-8000-000000000016",
+        "error_code": null,
+        "status": "completed"
+      },
+      "kind": "response-captured",
+      "run_id": "00000000-0000-4000-8000-000000000001",
+      "sequence": 27
+    },
+    {
+      "created_ms": 235000,
+      "data": {
+        "account_id": "demo-account",
+        "attempt_id": "00000000-0000-4000-8000-000000000017",
+        "position": 0,
+        "reservation_id": "00000000-0000-4000-8000-000000000040",
+        "run_id": "00000000-0000-4000-8000-000000000001",
+        "stage": "synthesize",
+        "task_id": "00000000-0000-4000-8000-000000000008"
+      },
+      "kind": "attempt-prepared",
+      "run_id": "00000000-0000-4000-8000-000000000001",
+      "sequence": 28
+    },
+    {
+      "created_ms": 235000,
+      "data": {
+        "attempt_id": "00000000-0000-4000-8000-000000000017"
+      },
+      "kind": "submission-started",
+      "run_id": "00000000-0000-4000-8000-000000000001",
+      "sequence": 29
+    },
+    {
+      "created_ms": 235001,
+      "data": {
+        "attempt_id": "00000000-0000-4000-8000-000000000017",
+        "conversation_id": "synthetic-synthesize",
+        "observed_model": "Synthetic model",
+        "user_turn_id": "synthetic-user-synthesize"
+      },
+      "kind": "prompt-accepted",
+      "run_id": "00000000-0000-4000-8000-000000000001",
+      "sequence": 30
+    },
+    {
+      "created_ms": 235100,
+      "data": {
+        "artifacts": [
+          {
+            "attempt_id": "00000000-0000-4000-8000-000000000017",
+            "byte_length": 315,
+            "completion": "complete",
+            "created_ms": 235100,
+            "id": "00000000-0000-4000-8000-000000000030",
+            "media_type": "text/markdown; charset=utf-8",
+            "name": "synthesize.md",
+            "run_id": "00000000-0000-4000-8000-000000000001",
+            "sha256": "e586bca775c46b764122f9e0baa9488a9c81f3e9eef4669b323d1b082377a8d1"
+          }
+        ],
+        "attempt_id": "00000000-0000-4000-8000-000000000017",
+        "error_code": null,
+        "status": "completed"
+      },
+      "kind": "response-captured",
+      "run_id": "00000000-0000-4000-8000-000000000001",
+      "sequence": 31
+    },
+    {
+      "created_ms": 270000,
+      "data": {
+        "account_id": "demo-account",
+        "attempt_id": "00000000-0000-4000-8000-000000000018",
+        "position": 0,
+        "reservation_id": "00000000-0000-4000-8000-000000000041",
+        "run_id": "00000000-0000-4000-8000-000000000001",
+        "stage": "critique",
+        "task_id": "00000000-0000-4000-8000-000000000009"
+      },
+      "kind": "attempt-prepared",
+      "run_id": "00000000-0000-4000-8000-000000000001",
+      "sequence": 32
+    },
+    {
+      "created_ms": 270000,
+      "data": {
+        "attempt_id": "00000000-0000-4000-8000-000000000018"
+      },
+      "kind": "submission-started",
+      "run_id": "00000000-0000-4000-8000-000000000001",
+      "sequence": 33
+    },
+    {
+      "created_ms": 270001,
+      "data": {
+        "attempt_id": "00000000-0000-4000-8000-000000000018",
+        "conversation_id": "synthetic-critique",
+        "observed_model": "Synthetic model",
+        "user_turn_id": "synthetic-user-critique"
+      },
+      "kind": "prompt-accepted",
+      "run_id": "00000000-0000-4000-8000-000000000001",
+      "sequence": 34
+    },
+    {
+      "created_ms": 270100,
+      "data": {
+        "artifacts": [
+          {
+            "attempt_id": "00000000-0000-4000-8000-000000000018",
+            "byte_length": 170,
+            "completion": "complete",
+            "created_ms": 270100,
+            "id": "00000000-0000-4000-8000-000000000031",
+            "media_type": "text/markdown; charset=utf-8",
+            "name": "critique.md",
+            "run_id": "00000000-0000-4000-8000-000000000001",
+            "sha256": "6785b49f77efcaf9068130c23f6651db984668de51f8e657b7d42699ea769dcb"
+          }
+        ],
+        "attempt_id": "00000000-0000-4000-8000-000000000018",
+        "error_code": null,
+        "status": "completed"
+      },
+      "kind": "response-captured",
+      "run_id": "00000000-0000-4000-8000-000000000001",
+      "sequence": 35
+    },
+    {
+      "created_ms": 305000,
+      "data": {
+        "account_id": "demo-account",
+        "attempt_id": "00000000-0000-4000-8000-000000000019",
+        "position": 0,
+        "reservation_id": "00000000-0000-4000-8000-000000000042",
+        "run_id": "00000000-0000-4000-8000-000000000001",
+        "stage": "revise",
+        "task_id": "00000000-0000-4000-8000-000000000010"
+      },
+      "kind": "attempt-prepared",
+      "run_id": "00000000-0000-4000-8000-000000000001",
+      "sequence": 36
+    },
+    {
+      "created_ms": 305000,
+      "data": {
+        "attempt_id": "00000000-0000-4000-8000-000000000019"
+      },
+      "kind": "submission-started",
+      "run_id": "00000000-0000-4000-8000-000000000001",
+      "sequence": 37
+    },
+    {
+      "created_ms": 305001,
+      "data": {
+        "attempt_id": "00000000-0000-4000-8000-000000000019",
+        "conversation_id": "synthetic-revise",
+        "observed_model": "Synthetic model",
+        "user_turn_id": "synthetic-user-revise"
+      },
+      "kind": "prompt-accepted",
+      "run_id": "00000000-0000-4000-8000-000000000001",
+      "sequence": 38
+    },
+    {
+      "created_ms": 305100,
+      "data": {
+        "artifacts": [
+          {
+            "attempt_id": "00000000-0000-4000-8000-000000000019",
+            "byte_length": 906,
+            "completion": "complete",
+            "created_ms": 305100,
+            "id": "00000000-0000-4000-8000-000000000032",
+            "media_type": "text/markdown; charset=utf-8",
+            "name": "final.md",
+            "run_id": "00000000-0000-4000-8000-000000000001",
+            "sha256": "6d22c953fcf14fb6ee7e18c0f4fcc13d80964b0126be9f7a8acc436ebf2018ff"
+          }
+        ],
+        "attempt_id": "00000000-0000-4000-8000-000000000019",
+        "error_code": null,
+        "status": "completed"
+      },
+      "kind": "response-captured",
+      "run_id": "00000000-0000-4000-8000-000000000001",
+      "sequence": 39
+    },
+    {
+      "created_ms": 305100,
+      "data": {
+        "attempt_id": null,
+        "byte_length": 7869,
+        "completion": "complete",
+        "created_ms": 305100,
+        "id": "00000000-0000-4000-8000-000000000033",
+        "media_type": "application/json",
+        "name": "result.json",
+        "run_id": "00000000-0000-4000-8000-000000000001",
+        "sha256": "17436e36c7d87d435eb40c460cc0010441f0bf12e01c03feca028da74a910e55"
+      },
+      "kind": "run-completed",
+      "run_id": "00000000-0000-4000-8000-000000000001",
+      "sequence": 40
+    }
+  ],
+  "partial-attempts": [
+    {
+      "accepted_ms": 11,
+      "completed_ms": 110,
+      "conversation_id": "synthetic-1",
+      "conversation_url": "https://chatgpt.com/c/synthetic-1",
+      "created_ms": 10,
+      "error_code": null,
+      "id": "00000000-0000-4000-8000-000000000011",
+      "number": 1,
+      "observed_model": "Synthetic model",
+      "run_id": "00000000-0000-4000-8000-000000000001",
+      "state": "completed",
+      "task_id": "00000000-0000-4000-8000-000000000002",
+      "user_turn_id": "synthetic-user-1"
+    },
+    {
+      "accepted_ms": 35011,
+      "completed_ms": 35110,
+      "conversation_id": "synthetic-2",
+      "conversation_url": "https://chatgpt.com/c/synthetic-2",
+      "created_ms": 35010,
+      "error_code": null,
+      "id": "00000000-0000-4000-8000-000000000012",
+      "number": 1,
+      "observed_model": "Synthetic model",
+      "run_id": "00000000-0000-4000-8000-000000000001",
+      "state": "completed",
+      "task_id": "00000000-0000-4000-8000-000000000003",
+      "user_turn_id": "synthetic-user-2"
+    },
+    {
+      "accepted_ms": 70011,
+      "completed_ms": 70110,
+      "conversation_id": "synthetic-3",
+      "conversation_url": "https://chatgpt.com/c/synthetic-3",
+      "created_ms": 70010,
+      "error_code": null,
+      "id": "00000000-0000-4000-8000-000000000013",
+      "number": 1,
+      "observed_model": "Synthetic model",
+      "run_id": "00000000-0000-4000-8000-000000000001",
+      "state": "completed",
+      "task_id": "00000000-0000-4000-8000-000000000004",
+      "user_turn_id": "synthetic-user-3"
+    },
+    {
+      "accepted_ms": 105011,
+      "completed_ms": 105110,
+      "conversation_id": "synthetic-4",
+      "conversation_url": "https://chatgpt.com/c/synthetic-4",
+      "created_ms": 105010,
+      "error_code": "stream-interrupted",
+      "id": "00000000-0000-4000-8000-000000000014",
+      "number": 1,
+      "observed_model": "Synthetic model",
+      "run_id": "00000000-0000-4000-8000-000000000001",
+      "state": "partial",
+      "task_id": "00000000-0000-4000-8000-000000000005",
+      "user_turn_id": "synthetic-user-4"
+    },
+    {
+      "accepted_ms": 140011,
+      "completed_ms": 140110,
+      "conversation_id": "synthetic-5",
+      "conversation_url": "https://chatgpt.com/c/synthetic-5",
+      "created_ms": 140010,
+      "error_code": "stream-interrupted",
+      "id": "00000000-0000-4000-8000-000000000015",
+      "number": 1,
+      "observed_model": "Synthetic model",
+      "run_id": "00000000-0000-4000-8000-000000000001",
+      "state": "partial",
+      "task_id": "00000000-0000-4000-8000-000000000006",
+      "user_turn_id": "synthetic-user-5"
+    }
+  ],
+  "run-completed": {
+    "allow_incomplete": true,
+    "artifacts": [
+      {
+        "attempt_id": "00000000-0000-4000-8000-000000000011",
+        "byte_length": 312,
+        "completion": "complete",
+        "created_ms": 110,
+        "id": "00000000-0000-4000-8000-000000000020",
+        "media_type": "text/markdown; charset=utf-8",
+        "name": "candidate-1.md",
+        "run_id": "00000000-0000-4000-8000-000000000001",
+        "sha256": "6aef98842f9e637f70cf6c476b86f385b615d99288578335ba6eb1d9beab4ff6"
+      },
+      {
+        "attempt_id": "00000000-0000-4000-8000-000000000011",
+        "byte_length": 349,
+        "completion": "complete",
+        "created_ms": 110,
+        "id": "00000000-0000-4000-8000-000000000021",
+        "media_type": "application/json",
+        "name": "candidate-1.summary.json",
+        "run_id": "00000000-0000-4000-8000-000000000001",
+        "sha256": "8789c237b9b78bad58a4ea18de87e28a1bdaea816a57331b2f361d29fab3eccb"
+      },
+      {
+        "attempt_id": "00000000-0000-4000-8000-000000000012",
+        "byte_length": 312,
+        "completion": "complete",
+        "created_ms": 35110,
+        "id": "00000000-0000-4000-8000-000000000022",
+        "media_type": "text/markdown; charset=utf-8",
+        "name": "candidate-2.md",
+        "run_id": "00000000-0000-4000-8000-000000000001",
+        "sha256": "6aef98842f9e637f70cf6c476b86f385b615d99288578335ba6eb1d9beab4ff6"
+      },
+      {
+        "attempt_id": "00000000-0000-4000-8000-000000000012",
+        "byte_length": 349,
+        "completion": "complete",
+        "created_ms": 35110,
+        "id": "00000000-0000-4000-8000-000000000023",
+        "media_type": "application/json",
+        "name": "candidate-2.summary.json",
+        "run_id": "00000000-0000-4000-8000-000000000001",
+        "sha256": "8789c237b9b78bad58a4ea18de87e28a1bdaea816a57331b2f361d29fab3eccb"
+      },
+      {
+        "attempt_id": "00000000-0000-4000-8000-000000000013",
+        "byte_length": 312,
+        "completion": "complete",
+        "created_ms": 70110,
+        "id": "00000000-0000-4000-8000-000000000024",
+        "media_type": "text/markdown; charset=utf-8",
+        "name": "candidate-3.md",
+        "run_id": "00000000-0000-4000-8000-000000000001",
+        "sha256": "6aef98842f9e637f70cf6c476b86f385b615d99288578335ba6eb1d9beab4ff6"
+      },
+      {
+        "attempt_id": "00000000-0000-4000-8000-000000000013",
+        "byte_length": 349,
+        "completion": "complete",
+        "created_ms": 70110,
+        "id": "00000000-0000-4000-8000-000000000025",
+        "media_type": "application/json",
+        "name": "candidate-3.summary.json",
+        "run_id": "00000000-0000-4000-8000-000000000001",
+        "sha256": "8789c237b9b78bad58a4ea18de87e28a1bdaea816a57331b2f361d29fab3eccb"
+      },
+      {
+        "attempt_id": "00000000-0000-4000-8000-000000000014",
+        "byte_length": 312,
+        "completion": "partial",
+        "created_ms": 105110,
+        "id": "00000000-0000-4000-8000-000000000026",
+        "media_type": "text/markdown; charset=utf-8",
+        "name": "candidate-4.md",
+        "run_id": "00000000-0000-4000-8000-000000000001",
+        "sha256": "6aef98842f9e637f70cf6c476b86f385b615d99288578335ba6eb1d9beab4ff6"
+      },
+      {
+        "attempt_id": "00000000-0000-4000-8000-000000000015",
+        "byte_length": 312,
+        "completion": "partial",
+        "created_ms": 140110,
+        "id": "00000000-0000-4000-8000-000000000027",
+        "media_type": "text/markdown; charset=utf-8",
+        "name": "candidate-5.md",
+        "run_id": "00000000-0000-4000-8000-000000000001",
+        "sha256": "6aef98842f9e637f70cf6c476b86f385b615d99288578335ba6eb1d9beab4ff6"
+      },
+      {
+        "attempt_id": "00000000-0000-4000-8000-000000000016",
+        "byte_length": 312,
+        "completion": "complete",
+        "created_ms": 200100,
+        "id": "00000000-0000-4000-8000-000000000028",
+        "media_type": "text/markdown; charset=utf-8",
+        "name": "compare.md",
+        "run_id": "00000000-0000-4000-8000-000000000001",
+        "sha256": "517ec772bed53bb42832ee69ae9277828642599ae151705bb5d8512879fe6087"
+      },
+      {
+        "attempt_id": "00000000-0000-4000-8000-000000000016",
+        "byte_length": 3464,
+        "completion": "complete",
+        "created_ms": 200100,
+        "id": "00000000-0000-4000-8000-000000000029",
+        "media_type": "application/json",
+        "name": "comparison.json",
+        "run_id": "00000000-0000-4000-8000-000000000001",
+        "sha256": "6f24ea621c7f67ab12ee8c23186f4019cf2350057e7c4ffb1c74e84e665f15a1"
+      },
+      {
+        "attempt_id": "00000000-0000-4000-8000-000000000017",
+        "byte_length": 315,
+        "completion": "complete",
+        "created_ms": 235100,
+        "id": "00000000-0000-4000-8000-000000000030",
+        "media_type": "text/markdown; charset=utf-8",
+        "name": "synthesize.md",
+        "run_id": "00000000-0000-4000-8000-000000000001",
+        "sha256": "e586bca775c46b764122f9e0baa9488a9c81f3e9eef4669b323d1b082377a8d1"
+      },
+      {
+        "attempt_id": "00000000-0000-4000-8000-000000000018",
+        "byte_length": 170,
+        "completion": "complete",
+        "created_ms": 270100,
+        "id": "00000000-0000-4000-8000-000000000031",
+        "media_type": "text/markdown; charset=utf-8",
+        "name": "critique.md",
+        "run_id": "00000000-0000-4000-8000-000000000001",
+        "sha256": "6785b49f77efcaf9068130c23f6651db984668de51f8e657b7d42699ea769dcb"
+      },
+      {
+        "attempt_id": "00000000-0000-4000-8000-000000000019",
+        "byte_length": 906,
+        "completion": "complete",
+        "created_ms": 305100,
+        "id": "00000000-0000-4000-8000-000000000032",
+        "media_type": "text/markdown; charset=utf-8",
+        "name": "final.md",
+        "run_id": "00000000-0000-4000-8000-000000000001",
+        "sha256": "6d22c953fcf14fb6ee7e18c0f4fcc13d80964b0126be9f7a8acc436ebf2018ff"
+      },
+      {
+        "attempt_id": null,
+        "byte_length": 7869,
+        "completion": "complete",
+        "created_ms": 305100,
+        "id": "00000000-0000-4000-8000-000000000033",
+        "media_type": "application/json",
+        "name": "result.json",
+        "run_id": "00000000-0000-4000-8000-000000000001",
+        "sha256": "17436e36c7d87d435eb40c460cc0010441f0bf12e01c03feca028da74a910e55"
+      }
+    ],
+    "configuration": {
+      "max_attempts": 2,
+      "max_jitter_ms": 5000,
+      "model": {
+        "mode": "current"
+      },
+      "overall_deadline_ms": 10800000,
+      "perspectives": [
+        "User needs and practical value: identify the people, concrete problems, and useful outcomes.",
+        "Novel approaches and differentiation: propose a distinct approach and explain meaningful differences.",
+        "Technical feasibility and implementation: describe a buildable approach, dependencies, and validation.",
+        "Constraints, cost, and operational simplicity: minimize unnecessary complexity and explain resource tradeoffs.",
+        "Adversarial critique and failure prevention: design around plausible failures and misuse, with mitigations."
+      ],
+      "response_timeout_ms": 1800000,
+      "stage_char_limit": 128000,
+      "submission_spacing_ms": 30000,
+      "summary_char_limit": 6000,
+      "template_version": "1"
+    },
+    "created_ms": 2,
+    "deadline_ms": 10800002,
+    "id": "00000000-0000-4000-8000-000000000001",
+    "pause_reason": null,
+    "request": {
+      "account_id": "demo-account",
+      "candidate_count": 5,
+      "concept": "A neighborhood tool library with a small volunteer team",
+      "constraints": "Use existing community space. Test demand before purchasing equipment.",
+      "criteria": [
+        {
+          "name": "Usefulness",
+          "weight": 30
+        },
+        {
+          "name": "Feasibility",
+          "weight": 25
+        },
+        {
+          "name": "Novelty",
+          "weight": 20
+        },
+        {
+          "name": "Supporting evidence",
+          "weight": 15
+        },
+        {
+          "name": "Risk management",
+          "weight": 10
+        }
+      ],
+      "idempotency_key": "synthetic-demo"
+    },
+    "status": "completed",
+    "submission_limit": 18,
+    "submissions": 9,
+    "tasks": [
+      {
+        "attempts": 1,
+        "error_code": null,
+        "id": "00000000-0000-4000-8000-000000000002",
+        "position": 1,
+        "stage": "explore",
+        "status": "completed",
+        "summary": {
+          "assumptions": [
+            "Volunteer availability needs testing"
+          ],
+          "next_steps": [
+            "Interview potential borrowers"
+          ],
+          "proposal": "Pilot a shared tool shelf at the community center with a reservation notebook and a weekly volunteer shift.",
+          "strengths": [
+            "Low initial cost"
+          ],
+          "weaknesses": [
+            "Limited opening hours"
+          ]
+        }
+      },
+      {
+        "attempts": 1,
+        "error_code": null,
+        "id": "00000000-0000-4000-8000-000000000003",
+        "position": 2,
+        "stage": "explore",
+        "status": "completed",
+        "summary": {
+          "assumptions": [
+            "Volunteer availability needs testing"
+          ],
+          "next_steps": [
+            "Interview potential borrowers"
+          ],
+          "proposal": "Pilot a shared tool shelf at the community center with a reservation notebook and a weekly volunteer shift.",
+          "strengths": [
+            "Low initial cost"
+          ],
+          "weaknesses": [
+            "Limited opening hours"
+          ]
+        }
+      },
+      {
+        "attempts": 1,
+        "error_code": null,
+        "id": "00000000-0000-4000-8000-000000000004",
+        "position": 3,
+        "stage": "explore",
+        "status": "completed",
+        "summary": {
+          "assumptions": [
+            "Volunteer availability needs testing"
+          ],
+          "next_steps": [
+            "Interview potential borrowers"
+          ],
+          "proposal": "Pilot a shared tool shelf at the community center with a reservation notebook and a weekly volunteer shift.",
+          "strengths": [
+            "Low initial cost"
+          ],
+          "weaknesses": [
+            "Limited opening hours"
+          ]
+        }
+      },
+      {
+        "attempts": 1,
+        "error_code": "stream-interrupted",
+        "id": "00000000-0000-4000-8000-000000000005",
+        "position": 4,
+        "stage": "explore",
+        "status": "excluded",
+        "summary": null
+      },
+      {
+        "attempts": 1,
+        "error_code": "stream-interrupted",
+        "id": "00000000-0000-4000-8000-000000000006",
+        "position": 5,
+        "stage": "explore",
+        "status": "excluded",
+        "summary": null
+      },
+      {
+        "attempts": 1,
+        "error_code": null,
+        "id": "00000000-0000-4000-8000-000000000007",
+        "position": 0,
+        "stage": "compare",
+        "status": "completed",
+        "summary": null
+      },
+      {
+        "attempts": 1,
+        "error_code": null,
+        "id": "00000000-0000-4000-8000-000000000008",
+        "position": 0,
+        "stage": "synthesize",
+        "status": "completed",
+        "summary": null
+      },
+      {
+        "attempts": 1,
+        "error_code": null,
+        "id": "00000000-0000-4000-8000-000000000009",
+        "position": 0,
+        "stage": "critique",
+        "status": "completed",
+        "summary": null
+      },
+      {
+        "attempts": 1,
+        "error_code": null,
+        "id": "00000000-0000-4000-8000-000000000010",
+        "position": 0,
+        "stage": "revise",
+        "status": "completed",
+        "summary": null
+      }
+    ]
+  },
+  "run-partial": {
+    "allow_incomplete": false,
+    "artifacts": [
+      {
+        "attempt_id": "00000000-0000-4000-8000-000000000011",
+        "byte_length": 312,
+        "completion": "complete",
+        "created_ms": 110,
+        "id": "00000000-0000-4000-8000-000000000020",
+        "media_type": "text/markdown; charset=utf-8",
+        "name": "candidate-1.md",
+        "run_id": "00000000-0000-4000-8000-000000000001",
+        "sha256": "6aef98842f9e637f70cf6c476b86f385b615d99288578335ba6eb1d9beab4ff6"
+      },
+      {
+        "attempt_id": "00000000-0000-4000-8000-000000000011",
+        "byte_length": 349,
+        "completion": "complete",
+        "created_ms": 110,
+        "id": "00000000-0000-4000-8000-000000000021",
+        "media_type": "application/json",
+        "name": "candidate-1.summary.json",
+        "run_id": "00000000-0000-4000-8000-000000000001",
+        "sha256": "8789c237b9b78bad58a4ea18de87e28a1bdaea816a57331b2f361d29fab3eccb"
+      },
+      {
+        "attempt_id": "00000000-0000-4000-8000-000000000012",
+        "byte_length": 312,
+        "completion": "complete",
+        "created_ms": 35110,
+        "id": "00000000-0000-4000-8000-000000000022",
+        "media_type": "text/markdown; charset=utf-8",
+        "name": "candidate-2.md",
+        "run_id": "00000000-0000-4000-8000-000000000001",
+        "sha256": "6aef98842f9e637f70cf6c476b86f385b615d99288578335ba6eb1d9beab4ff6"
+      },
+      {
+        "attempt_id": "00000000-0000-4000-8000-000000000012",
+        "byte_length": 349,
+        "completion": "complete",
+        "created_ms": 35110,
+        "id": "00000000-0000-4000-8000-000000000023",
+        "media_type": "application/json",
+        "name": "candidate-2.summary.json",
+        "run_id": "00000000-0000-4000-8000-000000000001",
+        "sha256": "8789c237b9b78bad58a4ea18de87e28a1bdaea816a57331b2f361d29fab3eccb"
+      },
+      {
+        "attempt_id": "00000000-0000-4000-8000-000000000013",
+        "byte_length": 312,
+        "completion": "complete",
+        "created_ms": 70110,
+        "id": "00000000-0000-4000-8000-000000000024",
+        "media_type": "text/markdown; charset=utf-8",
+        "name": "candidate-3.md",
+        "run_id": "00000000-0000-4000-8000-000000000001",
+        "sha256": "6aef98842f9e637f70cf6c476b86f385b615d99288578335ba6eb1d9beab4ff6"
+      },
+      {
+        "attempt_id": "00000000-0000-4000-8000-000000000013",
+        "byte_length": 349,
+        "completion": "complete",
+        "created_ms": 70110,
+        "id": "00000000-0000-4000-8000-000000000025",
+        "media_type": "application/json",
+        "name": "candidate-3.summary.json",
+        "run_id": "00000000-0000-4000-8000-000000000001",
+        "sha256": "8789c237b9b78bad58a4ea18de87e28a1bdaea816a57331b2f361d29fab3eccb"
+      },
+      {
+        "attempt_id": "00000000-0000-4000-8000-000000000014",
+        "byte_length": 312,
+        "completion": "partial",
+        "created_ms": 105110,
+        "id": "00000000-0000-4000-8000-000000000026",
+        "media_type": "text/markdown; charset=utf-8",
+        "name": "candidate-4.md",
+        "run_id": "00000000-0000-4000-8000-000000000001",
+        "sha256": "6aef98842f9e637f70cf6c476b86f385b615d99288578335ba6eb1d9beab4ff6"
+      },
+      {
+        "attempt_id": "00000000-0000-4000-8000-000000000015",
+        "byte_length": 312,
+        "completion": "partial",
+        "created_ms": 140110,
+        "id": "00000000-0000-4000-8000-000000000027",
+        "media_type": "text/markdown; charset=utf-8",
+        "name": "candidate-5.md",
+        "run_id": "00000000-0000-4000-8000-000000000001",
+        "sha256": "6aef98842f9e637f70cf6c476b86f385b615d99288578335ba6eb1d9beab4ff6"
+      }
+    ],
+    "configuration": {
+      "max_attempts": 2,
+      "max_jitter_ms": 5000,
+      "model": {
+        "mode": "current"
+      },
+      "overall_deadline_ms": 10800000,
+      "perspectives": [
+        "User needs and practical value: identify the people, concrete problems, and useful outcomes.",
+        "Novel approaches and differentiation: propose a distinct approach and explain meaningful differences.",
+        "Technical feasibility and implementation: describe a buildable approach, dependencies, and validation.",
+        "Constraints, cost, and operational simplicity: minimize unnecessary complexity and explain resource tradeoffs.",
+        "Adversarial critique and failure prevention: design around plausible failures and misuse, with mitigations."
+      ],
+      "response_timeout_ms": 1800000,
+      "stage_char_limit": 128000,
+      "submission_spacing_ms": 30000,
+      "summary_char_limit": 6000,
+      "template_version": "1"
+    },
+    "created_ms": 2,
+    "deadline_ms": 10800002,
+    "id": "00000000-0000-4000-8000-000000000001",
+    "pause_reason": "incomplete-results",
+    "request": {
+      "account_id": "demo-account",
+      "candidate_count": 5,
+      "concept": "A neighborhood tool library with a small volunteer team",
+      "constraints": "Use existing community space. Test demand before purchasing equipment.",
+      "criteria": [
+        {
+          "name": "Usefulness",
+          "weight": 30
+        },
+        {
+          "name": "Feasibility",
+          "weight": 25
+        },
+        {
+          "name": "Novelty",
+          "weight": 20
+        },
+        {
+          "name": "Supporting evidence",
+          "weight": 15
+        },
+        {
+          "name": "Risk management",
+          "weight": 10
+        }
+      ],
+      "idempotency_key": "synthetic-demo"
+    },
+    "status": "paused",
+    "submission_limit": 18,
+    "submissions": 5,
+    "tasks": [
+      {
+        "attempts": 1,
+        "error_code": null,
+        "id": "00000000-0000-4000-8000-000000000002",
+        "position": 1,
+        "stage": "explore",
+        "status": "completed",
+        "summary": {
+          "assumptions": [
+            "Volunteer availability needs testing"
+          ],
+          "next_steps": [
+            "Interview potential borrowers"
+          ],
+          "proposal": "Pilot a shared tool shelf at the community center with a reservation notebook and a weekly volunteer shift.",
+          "strengths": [
+            "Low initial cost"
+          ],
+          "weaknesses": [
+            "Limited opening hours"
+          ]
+        }
+      },
+      {
+        "attempts": 1,
+        "error_code": null,
+        "id": "00000000-0000-4000-8000-000000000003",
+        "position": 2,
+        "stage": "explore",
+        "status": "completed",
+        "summary": {
+          "assumptions": [
+            "Volunteer availability needs testing"
+          ],
+          "next_steps": [
+            "Interview potential borrowers"
+          ],
+          "proposal": "Pilot a shared tool shelf at the community center with a reservation notebook and a weekly volunteer shift.",
+          "strengths": [
+            "Low initial cost"
+          ],
+          "weaknesses": [
+            "Limited opening hours"
+          ]
+        }
+      },
+      {
+        "attempts": 1,
+        "error_code": null,
+        "id": "00000000-0000-4000-8000-000000000004",
+        "position": 3,
+        "stage": "explore",
+        "status": "completed",
+        "summary": {
+          "assumptions": [
+            "Volunteer availability needs testing"
+          ],
+          "next_steps": [
+            "Interview potential borrowers"
+          ],
+          "proposal": "Pilot a shared tool shelf at the community center with a reservation notebook and a weekly volunteer shift.",
+          "strengths": [
+            "Low initial cost"
+          ],
+          "weaknesses": [
+            "Limited opening hours"
+          ]
+        }
+      },
+      {
+        "attempts": 1,
+        "error_code": "stream-interrupted",
+        "id": "00000000-0000-4000-8000-000000000005",
+        "position": 4,
+        "stage": "explore",
+        "status": "partial",
+        "summary": null
+      },
+      {
+        "attempts": 1,
+        "error_code": "stream-interrupted",
+        "id": "00000000-0000-4000-8000-000000000006",
+        "position": 5,
+        "stage": "explore",
+        "status": "partial",
+        "summary": null
+      },
+      {
+        "attempts": 0,
+        "error_code": null,
+        "id": "00000000-0000-4000-8000-000000000007",
+        "position": 0,
+        "stage": "compare",
+        "status": "queued",
+        "summary": null
+      },
+      {
+        "attempts": 0,
+        "error_code": null,
+        "id": "00000000-0000-4000-8000-000000000008",
+        "position": 0,
+        "stage": "synthesize",
+        "status": "queued",
+        "summary": null
+      },
+      {
+        "attempts": 0,
+        "error_code": null,
+        "id": "00000000-0000-4000-8000-000000000009",
+        "position": 0,
+        "stage": "critique",
+        "status": "queued",
+        "summary": null
+      },
+      {
+        "attempts": 0,
+        "error_code": null,
+        "id": "00000000-0000-4000-8000-000000000010",
+        "position": 0,
+        "stage": "revise",
+        "status": "queued",
+        "summary": null
+      }
+    ]
+  },
+  "run-queued": {
+    "allow_incomplete": false,
+    "artifacts": [],
+    "configuration": {
+      "max_attempts": 2,
+      "max_jitter_ms": 5000,
+      "model": {
+        "mode": "current"
+      },
+      "overall_deadline_ms": 10800000,
+      "perspectives": [
+        "User needs and practical value: identify the people, concrete problems, and useful outcomes.",
+        "Novel approaches and differentiation: propose a distinct approach and explain meaningful differences.",
+        "Technical feasibility and implementation: describe a buildable approach, dependencies, and validation.",
+        "Constraints, cost, and operational simplicity: minimize unnecessary complexity and explain resource tradeoffs.",
+        "Adversarial critique and failure prevention: design around plausible failures and misuse, with mitigations."
+      ],
+      "response_timeout_ms": 1800000,
+      "stage_char_limit": 128000,
+      "submission_spacing_ms": 30000,
+      "summary_char_limit": 6000,
+      "template_version": "1"
+    },
+    "created_ms": 2,
+    "deadline_ms": 10800002,
+    "id": "00000000-0000-4000-8000-000000000001",
+    "pause_reason": null,
+    "request": {
+      "account_id": "demo-account",
+      "candidate_count": 5,
+      "concept": "A neighborhood tool library with a small volunteer team",
+      "constraints": "Use existing community space. Test demand before purchasing equipment.",
+      "criteria": [
+        {
+          "name": "Usefulness",
+          "weight": 30
+        },
+        {
+          "name": "Feasibility",
+          "weight": 25
+        },
+        {
+          "name": "Novelty",
+          "weight": 20
+        },
+        {
+          "name": "Supporting evidence",
+          "weight": 15
+        },
+        {
+          "name": "Risk management",
+          "weight": 10
+        }
+      ],
+      "idempotency_key": "synthetic-demo"
+    },
+    "status": "queued",
+    "submission_limit": 18,
+    "submissions": 0,
+    "tasks": [
+      {
+        "attempts": 0,
+        "error_code": null,
+        "id": "00000000-0000-4000-8000-000000000002",
+        "position": 1,
+        "stage": "explore",
+        "status": "queued",
+        "summary": null
+      },
+      {
+        "attempts": 0,
+        "error_code": null,
+        "id": "00000000-0000-4000-8000-000000000003",
+        "position": 2,
+        "stage": "explore",
+        "status": "queued",
+        "summary": null
+      },
+      {
+        "attempts": 0,
+        "error_code": null,
+        "id": "00000000-0000-4000-8000-000000000004",
+        "position": 3,
+        "stage": "explore",
+        "status": "queued",
+        "summary": null
+      },
+      {
+        "attempts": 0,
+        "error_code": null,
+        "id": "00000000-0000-4000-8000-000000000005",
+        "position": 4,
+        "stage": "explore",
+        "status": "queued",
+        "summary": null
+      },
+      {
+        "attempts": 0,
+        "error_code": null,
+        "id": "00000000-0000-4000-8000-000000000006",
+        "position": 5,
+        "stage": "explore",
+        "status": "queued",
+        "summary": null
+      },
+      {
+        "attempts": 0,
+        "error_code": null,
+        "id": "00000000-0000-4000-8000-000000000007",
+        "position": 0,
+        "stage": "compare",
+        "status": "queued",
+        "summary": null
+      },
+      {
+        "attempts": 0,
+        "error_code": null,
+        "id": "00000000-0000-4000-8000-000000000008",
+        "position": 0,
+        "stage": "synthesize",
+        "status": "queued",
+        "summary": null
+      },
+      {
+        "attempts": 0,
+        "error_code": null,
+        "id": "00000000-0000-4000-8000-000000000009",
+        "position": 0,
+        "stage": "critique",
+        "status": "queued",
+        "summary": null
+      },
+      {
+        "attempts": 0,
+        "error_code": null,
+        "id": "00000000-0000-4000-8000-000000000010",
+        "position": 0,
+        "stage": "revise",
+        "status": "queued",
+        "summary": null
+      }
+    ]
+  },
+  "run-running": {
+    "allow_incomplete": false,
+    "artifacts": [],
+    "configuration": {
+      "max_attempts": 2,
+      "max_jitter_ms": 5000,
+      "model": {
+        "mode": "current"
+      },
+      "overall_deadline_ms": 10800000,
+      "perspectives": [
+        "User needs and practical value: identify the people, concrete problems, and useful outcomes.",
+        "Novel approaches and differentiation: propose a distinct approach and explain meaningful differences.",
+        "Technical feasibility and implementation: describe a buildable approach, dependencies, and validation.",
+        "Constraints, cost, and operational simplicity: minimize unnecessary complexity and explain resource tradeoffs.",
+        "Adversarial critique and failure prevention: design around plausible failures and misuse, with mitigations."
+      ],
+      "response_timeout_ms": 1800000,
+      "stage_char_limit": 128000,
+      "submission_spacing_ms": 30000,
+      "summary_char_limit": 6000,
+      "template_version": "1"
+    },
+    "created_ms": 2,
+    "deadline_ms": 10800002,
+    "id": "00000000-0000-4000-8000-000000000001",
+    "pause_reason": null,
+    "request": {
+      "account_id": "demo-account",
+      "candidate_count": 5,
+      "concept": "A neighborhood tool library with a small volunteer team",
+      "constraints": "Use existing community space. Test demand before purchasing equipment.",
+      "criteria": [
+        {
+          "name": "Usefulness",
+          "weight": 30
+        },
+        {
+          "name": "Feasibility",
+          "weight": 25
+        },
+        {
+          "name": "Novelty",
+          "weight": 20
+        },
+        {
+          "name": "Supporting evidence",
+          "weight": 15
+        },
+        {
+          "name": "Risk management",
+          "weight": 10
+        }
+      ],
+      "idempotency_key": "synthetic-demo"
+    },
+    "status": "running",
+    "submission_limit": 18,
+    "submissions": 1,
+    "tasks": [
+      {
+        "attempts": 1,
+        "error_code": null,
+        "id": "00000000-0000-4000-8000-000000000002",
+        "position": 1,
+        "stage": "explore",
+        "status": "running",
+        "summary": null
+      },
+      {
+        "attempts": 0,
+        "error_code": null,
+        "id": "00000000-0000-4000-8000-000000000003",
+        "position": 2,
+        "stage": "explore",
+        "status": "queued",
+        "summary": null
+      },
+      {
+        "attempts": 0,
+        "error_code": null,
+        "id": "00000000-0000-4000-8000-000000000004",
+        "position": 3,
+        "stage": "explore",
+        "status": "queued",
+        "summary": null
+      },
+      {
+        "attempts": 0,
+        "error_code": null,
+        "id": "00000000-0000-4000-8000-000000000005",
+        "position": 4,
+        "stage": "explore",
+        "status": "queued",
+        "summary": null
+      },
+      {
+        "attempts": 0,
+        "error_code": null,
+        "id": "00000000-0000-4000-8000-000000000006",
+        "position": 5,
+        "stage": "explore",
+        "status": "queued",
+        "summary": null
+      },
+      {
+        "attempts": 0,
+        "error_code": null,
+        "id": "00000000-0000-4000-8000-000000000007",
+        "position": 0,
+        "stage": "compare",
+        "status": "queued",
+        "summary": null
+      },
+      {
+        "attempts": 0,
+        "error_code": null,
+        "id": "00000000-0000-4000-8000-000000000008",
+        "position": 0,
+        "stage": "synthesize",
+        "status": "queued",
+        "summary": null
+      },
+      {
+        "attempts": 0,
+        "error_code": null,
+        "id": "00000000-0000-4000-8000-000000000009",
+        "position": 0,
+        "stage": "critique",
+        "status": "queued",
+        "summary": null
+      },
+      {
+        "attempts": 0,
+        "error_code": null,
+        "id": "00000000-0000-4000-8000-000000000010",
+        "position": 0,
+        "stage": "revise",
+        "status": "queued",
+        "summary": null
+      }
+    ]
+  },
+  "run-subset": {
+    "allow_incomplete": true,
+    "artifacts": [
+      {
+        "attempt_id": "00000000-0000-4000-8000-000000000011",
+        "byte_length": 312,
+        "completion": "complete",
+        "created_ms": 110,
+        "id": "00000000-0000-4000-8000-000000000020",
+        "media_type": "text/markdown; charset=utf-8",
+        "name": "candidate-1.md",
+        "run_id": "00000000-0000-4000-8000-000000000001",
+        "sha256": "6aef98842f9e637f70cf6c476b86f385b615d99288578335ba6eb1d9beab4ff6"
+      },
+      {
+        "attempt_id": "00000000-0000-4000-8000-000000000011",
+        "byte_length": 349,
+        "completion": "complete",
+        "created_ms": 110,
+        "id": "00000000-0000-4000-8000-000000000021",
+        "media_type": "application/json",
+        "name": "candidate-1.summary.json",
+        "run_id": "00000000-0000-4000-8000-000000000001",
+        "sha256": "8789c237b9b78bad58a4ea18de87e28a1bdaea816a57331b2f361d29fab3eccb"
+      },
+      {
+        "attempt_id": "00000000-0000-4000-8000-000000000012",
+        "byte_length": 312,
+        "completion": "complete",
+        "created_ms": 35110,
+        "id": "00000000-0000-4000-8000-000000000022",
+        "media_type": "text/markdown; charset=utf-8",
+        "name": "candidate-2.md",
+        "run_id": "00000000-0000-4000-8000-000000000001",
+        "sha256": "6aef98842f9e637f70cf6c476b86f385b615d99288578335ba6eb1d9beab4ff6"
+      },
+      {
+        "attempt_id": "00000000-0000-4000-8000-000000000012",
+        "byte_length": 349,
+        "completion": "complete",
+        "created_ms": 35110,
+        "id": "00000000-0000-4000-8000-000000000023",
+        "media_type": "application/json",
+        "name": "candidate-2.summary.json",
+        "run_id": "00000000-0000-4000-8000-000000000001",
+        "sha256": "8789c237b9b78bad58a4ea18de87e28a1bdaea816a57331b2f361d29fab3eccb"
+      },
+      {
+        "attempt_id": "00000000-0000-4000-8000-000000000013",
+        "byte_length": 312,
+        "completion": "complete",
+        "created_ms": 70110,
+        "id": "00000000-0000-4000-8000-000000000024",
+        "media_type": "text/markdown; charset=utf-8",
+        "name": "candidate-3.md",
+        "run_id": "00000000-0000-4000-8000-000000000001",
+        "sha256": "6aef98842f9e637f70cf6c476b86f385b615d99288578335ba6eb1d9beab4ff6"
+      },
+      {
+        "attempt_id": "00000000-0000-4000-8000-000000000013",
+        "byte_length": 349,
+        "completion": "complete",
+        "created_ms": 70110,
+        "id": "00000000-0000-4000-8000-000000000025",
+        "media_type": "application/json",
+        "name": "candidate-3.summary.json",
+        "run_id": "00000000-0000-4000-8000-000000000001",
+        "sha256": "8789c237b9b78bad58a4ea18de87e28a1bdaea816a57331b2f361d29fab3eccb"
+      },
+      {
+        "attempt_id": "00000000-0000-4000-8000-000000000014",
+        "byte_length": 312,
+        "completion": "partial",
+        "created_ms": 105110,
+        "id": "00000000-0000-4000-8000-000000000026",
+        "media_type": "text/markdown; charset=utf-8",
+        "name": "candidate-4.md",
+        "run_id": "00000000-0000-4000-8000-000000000001",
+        "sha256": "6aef98842f9e637f70cf6c476b86f385b615d99288578335ba6eb1d9beab4ff6"
+      },
+      {
+        "attempt_id": "00000000-0000-4000-8000-000000000015",
+        "byte_length": 312,
+        "completion": "partial",
+        "created_ms": 140110,
+        "id": "00000000-0000-4000-8000-000000000027",
+        "media_type": "text/markdown; charset=utf-8",
+        "name": "candidate-5.md",
+        "run_id": "00000000-0000-4000-8000-000000000001",
+        "sha256": "6aef98842f9e637f70cf6c476b86f385b615d99288578335ba6eb1d9beab4ff6"
+      }
+    ],
+    "configuration": {
+      "max_attempts": 2,
+      "max_jitter_ms": 5000,
+      "model": {
+        "mode": "current"
+      },
+      "overall_deadline_ms": 10800000,
+      "perspectives": [
+        "User needs and practical value: identify the people, concrete problems, and useful outcomes.",
+        "Novel approaches and differentiation: propose a distinct approach and explain meaningful differences.",
+        "Technical feasibility and implementation: describe a buildable approach, dependencies, and validation.",
+        "Constraints, cost, and operational simplicity: minimize unnecessary complexity and explain resource tradeoffs.",
+        "Adversarial critique and failure prevention: design around plausible failures and misuse, with mitigations."
+      ],
+      "response_timeout_ms": 1800000,
+      "stage_char_limit": 128000,
+      "submission_spacing_ms": 30000,
+      "summary_char_limit": 6000,
+      "template_version": "1"
+    },
+    "created_ms": 2,
+    "deadline_ms": 10800002,
+    "id": "00000000-0000-4000-8000-000000000001",
+    "pause_reason": null,
+    "request": {
+      "account_id": "demo-account",
+      "candidate_count": 5,
+      "concept": "A neighborhood tool library with a small volunteer team",
+      "constraints": "Use existing community space. Test demand before purchasing equipment.",
+      "criteria": [
+        {
+          "name": "Usefulness",
+          "weight": 30
+        },
+        {
+          "name": "Feasibility",
+          "weight": 25
+        },
+        {
+          "name": "Novelty",
+          "weight": 20
+        },
+        {
+          "name": "Supporting evidence",
+          "weight": 15
+        },
+        {
+          "name": "Risk management",
+          "weight": 10
+        }
+      ],
+      "idempotency_key": "synthetic-demo"
+    },
+    "status": "queued",
+    "submission_limit": 18,
+    "submissions": 5,
+    "tasks": [
+      {
+        "attempts": 1,
+        "error_code": null,
+        "id": "00000000-0000-4000-8000-000000000002",
+        "position": 1,
+        "stage": "explore",
+        "status": "completed",
+        "summary": {
+          "assumptions": [
+            "Volunteer availability needs testing"
+          ],
+          "next_steps": [
+            "Interview potential borrowers"
+          ],
+          "proposal": "Pilot a shared tool shelf at the community center with a reservation notebook and a weekly volunteer shift.",
+          "strengths": [
+            "Low initial cost"
+          ],
+          "weaknesses": [
+            "Limited opening hours"
+          ]
+        }
+      },
+      {
+        "attempts": 1,
+        "error_code": null,
+        "id": "00000000-0000-4000-8000-000000000003",
+        "position": 2,
+        "stage": "explore",
+        "status": "completed",
+        "summary": {
+          "assumptions": [
+            "Volunteer availability needs testing"
+          ],
+          "next_steps": [
+            "Interview potential borrowers"
+          ],
+          "proposal": "Pilot a shared tool shelf at the community center with a reservation notebook and a weekly volunteer shift.",
+          "strengths": [
+            "Low initial cost"
+          ],
+          "weaknesses": [
+            "Limited opening hours"
+          ]
+        }
+      },
+      {
+        "attempts": 1,
+        "error_code": null,
+        "id": "00000000-0000-4000-8000-000000000004",
+        "position": 3,
+        "stage": "explore",
+        "status": "completed",
+        "summary": {
+          "assumptions": [
+            "Volunteer availability needs testing"
+          ],
+          "next_steps": [
+            "Interview potential borrowers"
+          ],
+          "proposal": "Pilot a shared tool shelf at the community center with a reservation notebook and a weekly volunteer shift.",
+          "strengths": [
+            "Low initial cost"
+          ],
+          "weaknesses": [
+            "Limited opening hours"
+          ]
+        }
+      },
+      {
+        "attempts": 1,
+        "error_code": "stream-interrupted",
+        "id": "00000000-0000-4000-8000-000000000005",
+        "position": 4,
+        "stage": "explore",
+        "status": "excluded",
+        "summary": null
+      },
+      {
+        "attempts": 1,
+        "error_code": "stream-interrupted",
+        "id": "00000000-0000-4000-8000-000000000006",
+        "position": 5,
+        "stage": "explore",
+        "status": "excluded",
+        "summary": null
+      },
+      {
+        "attempts": 0,
+        "error_code": null,
+        "id": "00000000-0000-4000-8000-000000000007",
+        "position": 0,
+        "stage": "compare",
+        "status": "queued",
+        "summary": null
+      },
+      {
+        "attempts": 0,
+        "error_code": null,
+        "id": "00000000-0000-4000-8000-000000000008",
+        "position": 0,
+        "stage": "synthesize",
+        "status": "queued",
+        "summary": null
+      },
+      {
+        "attempts": 0,
+        "error_code": null,
+        "id": "00000000-0000-4000-8000-000000000009",
+        "position": 0,
+        "stage": "critique",
+        "status": "queued",
+        "summary": null
+      },
+      {
+        "attempts": 0,
+        "error_code": null,
+        "id": "00000000-0000-4000-8000-000000000010",
+        "position": 0,
+        "stage": "revise",
+        "status": "queued",
+        "summary": null
+      }
+    ]
+  }
+}

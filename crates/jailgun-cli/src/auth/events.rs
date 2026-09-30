@@ -5,7 +5,7 @@ use jailgun_orchestrator::bridge::{BridgeEvent, BridgeHandle};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(super) enum AuthEvent {
-    Complete,
+    Complete(jailgun_core::ProviderIdentity),
     CodeRequested,
     ManualRequired(String),
     Failed(String),
@@ -39,7 +39,7 @@ pub(super) async fn next_auth_event(
                 eprintln!(
                     "auth state: {} ({})",
                     payload.state,
-                    payload.reason.unwrap_or_else(String::new)
+                    payload.reason.unwrap_or_default()
                 );
             }
             BridgeEvent::AuthCodeRequested(payload) => {
@@ -49,11 +49,20 @@ pub(super) async fn next_auth_event(
                         .destination_hint
                         .as_deref()
                         .map(|hint| format!(": {hint}"))
-                        .unwrap_or_else(String::new)
+                        .unwrap_or_default()
                 );
                 return Ok(AuthEvent::CodeRequested);
             }
-            BridgeEvent::AuthComplete(_) => return Ok(AuthEvent::Complete),
+            BridgeEvent::AuthComplete(payload) => {
+                return match payload.account_identity {
+                    Some(identity) if payload.composer_detected => {
+                        Ok(AuthEvent::Complete(identity))
+                    }
+                    _ => Ok(AuthEvent::Failed(
+                        "authenticated-account-signal-missing".into(),
+                    )),
+                }
+            }
             BridgeEvent::AuthActionNeeded(payload) => {
                 return Ok(AuthEvent::ManualRequired(payload.reason));
             }

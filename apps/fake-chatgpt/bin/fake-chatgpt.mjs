@@ -26,7 +26,7 @@ const args = parseArgs(process.argv.slice(2));
 const port = Number(args.port ?? 8082);
 const fixturesDir = args['fixtures-dir'];
 
-const handle = await start({ port, fixturesDir });
+const handle = await start({ port, fixturesDir, interactive: args.interactive === 'true' });
 console.log(`fake-chatgpt listening on ${handle.url}`);
 console.log('admin endpoints: POST /admin/state, /admin/advance, /admin/reset; GET /admin/status');
 

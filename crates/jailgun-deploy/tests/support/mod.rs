@@ -74,7 +74,13 @@ impl RemoteGitBackend for FakeCleanupRemote {
             .unwrap_or_else(|| PathBuf::from(format!("receipt-{}.json", self.receipt_writes))))
     }
 
-    async fn reset_hard(&mut self, _remote_dir: &str, target: &str) -> Result<(), CleanupError> {
+    async fn reset_preserved(
+        &mut self,
+        _remote_dir: &str,
+        _expected_head: &str,
+        _preserved_ref: &str,
+        target: &str,
+    ) -> Result<(), CleanupError> {
         self.reset_targets.push(target.into());
         Ok(())
     }

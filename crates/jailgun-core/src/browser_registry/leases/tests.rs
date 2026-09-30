@@ -1,6 +1,27 @@
 use super::*;
 use crate::BrowserAccountRoots;
 
+#[test]
+fn migration_waits_for_archive_owners_then_permanently_routes_profiles_to_workflow() {
+    let temp = tempfile::tempdir().unwrap();
+    let path = temp.path().join("accounts.json");
+    ready_registry(&path, &[("account", 10)]);
+    let manager = BrowserLeaseManager::new(&path);
+    let mut lease = manager.try_acquire(&request("active", 1)).unwrap();
+    assert!(manager.claim_workflow_profiles(temp.path()).is_err());
+    lease.release().unwrap();
+    manager.claim_workflow_profiles(temp.path()).unwrap();
+    manager.claim_workflow_profiles(temp.path()).unwrap();
+    assert!(manager
+        .try_acquire(&request("blocked", 1))
+        .unwrap_err()
+        .to_string()
+        .contains("workflow-runtime-owned"));
+    assert!(manager
+        .claim_workflow_profiles(&temp.path().join("different-runtime"))
+        .is_err());
+}
+
 fn ready_registry(path: &Path, accounts: &[(&str, u16)]) {
     let roots = BrowserAccountRoots {
         profile_root: path.parent().unwrap().join("profiles"),
@@ -111,7 +132,7 @@ fn stale_leases_are_purged_by_expiry() {
     ready_registry(&registry_path, &[("acct-a", 1)]);
     let manager = BrowserLeaseManager::new(&registry_path);
     let now = unix_seconds();
-    super::store::save_lease_state(
+    save_lease_state(
         manager.lease_path(),
         &BrowserLeaseState {
             version: 1,
@@ -130,4 +151,79 @@ fn stale_leases_are_purged_by_expiry() {
 
     let lease = manager.try_acquire(&request("run-new", 1)).expect("lease");
     assert_eq!(lease.accounts().len(), 1);
+}
+
+#[test]
+fn same_process_same_second_release_preserves_other_run() {
+    let temp = tempfile::tempdir().unwrap();
+    let registry_path = temp.path().join("browser-profiles.json");
+    ready_registry(&registry_path, &[("acct-a", 2)]);
+    let manager = BrowserLeaseManager::new(&registry_path);
+    let now = unix_seconds();
+    let mut first = manager
+        .try_acquire_at(&request("run-first", 1), now)
+        .unwrap();
+    let second = manager
+        .try_acquire_at(&request("run-second", 1), now)
+        .unwrap();
+    first.release().unwrap();
+    first.release().unwrap();
+    let remaining = load_lease_state(manager.lease_path()).unwrap();
+    assert_eq!(
+        remaining.leases.len(),
+        1,
+        "release removed another run's reservation"
+    );
+    assert_eq!(remaining.leases[0].run_id, "run-second");
+    assert_eq!(second.allocations()[0].tabs, 1);
+    assert!(matches!(
+        manager.try_acquire(&request("run-third", 2)),
+        Err(BrowserRegistryError::LeaseUnavailable { .. })
+    ));
+}
+
+#[cfg(unix)]
+#[test]
+fn migration_rejects_linked_ownership() {
+    let parent = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../target/profile-owner-proofs");
+    fs::create_dir_all(&parent).unwrap();
+    let temp = tempfile::tempdir_in(parent).unwrap();
+    let path = temp.path().join("accounts.json");
+    ready_registry(&path, &[("account", 10)]);
+    let registry = BrowserProfileRegistry::load_or_default(&path).unwrap();
+    let profile = &registry.accounts[0].profile_dir;
+    let target = temp.path().join("foreign-owner-file");
+    let contents = format!("{}\n", temp.path().display());
+    fs::write(&target, &contents).unwrap();
+    let marker = profile.join(".jailgun-workflow-owner");
+    std::os::unix::fs::symlink(&target, &marker).unwrap();
+    let manager = BrowserLeaseManager::new(&path);
+    assert!(
+        manager.claim_workflow_profiles(temp.path()).is_err(),
+        "migration accepted a linked ownership marker"
+    );
+    assert_eq!(fs::read_to_string(&target).unwrap(), contents);
+    assert!(fs::symlink_metadata(&marker).unwrap().is_symlink());
+}
+
+#[cfg(unix)]
+#[test]
+fn archive_rejects_dangling_profile_owner_marker() {
+    let parent = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../target/profile-owner-proofs");
+    fs::create_dir_all(&parent).unwrap();
+    let temp = tempfile::tempdir_in(parent).unwrap();
+    let path = temp.path().join("accounts.json");
+    ready_registry(&path, &[("account", 10)]);
+    let registry = BrowserProfileRegistry::load_or_default(&path).unwrap();
+    let marker = registry.accounts[0]
+        .profile_dir
+        .join(".jailgun-workflow-owner");
+    std::os::unix::fs::symlink(temp.path().join("absent"), &marker).unwrap();
+    assert!(
+        BrowserLeaseManager::new(&path)
+            .try_acquire(&request("blocked", 1))
+            .is_err(),
+        "archive adopted a profile with a dangling owner marker"
+    );
+    assert!(fs::symlink_metadata(marker).unwrap().is_symlink());
 }

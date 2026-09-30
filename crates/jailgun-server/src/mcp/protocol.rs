@@ -1,68 +1,46 @@
-use axum::{
-    body::to_bytes,
-    response::{IntoResponse, Response},
-    Json,
-};
-use serde_json::{json, Value};
+use crate::auth::Principal;
+use rmcp::{model::CallToolResult, service::RequestContext, ErrorData, RoleServer};
+use serde::{de::DeserializeOwned, Serialize};
+use serde_json::{Map, Value};
 
-pub(super) fn mcp_result_response(id: Option<Value>, result: Value) -> Response {
-    Json(json!({
-        "jsonrpc": "2.0",
-        "id": id.unwrap_or(Value::Null),
-        "result": result,
-    }))
-    .into_response()
+pub(super) fn principal(context: &RequestContext<RoleServer>) -> Result<Principal, ErrorData> {
+    context
+        .extensions
+        .get::<axum::http::request::Parts>()
+        .and_then(|parts| parts.extensions.get::<Principal>())
+        .cloned()
+        .ok_or_else(|| {
+            ErrorData::internal_error("authenticated request context is unavailable", None)
+        })
 }
-
-pub(super) fn mcp_error_response(
-    id: Option<Value>,
-    code: i64,
-    message: impl Into<String>,
-    data: Option<Value>,
-) -> Response {
-    let mut error = json!({
-        "code": code,
-        "message": message.into(),
-    });
-    if let Some(data) = data {
-        error["data"] = data;
+pub(super) fn input<T: DeserializeOwned>(arguments: Map<String, Value>) -> Result<T, ErrorData> {
+    serde_json::from_value(Value::Object(arguments))
+        .map_err(|_| ErrorData::invalid_params("arguments do not match the tool schema", None))
+}
+pub(super) fn output<T: Serialize>(
+    result: Result<T, jailgun_workflow::Error>,
+) -> Result<CallToolResult, ErrorData> {
+    match result {
+        Ok(value) => serde_json::to_value(value)
+            .map(CallToolResult::structured)
+            .map_err(|_| ErrorData::internal_error("result serialization failed", None)),
+        Err(error) => Ok(CallToolResult::structured_error(
+            serde_json::to_value(error.response()).expect("error response"),
+        )),
     }
-    Json(json!({
-        "jsonrpc": "2.0",
-        "id": id.unwrap_or(Value::Null),
-        "error": error,
-    }))
-    .into_response()
 }
-
-pub(super) async fn mcp_tool_response(request_id: Option<Value>, response: Response) -> Response {
+pub(super) async fn response(
+    response: axum::response::Response,
+) -> Result<CallToolResult, ErrorData> {
     let status = response.status();
-    let body = match to_bytes(response.into_body(), usize::MAX).await {
-        Ok(bytes) => bytes,
-        Err(error) => {
-            return mcp_error_response(
-                request_id,
-                -32603,
-                "internal error",
-                Some(json!({ "reason": error.to_string() })),
-            );
-        }
-    };
-    let text = String::from_utf8_lossy(&body).trim().to_string();
-    let parsed = serde_json::from_slice::<Value>(&body).ok();
-    let content_text = if text.is_empty() {
-        parsed.as_ref().map(Value::to_string).unwrap_or_default()
+    let bytes = axum::body::to_bytes(response.into_body(), 2 * 1024 * 1024)
+        .await
+        .map_err(|_| ErrorData::internal_error("result exceeds the response limit", None))?;
+    let value = serde_json::from_slice(&bytes)
+        .map_err(|_| ErrorData::internal_error("result is not JSON", None))?;
+    Ok(if status.is_success() {
+        CallToolResult::structured(value)
     } else {
-        text
-    };
-    let mut result = json!({
-        "content": [{ "type": "text", "text": content_text }],
-    });
-    if let Some(value) = parsed {
-        result["structuredContent"] = value;
-    }
-    if !status.is_success() {
-        result["isError"] = Value::Bool(true);
-    }
-    mcp_result_response(request_id, result)
+        CallToolResult::structured_error(value)
+    })
 }

@@ -20,6 +20,11 @@ credentials.
 
 ## Orchestrator
 
+`crates/jailgun-workflow` owns concept scheduling and persistence through one
+bounded database writer. SQL belongs only in its storage adapter and `db/`.
+Run `bash ops/ci/db.sh` and the Rust, security, release, and governance lanes for
+changes to this boundary. See [database invariants](../db/constraints/README.md).
+
 `crates/jailgun-orchestrator` owns bridge process IO and run coordination.
 Bridge readers must use bounded queues or explicit shutdown paths so child
 output cannot grow without backpressure.

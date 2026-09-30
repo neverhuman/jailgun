@@ -14,6 +14,7 @@ run_lane() {
   case "$name" in
     doctor) bash scripts/ci-doctor.sh ;;
     rust) bash ops/ci/rust.sh ;;
+    worker) bash ops/ci/worker.sh ;;
     node) bash ops/ci/node.sh ;;
     scan) bash ops/ci/scan.sh ;;
     security) bash ops/ci/security.sh ;;
@@ -22,6 +23,10 @@ run_lane() {
     copy-code) bash ops/ci/copy-code.sh ;;
     release) bash ops/ci/release.sh ;;
     audit) bash ops/ci/jankurai.sh ;;
+    e2e) bash ops/ci/e2e.sh ;;
+    db) bash ops/ci/db.sh ;;
+    docs) bash ops/ci/docs.sh ;;
+    package) bash ops/ci/package.sh ;;
     *)
       printf 'unknown CI lane: %s\n' "$name" >&2
       exit 2
@@ -33,6 +38,7 @@ case "$lane" in
   all)
     run_lane doctor
     run_lane rust
+    run_lane worker
     run_lane node
     run_lane scan
     run_lane security
@@ -40,6 +46,11 @@ case "$lane" in
     run_lane ux-qa
     run_lane copy-code
     run_lane release
+    run_lane docs
+    run_lane e2e
+    run_lane db
+    run_lane package
+    run_lane audit
     ;;
   fast)
     ci_log "running fast lane"

@@ -28,7 +28,7 @@ notes = "ops/ci/copy-code.sh writes target/jankurai/copy-code.{json,md}."
 [[tools]]
 id = "security"
 mode = "advisory"
-notes = "ops/ci/security.sh runs fixed-string scans, npm audit, cargo-audit when installed, and gitleaks when installed."
+notes = "ops/ci/security.sh runs fixed-string scans, npm audit, Cargo audit/deny, gitleaks, workflow scanners and SBOM generation; missing required scanners fail the lane."
 
 [[tools]]
 id = "ci-bad-behavior"
@@ -63,7 +63,7 @@ notes = "Rust witness graphing remains auto-adopted when available."
 [[tools]]
 id = "authz-matrix"
 mode = "auto"
-notes = "No authenticated user data boundary exists; audit remains the advisory evidence surface."
+notes = "Central HTTP/MCP authorization protects account and run data. Rust access-control, automation-scope and session tests execute in ops/ci/rust.sh; cookie and WebSocket proofs execute in ops/ci/e2e.sh."
 
 [[tools]]
 id = "input-boundary"

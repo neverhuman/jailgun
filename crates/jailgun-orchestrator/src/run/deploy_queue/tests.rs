@@ -41,7 +41,13 @@ impl RemoteGitBackend for FakeGit {
             .clone()
             .unwrap_or_else(|| PathBuf::from("cleanup-fake.json")))
     }
-    async fn reset_hard(&mut self, _remote_dir: &str, _target: &str) -> Result<(), CleanupError> {
+    async fn reset_preserved(
+        &mut self,
+        _remote_dir: &str,
+        _expected_head: &str,
+        _preserved_ref: &str,
+        _target: &str,
+    ) -> Result<(), CleanupError> {
         Ok(())
     }
 }

@@ -1,7 +1,7 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { expect, it, vi } from 'vitest';
 
-import { App } from './App';
+import { ArchiveDashboard as App } from './ArchiveDashboard';
 import { MockWebSocket, jsonResponse, setupDashboardMocks } from './App.testSupport';
 
 setupDashboardMocks();
@@ -30,7 +30,7 @@ it('creates a visible run from WebSocket events when the API starts empty', asyn
   vi.stubGlobal(
     'fetch',
     vi.fn(async (url: string) => {
-      if (url === '/api/runs') {
+      if (url === '/api/runs?kind=archive') {
         return jsonResponse([]);
       }
       if (url.startsWith('/api/receipts/')) {

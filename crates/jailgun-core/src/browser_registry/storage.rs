@@ -11,10 +11,19 @@ pub fn default_registry_path() -> PathBuf {
 }
 
 pub fn ensure_private_dir(path: &Path) -> Result<(), BrowserRegistryError> {
-    fs::create_dir_all(path).map_err(|source| BrowserRegistryError::CreatePrivateDir {
-        path: path.display().to_string(),
-        source,
-    })?;
+    let mut builder = fs::DirBuilder::new();
+    builder.recursive(true);
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::DirBuilderExt;
+        builder.mode(0o700);
+    }
+    builder
+        .create(path)
+        .map_err(|source| BrowserRegistryError::CreatePrivateDir {
+            path: path.display().to_string(),
+            source,
+        })?;
     set_private_dir_permissions(path)?;
     Ok(())
 }
@@ -69,4 +78,53 @@ pub(super) fn set_private_file_permissions(path: &Path) -> Result<(), BrowserReg
 #[cfg(not(unix))]
 pub(super) fn set_private_file_permissions(_path: &Path) -> Result<(), BrowserRegistryError> {
     Ok(())
+}
+
+/// Create runtime files privately at open time, before any bytes are written.
+pub(crate) fn private_file(
+    path: &Path,
+    create_new: bool,
+) -> Result<fs::File, BrowserRegistryError> {
+    let mut options = fs::OpenOptions::new();
+    options.read(true).write(true);
+    if create_new {
+        options.create_new(true);
+    } else {
+        options.create(true).truncate(false);
+    }
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::OpenOptionsExt;
+        options.mode(0o600);
+    }
+    let file = options
+        .open(path)
+        .map_err(|source| BrowserRegistryError::Write {
+            path: path.display().to_string(),
+            source,
+        })?;
+    set_private_file_permissions(path)?;
+    Ok(file)
+}
+
+pub(crate) fn atomic_write(path: &Path, bytes: &[u8]) -> Result<(), BrowserRegistryError> {
+    use std::io::Write;
+    let tmp = registry_tmp_path(path);
+    let mut file = private_file(&tmp, true)?;
+    let result = (|| {
+        file.write_all(bytes)?;
+        file.sync_all()?;
+        fs::rename(&tmp, path)?;
+        if let Some(parent) = path.parent() {
+            fs::File::open(parent)?.sync_all()?;
+        }
+        Ok::<_, std::io::Error>(())
+    })();
+    if result.is_err() {
+        let _ = fs::remove_file(&tmp);
+    }
+    result.map_err(|source| BrowserRegistryError::Write {
+        path: path.display().to_string(),
+        source,
+    })
 }

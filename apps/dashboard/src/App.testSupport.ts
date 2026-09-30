@@ -26,7 +26,7 @@ export function setupDashboardMocks(): void {
     vi.stubGlobal(
       'fetch',
       vi.fn(async (url: string) => {
-        if (url === '/api/runs') {
+        if (url === '/api/runs?kind=archive') {
           return jsonResponse(fixtureRuns);
         }
         if (url.startsWith('/api/receipts/')) {

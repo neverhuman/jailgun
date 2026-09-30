@@ -5,35 +5,13 @@
     "source": "crates/jailgun-core/src/event.rs",
     "command": "bash ops/ci/contracts.sh --write"
   },
-  "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://example.com/jailgun/event.schema.json",
-  "title": "JailgunEvent",
-  "type": "object",
-  "required": [
-    "run_id",
-    "timestamp",
-    "kind",
-    "severity",
-    "message",
-    "fields"
-  ],
-  "properties": {
-    "run_id": {
-      "type": "string"
-    },
-    "tab_id": {
-      "type": [
-        "integer",
-        "null"
-      ]
-    },
-    "timestamp": {
-      "type": "string"
-    },
-    "kind": {
-      "type": "string",
+  "$defs": {
+    "EventKind": {
       "enum": [
+        "run-queued",
         "run-started",
+        "browser-lease-acquired",
+        "browser-lease-released",
         "tab-opened",
         "prompt-submitted",
         "tar-discovered",
@@ -52,26 +30,60 @@
         "auth-failed",
         "session-expired",
         "error"
-      ]
+      ],
+      "type": "string"
     },
-    "severity": {
-      "type": "string",
+    "Severity": {
       "enum": [
         "debug",
         "info",
         "warn",
         "error"
-      ]
+      ],
+      "type": "string"
+    }
+  },
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "properties": {
+    "fields": {
+      "additionalProperties": {
+        "type": "string"
+      },
+      "type": "object"
+    },
+    "kind": {
+      "$ref": "#/$defs/EventKind"
     },
     "message": {
       "type": "string"
     },
-    "fields": {
-      "type": "object",
-      "additionalProperties": {
-        "type": "string"
-      }
+    "run_id": {
+      "type": "string"
+    },
+    "severity": {
+      "$ref": "#/$defs/Severity"
+    },
+    "tab_id": {
+      "format": "uint16",
+      "maximum": 65535,
+      "minimum": 0,
+      "type": [
+        "integer",
+        "null"
+      ]
+    },
+    "timestamp": {
+      "type": "string"
     }
   },
-  "additionalProperties": false
+  "required": [
+    "run_id",
+    "timestamp",
+    "kind",
+    "severity",
+    "message",
+    "fields"
+  ],
+  "title": "JailgunEvent",
+  "type": "object"
 }

@@ -30,6 +30,7 @@ async fn lists_browser_accounts_from_registry() {
     let response = app
         .oneshot(
             Request::builder()
+                .header("host", "localhost")
                 .uri("/api/browser/accounts")
                 .header("x-jailgun-token", "secret")
                 .body(Body::empty())
@@ -85,6 +86,7 @@ async fn browser_aliases_and_auth_status_share_the_same_backend() {
             .clone()
             .oneshot(
                 Request::builder()
+                    .header("host", "localhost")
                     .uri(uri)
                     .header("x-jailgun-token", "secret")
                     .body(Body::empty())
@@ -138,6 +140,7 @@ async fn auth_code_rejects_wrong_state_and_closed_session() {
         .clone()
         .oneshot(
             Request::builder()
+                .header("host", "localhost")
                 .method("POST")
                 .uri("/api/browsers/acct-test/auth/code")
                 .header("content-type", "application/json")
@@ -163,6 +166,7 @@ async fn auth_code_rejects_wrong_state_and_closed_session() {
     let closed = app
         .oneshot(
             Request::builder()
+                .header("host", "localhost")
                 .method("POST")
                 .uri("/api/browsers/acct-test/auth/code")
                 .header("content-type", "application/json")

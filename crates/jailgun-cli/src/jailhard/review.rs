@@ -41,7 +41,7 @@ pub(super) async fn review_patch(router_url: &str, diff: &str) -> Result<ReviewG
     let is_error = result
         .get("isError")
         .and_then(Value::as_bool)
-        .unwrap_or(false);
+        .unwrap_or_default();
     if is_error {
         anyhow::bail!("router review gate returned isError=true: {result}");
     }
@@ -82,7 +82,7 @@ pub(super) fn worker_count(result: &Value, structured: &Value) -> u64 {
     result
         .pointer("/telemetry/worker_count")
         .and_then(Value::as_u64)
-        .unwrap_or(0)
+        .unwrap_or_default()
 }
 
 pub(super) fn router_job_id(structured: &Value) -> Option<String> {

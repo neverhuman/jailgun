@@ -106,7 +106,15 @@ pub trait RemoteGitBackend {
         sha: &str,
     ) -> Result<(), CleanupError>;
     async fn write_receipt(&mut self, receipt: &CleanupReceipt) -> Result<PathBuf, CleanupError>;
-    async fn reset_hard(&mut self, remote_dir: &str, target: &str) -> Result<(), CleanupError>;
+    /// Acquire checkout mutation ownership and recheck cleanliness, HEAD, preservation
+    /// and target immediately before resetting. Never delete untracked files.
+    async fn reset_preserved(
+        &mut self,
+        remote_dir: &str,
+        expected_head: &str,
+        preserved_ref: &str,
+        target: &str,
+    ) -> Result<(), CleanupError>;
 }
 
 pub async fn cleanup_remote_checkout<B: RemoteGitBackend + Send>(
@@ -173,7 +181,7 @@ async fn preserve_reset<B: RemoteGitBackend + Send>(
         &initial,
         timestamp,
     );
-    receipt.preserved_ref = Some(ref_name);
+    receipt.preserved_ref = Some(ref_name.clone());
     receipt.preserved_sha = Some(head.clone());
     receipt.reset_to = Some(origin_main);
     let receipt_path = backend
@@ -187,14 +195,29 @@ async fn preserve_reset<B: RemoteGitBackend + Send>(
         .await
         .map_err(|error| CleanupError::Fetch(error.to_string()))?;
     let after_fetch = backend.snapshot(&request.remote_dir).await?;
+    if !after_fetch.is_clean() {
+        return Err(CleanupError::DirtyRemote {
+            status_short: after_fetch.status_short,
+        });
+    }
+    if after_fetch.head.as_deref() != Some(head.as_str()) {
+        return Err(CleanupError::Reset(
+            "checkout HEAD changed after preservation; no reset was attempted".into(),
+        ));
+    }
     let reset_to = after_fetch
         .origin_main
         .clone()
         .ok_or(CleanupError::MissingOriginMain)?;
     receipt.reset_to = Some(reset_to.clone());
+    // Persist the fetched target before crossing the destructive boundary.
+    backend
+        .write_receipt(&receipt)
+        .await
+        .map_err(|error| CleanupError::Receipt(error.to_string()))?;
 
     backend
-        .reset_hard(&request.remote_dir, &reset_to)
+        .reset_preserved(&request.remote_dir, &head, &ref_name, &reset_to)
         .await
         .map_err(|error| CleanupError::Reset(error.to_string()))?;
     let final_snapshot = backend.snapshot(&request.remote_dir).await?;

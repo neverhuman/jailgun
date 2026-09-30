@@ -22,7 +22,7 @@ async fn preserve_reset_creates_ref_writes_receipt_and_resets() {
         .0
         .starts_with("refs/heads/jailgun-preserved/run-one-"));
     assert_eq!(remote.reset_targets, vec!["origin-c"]);
-    assert_eq!(remote.receipt_writes, 2);
+    assert_eq!(remote.receipt_writes, 3);
     assert!(receipt
         .receipt_path
         .as_ref()

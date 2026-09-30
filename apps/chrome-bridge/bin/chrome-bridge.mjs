@@ -1,8 +1,9 @@
 #!/usr/bin/env node
 import { createHash } from 'node:crypto';
+import assert from 'node:assert/strict';
 import http from 'node:http';
 import net from 'node:net';
-import { createReadStream, createWriteStream, existsSync, readFileSync, unlinkSync } from 'node:fs';
+import { createReadStream, createWriteStream, existsSync, lstatSync, readFileSync, unlinkSync } from 'node:fs';
 import { copyFile, mkdir, mkdtemp, readFile, readdir, rm, stat, writeFile } from 'node:fs/promises';
 import { createRequire } from 'node:module';
 import { homedir, tmpdir } from 'node:os';
@@ -10,9 +11,10 @@ import { basename, delimiter, dirname, extname, isAbsolute, join, resolve } from
 import { pipeline } from 'node:stream/promises';
 import { fileURLToPath } from 'node:url';
 import { spawn, spawnSync } from 'node:child_process';
-import readline from 'node:readline';
 
 import { chromium } from 'playwright-core';
+import { authenticatedComposerState, readAuthenticatedIdentity } from '../src/auth-signal.mjs';
+import { readFrames } from '../src/bridge-frames.mjs';
 
 const require = createRequire(import.meta.url);
 const PLAYWRIGHT_VERSION = require('playwright-core/package.json').version;
@@ -26,6 +28,7 @@ const DEFAULT_STATE_DIR = join(homedir(), '.google-profile-automation-state');
 const DEFAULT_SOURCE_ARCHIVE_MODE = 'ai-source';
 const DEFAULT_MAX_MINUTES = 30;
 const DEFAULT_BROWSER_TIMEOUT_MS = 45000;
+const DEFAULT_DOWNLOAD_TIMEOUT_MS = 20 * 60 * 1000;
 const DEFAULT_CDP_CONNECT_TIMEOUT_MS = 30000;
 const DEFAULT_GLOBAL_MODAL_SWEEP_MS = 2500;
 const DEFAULT_MESSAGE_STREAM_RETRY_LIMIT = 0;
@@ -152,6 +155,7 @@ class ChromeBridge {
     }
     this.dynamicProfileSlots = [];
     this.authPages = new Map();
+    this.authWaits = new Map();
     this.tabs = new Map();
     this.keepAliveTimers = new Map();
     this.shutdownRequested = false;
@@ -164,22 +168,15 @@ class ChromeBridge {
     await mkdir(this.options.downloadsDir, { recursive: true });
     await mkdir(this.options.artifactsDir, { recursive: true });
 
-    const rl = readline.createInterface({
-      input: process.stdin,
-      crlfDelay: Infinity,
-    });
-
-    rl.on('line', (line) => {
-      void this.handleLine(line).catch((error) => {
-        this.logError('dispatch-error', error);
-      });
-    });
-
-    await new Promise((resolvePromise) => {
-      rl.once('close', resolvePromise);
-    });
-
-    await this.shutdown('stdin-closed', 0, this.lastEnvelope);
+    try {
+      for await (const line of readFrames(process.stdin)) {
+        void this.handleLine(line).catch((error) => { this.logError('dispatch-error', error); });
+      }
+    } catch (error) {
+      const code = ['bridge-frame-too-large', 'bridge-frame-invalid-utf8'].includes(error.message) ? error.message : 'bridge-input-failed';
+      process.stderr.write(`${code}\n`);
+      process.exitCode = 1;
+    } finally { await this.shutdown('stdin-closed', 0, this.lastEnvelope); }
   }
 
   async handleLine(line) {
@@ -801,7 +798,7 @@ class ChromeBridge {
         let cleanup = null;
         try {
           await this.runDismissals(tab.page, envelope, 'download-preflight');
-          const file = await downloadCandidate(tab.page, candidate, outputDir, 120000, {
+          const file = await downloadCandidate(tab.page, candidate, outputDir, DEFAULT_DOWNLOAD_TIMEOUT_MS, {
             bridge: this,
             envelope,
             tabId,
@@ -1221,12 +1218,20 @@ class ChromeBridge {
 
   async authStatus(envelope) {
     const page = await this.authPage(envelope, envelope.payload?.chat_url || 'https://chatgpt.com/');
-    const state = await detectChatAuthState(page);
+    // The ChatGPT SPA renders the composer a few seconds after domcontentloaded; a single-shot probe
+    // sees a logged-in session as a premature 'unknown'. Poll briefly so it resolves to a real state.
+    let state = await detectChatAuthState(page);
+    const authStatusDeadline = Date.now() + 15000;
+    while (state.state === 'unknown' && Date.now() < authStatusDeadline) {
+      await sleep(1000);
+      state = await detectChatAuthState(page);
+    }
     this.emitAuthState(envelope, state);
     if (state.state === 'ready') {
       this.emit(envelope, 'auth-complete', {
         page_url: state.pageUrl,
         composer_detected: true,
+        account_identity: state.identity,
       }, undefined);
     } else if (state.state === 'session-expired') {
       this.emit(envelope, 'session-expired', {
@@ -1239,55 +1244,41 @@ class ChromeBridge {
   async authBegin(envelope) {
     const payload = envelope.payload ?? {};
     const page = await this.authPage(envelope, payload.chat_url || 'https://chatgpt.com/');
-    let state = await detectChatAuthState(page);
-    this.emitAuthState(envelope, state);
-    if (state.state === 'ready') {
-      this.emit(envelope, 'auth-complete', {
-        page_url: state.pageUrl,
-        composer_detected: true,
-      }, undefined);
-      return;
-    }
-    if (state.manualAction) {
-      this.emit(envelope, 'auth-action-needed', state.manualAction, undefined);
-      throw manualBrowserRequired(state.manualAction.reason);
-    }
+    page.__jailgunExpectedEmail = String(payload.email_hint || '').trim();
+    const slot = this.selectAuthSlot(envelope);
+    this.authWaits.get(slot.key)?.abort();
+    const controller = new AbortController();
+    this.authWaits.set(slot.key, controller);
+    // The operator completes the provider's normal login. Keep processing bridge
+    // commands so cancellation remains responsive while the browser is open.
+    void this.watchManualAuth(page, envelope, slot.key, controller).catch((error) => {
+      this.emit(envelope, 'auth-failed', { reason: error.message, manual_browser_required: false }, undefined);
+    });
+  }
 
-    const emailHint = String(payload.email_hint || '').trim();
-    if (emailHint) {
-      await fillKnownEmailIfPresent(page, emailHint);
-      state = await detectChatAuthState(page);
-      this.emitAuthState(envelope, state);
-      if (state.state === 'ready') {
-        this.emit(envelope, 'auth-complete', {
-          page_url: state.pageUrl,
-          composer_detected: true,
-        }, undefined);
-        return;
+  async watchManualAuth(page, envelope, key, controller) {
+    const deadline = Date.now() + 15 * 60 * 1000;
+    let announced = false;
+    try {
+      while (!controller.signal.aborted && !page.isClosed() && Date.now() < deadline) {
+        const state = await detectChatAuthState(page);
+        if (controller.signal.aborted) return;
+        this.emitAuthState(envelope, state);
+        if (state.state === 'ready') {
+          this.emit(envelope, 'auth-complete', { page_url: state.pageUrl, composer_detected: true, account_identity: state.identity }, undefined);
+          return;
+        }
+        if (state.state === 'account-mismatch') throw new Error(`account-mismatch: ${state.reason}`);
+        if (!announced) {
+          this.emit(envelope, 'auth-action-needed', { action: 'waiting-for-user', reason: 'Complete login and verification in the dedicated Chrome window; Jailgun will verify the account automatically.' }, undefined);
+          announced = true;
+        }
+        await sleep(2000);
       }
-      if (state.manualAction) {
-        this.emit(envelope, 'auth-action-needed', state.manualAction, undefined);
-        throw manualBrowserRequired(state.manualAction.reason);
-      }
+      if (!controller.signal.aborted) throw new Error('login-timeout: reconnect the account to start another login session');
+    } finally {
+      if (this.authWaits.get(key) === controller) this.authWaits.delete(key);
     }
-
-    if (payload.prefer_email_code) {
-      const selected = await selectEmailCodeControl(page);
-      if (selected.clicked) {
-        this.emit(envelope, 'auth-code-requested', {
-          channel: 'email',
-          destination_hint: selected.destinationHint || null,
-        }, undefined);
-        this.emitAuthState(envelope, await detectChatAuthState(page));
-        return;
-      }
-    }
-
-    this.emit(envelope, 'auth-action-needed', {
-      action: 'manual-browser-required',
-      reason: 'no safe email-code control was detected',
-    }, undefined);
-    throw manualBrowserRequired('no safe email-code control was detected');
   }
 
   async authSelectEmailCode(envelope) {
@@ -1320,6 +1311,7 @@ class ChromeBridge {
       this.emit(envelope, 'auth-complete', {
         page_url: state.pageUrl,
         composer_detected: true,
+        account_identity: state.identity,
       }, undefined);
       return;
     }
@@ -1342,6 +1334,8 @@ class ChromeBridge {
 
   async authCancel(envelope) {
     const slot = this.selectAuthSlot(envelope);
+    this.authWaits.get(slot.key)?.abort();
+    this.authWaits.delete(slot.key);
     this.clearKeepAlive(`auth:${slot.key}`);
     const page = this.authPages.get(slot.key);
     if (page && !page.isClosed()) {
@@ -1562,6 +1556,8 @@ class ChromeBridge {
       return;
     }
     this.shutdownRequested = true;
+    for (const controller of this.authWaits.values()) controller.abort();
+    this.authWaits.clear();
     if (drainTimeoutMs > 0) {
       await Promise.race([
         Promise.all([...this.tabs.values()].map((tab) => tab.queue?.catch(() => undefined))),
@@ -1865,6 +1861,7 @@ function browserProfileState(record) {
 }
 
 async function ensureManagedChromeRunning(options, logStartup = null) {
+  if (existsSync(join(options.profileDir, '.jailgun-workflow-owner'))) throw new Error('workflow-runtime-owned: manage this profile through the concept daemon');
   const requestedEndpoint = parseCdpEndpoint(options.cdpUrl);
   const requestedProbe = await probeCdpEndpoint(requestedEndpoint, 750);
   const managedProbes = needsManagedCdpRecovery(requestedEndpoint, requestedProbe)
@@ -1900,7 +1897,7 @@ async function ensureManagedChromeRunning(options, logStartup = null) {
   const executable = resolveChromeExecutable(options.chromeExecutable);
   await mkdir(options.profileDir, { recursive: true });
   await mkdir(options.stateDir, { recursive: true });
-  await clearProfileLockArtifacts(options.profileDir);
+  await assertProfileUnlocked(options.profileDir);
 
   const displayState = await startManagedDisplayIfNeeded();
 
@@ -1936,7 +1933,6 @@ async function ensureManagedChromeRunning(options, logStartup = null) {
   } catch (error) {
     const lockArtifacts = detectProfileLockArtifacts(options.profileDir);
     if (lockArtifacts.length > 0) {
-      await clearProfileLockArtifacts(options.profileDir).catch(() => undefined);
       error.message += `\nThe managed Chrome profile appears to be locked. Close any regular Chrome window using this profile and retry.\nProfile lock hints:\n- ${lockArtifacts.join('\n- ')}`;
     }
     if (displayState.pid) {
@@ -1973,7 +1969,6 @@ async function restartManagedBrowserForConnectFailure(options, chrome, error, lo
   if (termination.status === 'ok' || termination.status === 'already-exited' || termination.status === 'skipped') {
     await writeManagedBrowserStoppedState(options.stateDir, endpoint, termination).catch(() => undefined);
   }
-  await clearProfileLockArtifacts(options.profileDir).catch(() => undefined);
   return termination;
 }
 
@@ -2531,12 +2526,18 @@ function chromeExecutableCandidates() {
 function detectProfileLockArtifacts(profileDir) {
   return ['SingletonLock', 'SingletonCookie', 'SingletonSocket', 'Lockfile']
     .map((name) => join(profileDir, name))
-    .filter((candidate) => existsSync(candidate));
+    .filter((candidate) => {
+      try { lstatSync(candidate); return true; } catch (error) {
+        if (error.code === 'ENOENT') return false;
+        throw error;
+      }
+    });
 }
 
-async function clearProfileLockArtifacts(profileDir) {
-  for (const candidate of detectProfileLockArtifacts(profileDir)) {
-    await rm(candidate, { force: true }).catch(() => undefined);
+async function assertProfileUnlocked(profileDir) {
+  const locks = detectProfileLockArtifacts(profileDir);
+  if (locks.length) {
+    throw new Error('profile-locked: Chrome profile locks exist; close the owning Chrome process and verify its exit before recovery. Locks have been preserved.');
   }
 }
 
@@ -3023,6 +3024,11 @@ async function waitForChatComposer(page, timeoutMs, hooks = {}, startedAt = Date
     await hooks.dismiss?.('prompt-composer-wait');
     const composer = await firstVisibleLocatorOrNull(page, CHAT_COMPOSER_SELECTORS);
     if (composer) {
+      const auth = await detectChatAuthState(page);
+      if (auth.state !== 'ready') {
+        hooks.authState?.(auth);
+        throw composerAuthError(auth);
+      }
       hooks.log?.('prompt-submit-wait', 'composer-ready', 'composer is visible', {
         elapsed_ms: String(Date.now() - startedAt),
       });
@@ -3081,13 +3087,19 @@ async function detectChatAuthState(page) {
   const pageUrl = page.url();
   const composerDetected = await hasChatComposer(page);
   if (composerDetected) {
+    const state = authenticatedComposerState({
+      composerDetected,
+      identity: await readAuthenticatedIdentity(page),
+      expectedEmail: page.__jailgunExpectedEmail || '',
+      loginVisible: await hasLoginControl(page),
+    });
     return {
-      state: 'ready',
+      ...state,
       pageUrl,
       composerDetected: true,
       codeRequested: false,
-      reason: null,
-      manualAction: null,
+      manualAction: state.state === 'account-mismatch'
+        ? { action: 'account-mismatch', reason: state.reason } : null,
     };
   }
 
@@ -4123,7 +4135,7 @@ async function selectLongestABResponse(page) {
   });
 }
 
-async function downloadCandidate(page, candidate, outputDir, timeoutMs = 120000, context = {}) {
+async function downloadCandidate(page, candidate, outputDir, timeoutMs = DEFAULT_DOWNLOAD_TIMEOUT_MS, context = {}) {
   const attempts = [];
   let lastError = null;
   const maxAttempts = 1;
@@ -5852,7 +5864,7 @@ async function downloadRecoveredArtifactConversationCandidate(bridge, tab, envel
     label: compact(candidate.label || candidate.download || candidate.href || '', 160),
     artifact_conversation_url: values.link.url,
   }, 'warn');
-  const file = await downloadCandidate(values.recoveryPage, candidate, outputDir, 120000, {
+  const file = await downloadCandidate(values.recoveryPage, candidate, outputDir, DEFAULT_DOWNLOAD_TIMEOUT_MS, {
     bridge,
     envelope,
     tabId: values.tabId,
@@ -6635,6 +6647,8 @@ async function assertNoTarCleanupSequencing(kind, message) {
   const tab = {
     page: {
       isClosed: () => false,
+      // no salvageable assistant response in this scenario -> exercises the error+cleanup path
+      __jailgunExtractAssistantResponses: async () => [],
       evaluate: async () => {
         calls.push('stopIfGenerating');
         return { clicked: false, reason: 'not-found' };
@@ -6673,6 +6687,49 @@ async function assertNoTarCleanupSequencing(kind, message) {
   }
   if (!cleanup.closed || cleanup.stopMethod !== 'not-active:not-found' || cleanup.errors.length > 0) {
     throw new Error(`${kind} cleanup result failed: ${JSON.stringify(cleanup)}`);
+  }
+}
+
+async function assertDiagnosticCaptureRetainsFailure(kind) {
+  const root = await mkdtemp(join(tmpdir(), 'jailgun-md-salvage-'));
+  try {
+    const events = [];
+    const envelope = { v: PROTOCOL_VERSION, type: 'monitor-tab', run_id: 'run-salvage', tab_id: 3, ts: timestamp(), payload: {} };
+    const md = '# Lane Spec\n\nThis is the full markdown answer, long enough to salvage as a usable .md file.';
+    const tab = {
+      browserSlot: 3,
+      page: {
+        isClosed: () => false,
+        url: () => 'https://chatgpt.com/c/self-test',
+        title: async () => 'Self Test',
+        content: async () => '<html><body>x</body></html>',
+        evaluate: async () => '',
+        screenshot: async ({ path }) => { await writeFile(path, 'x'); },
+        __jailgunDiscoverTarCandidates: async () => ({ assistantRootCount: 1, scannedControlCount: 1, candidates: [], lastTextLength: md.length, lastTextPreview: 'Lane Spec', abFeedbackActive: false, abResponseCount: 0 }),
+        __jailgunExtractAssistantResponses: async () => ([{ index: 0, text: md, html: '' }]),
+      },
+    };
+    const bridge = {
+      options: { artifactsDir: root, downloadsDir: join(root, 'downloads') },
+      emit: (_envelope, type, payload) => { events.push({ type, payload }); },
+      bridgeLog: () => undefined,
+      closeTabAfterReceipt: async () => { bridge.emit(envelope, 'tab-closed', {}); tab.page = null; return true; },
+    };
+    const cleanup = await emitNoTarErrorAndCleanup(bridge, tab, envelope, kind, 'original failure');
+    const complete = events.find((e) => e.type === 'download-complete');
+    const errored = events.find((e) => e.type === 'error');
+    if (complete || !errored || errored.payload.kind !== kind || errored.payload.message !== 'original failure') {
+      throw new Error(`diagnostic capture must retain the original failure: ${JSON.stringify(events.map((e) => e.type))}`);
+    }
+    const saved = await readFile(join(errored.payload.no_link_bundle_path, 'assistant-response.txt'), 'utf8');
+    if (!saved.includes('full markdown answer')) {
+      throw new Error(`diagnostic response content missing: ${saved.slice(0, 80)}`);
+    }
+    if (!cleanup?.closed) {
+      throw new Error(`failure cleanup did not close the tab: ${JSON.stringify(cleanup)}`);
+    }
+  } finally {
+    await rm(root, { recursive: true, force: true });
   }
 }
 
@@ -8458,9 +8515,9 @@ async function assertProfileLockCleanup() {
     if (detectProfileLockArtifacts(profileDir).length !== 4) {
       throw new Error('profile lock detection should find all stale artifacts');
     }
-    await clearProfileLockArtifacts(profileDir);
-    if (detectProfileLockArtifacts(profileDir).length !== 0) {
-      throw new Error('profile lock cleanup did not remove stale artifacts');
+    await assert.rejects(assertProfileUnlocked(profileDir), /profile-locked/);
+    if (detectProfileLockArtifacts(profileDir).length !== 4) {
+      throw new Error('startup must preserve unverified profile locks');
     }
   } finally {
     await rm(root, { recursive: true, force: true });
@@ -8608,6 +8665,7 @@ async function assertComposerWaitAndAuthClassification() {
   let composerChecks = 0;
   const delayedComposer = {
     url: () => 'https://chatgpt.com/',
+    evaluate: async () => ({ id: 'synthetic-user', email: 'synthetic@example.invalid' }),
     locator: (selector) => fakeComposerLocator(selector, () => {
       if (selector === '#prompt-textarea') {
         composerChecks += 1;
@@ -8824,6 +8882,9 @@ async function runSelfTest() {
   await assertLocalArchivePathSkipsGitArchive();
   await assertFreshSourceCloneArchivesLocalRepos();
   await assertDownloadCleanupSequencing();
+  for (const kind of ['done-no-tar', 'artifact-stall-no-tar', 'message-stream-no-tar']) {
+    await assertDiagnosticCaptureRetainsFailure(kind);
+  }
   await assertNoTarCleanupSequencing('done-no-tar', 'assistant finished but no tar.gz download candidate was found');
   await assertNoTarCleanupSequencing('artifact-stall-no-tar', 'assistant stalled without a tar.gz download candidate');
   await assertNoTarCleanupSequencing('message-stream-no-tar', 'assistant hit message stream error without tar.gz after 0 retry attempts');

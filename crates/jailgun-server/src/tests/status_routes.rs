@@ -2,12 +2,16 @@ use super::*;
 
 #[tokio::test]
 async fn serves_run_snapshot_and_redacted_config() {
-    let app = api_router(AppState::fixture(JailgunConfig::default()));
+    let app = api_router(
+        AppState::fixture(JailgunConfig::default()).with_ingest_token(Some("secret".into())),
+    );
     let runs_response = app
         .clone()
         .oneshot(
             Request::builder()
+                .header("host", "localhost")
                 .uri("/api/runs")
+                .header("authorization", "Bearer secret")
                 .body(Body::empty())
                 .unwrap(),
         )
@@ -18,7 +22,9 @@ async fn serves_run_snapshot_and_redacted_config() {
     let config_response = app
         .oneshot(
             Request::builder()
+                .header("host", "localhost")
                 .uri("/api/config/effective")
+                .header("authorization", "Bearer secret")
                 .body(Body::empty())
                 .unwrap(),
         )
@@ -40,6 +46,7 @@ async fn ingest_requires_matching_token() {
         .clone()
         .oneshot(
             Request::builder()
+                .header("host", "localhost")
                 .method("POST")
                 .uri("/api/events")
                 .header("content-type", "application/json")
@@ -54,6 +61,7 @@ async fn ingest_requires_matching_token() {
     let ok = app
         .oneshot(
             Request::builder()
+                .header("host", "localhost")
                 .method("POST")
                 .uri("/api/events")
                 .header("content-type", "application/json")
@@ -78,6 +86,7 @@ async fn ingest_without_token_returns_503() {
     let resp = app
         .oneshot(
             Request::builder()
+                .header("host", "localhost")
                 .method("POST")
                 .uri("/api/events")
                 .header("content-type", "application/json")
@@ -113,7 +122,7 @@ async fn websocket_events_require_configured_token() {
             jailgun_token: None,
         },
     );
-    assert!(query_ok.is_none());
+    assert_eq!(query_ok.unwrap().status(), StatusCode::UNAUTHORIZED);
 
     let mut headers = HeaderMap::new();
     headers.insert("x-jailgun-token", "secret".parse().unwrap());

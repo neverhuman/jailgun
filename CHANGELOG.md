@@ -2,50 +2,74 @@
 
 ## Unreleased
 
-## [0.2.0] - 2026-09-25
+Release preparation; v0.2.0 is not yet complete or accepted. See
+[the gap register](docs/public-release-progress.md).
 
-### Added
+- Add a lightweight browser-free worker daemon with operator-only MCP tools for
+  isolated tabs, idempotent Codex jobs, Astra/Sol selection, reasoning effort,
+  timeouts, cancellation, error reporting and verified tar.gz object transfer.
+- Add isolated multi-account worker profiles, explicit tab-to-account routing,
+  login-readiness counts and automatic relogin marking after authentication
+  failures without moving credentials through MCP.
+- Exercise two distinct persistent synthetic provider identities through the
+  production browser supervisor, including independent expiry/cancellation,
+  a complete workflow on the unaffected account and browser restart reuse.
+- Managed uninstall verifies registered files and links, refuses active use or
+  changed inventories, retains an interruption journal, and preserves runtime
+  data. Installed Jailgun and jailhard processes share a stable use lock across
+  upgrades; bundles advertise the locking protocol explicitly.
+- Add five-to-ten-perspective exploration, weighted comparison, synthesis,
+  critique and final revision through the dashboard, CLI and standard MCP.
+- Add the durable SQLite concept service, account-wide pacing and budgets,
+  verified artifacts, retained partial results and conservative restart recovery.
+- Add offline backup/restore commands with schema checks, private directories,
+  exclusive ownership, artifact verification and completed-result retention.
+- Add operator-only daemon status and graceful stop commands, with instance and
+  runtime verification, ownership-release checks and idempotent local shutdown.
+- Generate private systemd-user and launchd definitions with stable installed
+  executable paths, explicit activation and graceful stop behavior; verify native
+  service lifecycle in the package lane.
+- Add operator account onboarding, model confirmation, reconnect and the private
+  Linux dashboard login viewer. Reconnect refreshes observed model availability
+  while preserving the account allocation and completed results.
+- Serialize account readiness checks with reconnect, confirmation and cancellation;
+  prevent an in-flight check from overwriting a newer login action.
+- Issue dashboard pairing links only on an explicit operator request; daemon
+  startup no longer writes pairing secrets to process logs.
+- Keep local CLI and MCP credentials out of environment-configured HTTP proxies;
+  both transports explicitly connect directly to the loopback daemon.
+- Add executable-relative runtime assets, pinned Node bundles, dependency notices,
+  actual-bundle SBOMs, checksum-verified versioned installation and clone/build
+  bootstrap. Clean-environment and macOS package acceptance remain pending.
+- Add isolated Ubuntu installation checks without the source tree or developer
+  toolchain, covering setup, private dashboard access, daemon reuse and offline
+  backup/restore. Clean-environment browser workflows remain pending.
+- Add an isolated ChatGPT text adapter and interactive browser fixtures covering
+  model selection, persistent login, turn ownership, and honest response capture.
+- Isolate browser reservation releases, preserve account setup bindings, and
+  serialize registry allocation across processes.
+- Share atomic profile ownership between migration and account registration;
+  reject linked/foreign markers and keep archive scheduling blocked when an
+  ownership marker is dangling or unreadable.
+- Create private runtime paths and credentials; hold a daemon ownership lock.
+- Authenticate private HTTP/MCP/WebSocket surfaces, add dashboard pairing, and
+  remove query-string WebSocket tokens. See [upgrade notes](docs/authentication-upgrade.md).
+- Require an authenticated provider identity for login and preserve manual login
+  sessions while the operator acts. Live-provider acceptance remains outstanding.
+- Preserve diagnostic response text without reporting a failed generation as a
+  successful artifact download; preserve unverified Chrome profile locks.
+- Replace silent dashboard demo fallback and synthetic UX reports with explicit
+  demo mode and real sandboxed browser/axe checks.
+- Pin Node 24.21.0 and update locked dependencies to resolve observed advisories.
+- Share pinned validation tools across CI and add Ubuntu 24.04/26.04 and macOS 15
+  ARM/Intel package jobs; hosted execution remains pending.
+- Add actual five/ten-candidate browser workflows through dashboard, CLI, and
+  official SDK MCP clients against the synthetic provider. Live ChatGPT remains
+  unverified and is required before release publication.
+- Rewrite onboarding documentation around the concept journey, add a genuine
+  synthetic dashboard screenshot and check local links, JSON examples and CLI
+  help surfaces. These checks do not establish clean-clone or live acceptance.
 
-- Headless auth control plane for persistent browser accounts. The server can
-  start, stop, and restart an account, begin an operator-driven auth session,
-  and accept a verification code from the CLI or
-  `POST /api/browser/accounts/{id}/auth/code` (and the `/api/browsers/...`
-  aliases). Passwords are not stored.
-- MCP endpoint `/mcp` with `jailgun.run`, `jailgun.auth_status`,
-  `jailgun.submit_code`, `jailgun.run_status`, and `jailgun.run_summary`.
-- HTTP run ingestion on `POST /api/runs`, including canonical
-  `browser.account_ids` routing (REST `account_ids` and MCP `account` aliases
-  are normalized onto that field), run snapshots, agent summaries, receipts,
-  and `POST /api/events`.
-- `jailhard --include-manifest` to build a source archive from an exact file
-  list while still applying the security denylist and size cap.
-- Passive mouse-activity jitter while a monitored tab is waiting.
-- Loopback SSH helpers for a remote Chrome DevTools endpoint
-  (`scripts/chrome-cdp-tunnel.sh`, `scripts/chrome-cdp-launchd.sh`).
-- Local CI parity scripts, release readiness checks, contract drift checks,
+- Added local CI parity scripts, release readiness checks, contract drift checks,
   UX QA evidence, and copy-code evidence lanes.
-- Agent-readable architecture, boundary, testing, and release documents.
-
-### Changed
-
-- Split deploy shell backends, browser-adapter DOM contracts, orchestrator
-  run/agent/bridge modules, the server browser/MCP/run surface, and the CLI
-  command modules out of the previous shape-heavy files.
-- Ignore `managed-browsers.json` so browser-profile runtime state stays out of
-  Git.
-
-### Fixed
-
-- Formatted the include-manifest excluded-directory test so `cargo fmt --check`
-  passes, and bumped Vite to 6.4.3 and Vitest to 4.1.11 so the locked PostCSS,
-  nanoid, browserslist, and baseline-browser-mapping packages clear the
-  high-severity npm audit range.
-- Install gitleaks from `github.com/zricethezav/gitleaks/v8`, and run
-  dependency review only when the repository dependency graph is enabled.
-- Score the Jankurai gate against `caps_applied`, which is the field the
-  pinned auditor writes.
-- Artifact and tar recovery: generic ChatGPT artifact downloads, current-page
-  and tar-indexed browser downloads, malformed artifact sandbox responses,
-  artifact-safe tab prompt prefixes, tar download false positives, fail-fast
-  when a browser artifact is missing, and recovery of stale managed Chrome CDP
-  listeners.
+- Added agent-readable architecture, boundary, testing, and release documents.

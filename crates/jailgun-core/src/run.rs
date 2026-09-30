@@ -1,6 +1,6 @@
 use serde::{Deserialize, Serialize};
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Serialize, Deserialize, schemars::JsonSchema, PartialEq, Eq)]
 #[serde(rename_all = "kebab-case")]
 pub enum DeployQueueState {
     Idle,
@@ -10,7 +10,7 @@ pub enum DeployQueueState {
     Done,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Serialize, Deserialize, schemars::JsonSchema, PartialEq, Eq)]
 pub struct TabSnapshot {
     pub tab_id: u16,
     pub status: String,
@@ -21,7 +21,7 @@ pub struct TabSnapshot {
     pub prompt_policy_decision: Option<String>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Serialize, Deserialize, schemars::JsonSchema, PartialEq, Eq)]
 pub struct RunSnapshot {
     pub run_id: String,
     pub started_at: String,

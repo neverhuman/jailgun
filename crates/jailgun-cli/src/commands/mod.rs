@@ -1,9 +1,14 @@
+pub mod concept_daemon;
+pub mod data;
 mod deploy;
+pub mod mcp;
 mod review;
 mod run;
 mod server;
 mod telegram;
+mod uninstall;
 mod validate;
+mod worker;
 
 use anyhow::Result;
 
@@ -21,7 +26,36 @@ use crate::{
 };
 
 pub async fn dispatch(command: Command) -> Result<()> {
+    anyhow::ensure!(
+        dispatch_with_output(command, false).await?,
+        "command checks require attention"
+    );
+    Ok(())
+}
+
+pub async fn dispatch_with_output(command: Command, json: bool) -> Result<bool> {
+    if let Command::Uninstall { prefix } = command {
+        return uninstall::run(prefix, json);
+    }
+    let _application_use = jailgun_core::managed_installation::current_use()
+        .map_err(crate::concept_cli::error::installation)?;
     match command {
+        Command::Worker { runtime, addr } => worker::serve(runtime, addr).await,
+        Command::Uninstall { .. } => unreachable!("uninstall is dispatched before acquiring shared application use"),
+        Command::Setup { options, no_open } => {
+            return crate::concept_cli::setup(options, no_open, json).await
+        }
+        Command::Doctor { options } => return crate::concept_cli::doctor(options, json).await,
+        Command::Data { command } => return data::run(command, json).await,
+        Command::Service { options, command } => return crate::concept_cli::service::run(options, command, json).await,
+        Command::Brainstorm(options) => return crate::concept_cli::brainstorm(options, json).await,
+        Command::Accounts { options, command } => {
+            return crate::concept_cli::accounts(options, command, json).await
+        }
+        Command::Runs { options, command } => {
+            return crate::concept_cli::runs(options, command, json).await
+        }
+        Command::Mcp(options) => mcp::run(options).await,
         Command::ValidateConfig { config } => validate_config(config).await,
         Command::TarValidate {
             archive,
@@ -208,6 +242,9 @@ pub async fn dispatch(command: Command) -> Result<()> {
         } => notify_commit(token_file, chat_id_cache, chat_id, repo, revision).await,
         Command::Jailhard(args) => crate::jailhard::run(args).await,
         Command::Serve {
+            advanced,
+            concepts: _,
+            concept_options,
             config,
             addr,
             dashboard_dist,
@@ -217,20 +254,28 @@ pub async fn dispatch(command: Command) -> Result<()> {
             telegram_token_file,
             telegram_chat_id_cache,
         } => {
+            if !advanced && !live {
+                return concept_daemon::serve(concept_options, addr).await.map(|()| true);
+            }
+            if concept_options.runtime.is_some() || concept_options.assets.is_some()
+                || concept_options.node.is_some() || concept_options.chrome.is_some() || concept_options.headless || concept_options.server_browser {
+                return Err(crate::concept_cli::error::failure("serve-mode-conflict", "Concept runtime options cannot configure the advanced service.", "Use jailgun serve for concepts, or configure the advanced service through --config."));
+            }
             serve(
-                config,
+                config.unwrap_or_else(|| "config/jailgun.example.toml".into()),
                 addr,
                 dashboard_dist,
                 live,
                 ingest_token,
                 notify_telegram,
-                telegram_token_file,
-                telegram_chat_id_cache,
+                telegram_token_file.unwrap_or_else(|| "telegram/token.env".into()),
+                telegram_chat_id_cache.unwrap_or_else(|| "telegram/chat_id.cache".into()),
             )
             .await
         }
         Command::Fixture { kind } => fixture(kind).await,
     }
+    .map(|()| true)
 }
 
 #[cfg(test)]

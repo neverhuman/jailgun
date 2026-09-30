@@ -1,12 +1,14 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
-import { fetchReceipts, fetchRuns, subscribeEvents } from './api';
+import { ApiError, fetchReceipts, fetchRuns, subscribeEvents } from './api';
 import type { JailgunEvent, RunSnapshot } from './types';
 
 export type DataSource = 'api' | 'fixture';
 export type EventStreamStatus = 'connecting' | 'open' | 'closed';
 
 export interface DashboardState {
+  loading: boolean;
+  authenticationRequired: boolean;
   runs: RunSnapshot[];
   selectedRunId: string | null;
   selectedRun: RunSnapshot | null;
@@ -20,22 +22,23 @@ export interface DashboardState {
   refresh: () => Promise<void>;
 }
 
-export function useDashboardData(): DashboardState {
+export function useDashboardData(dataSource: DataSource = 'api'): DashboardState {
+  const [loading, setLoading] = useState(true);
+  const [authenticationRequired, setAuthenticationRequired] = useState(false);
   const [runs, setRuns] = useState<RunSnapshot[]>([]);
   const [selectedRunId, setSelectedRunId] = useState<string | null>(null);
   const [receipts, setReceipts] = useState<unknown[]>([]);
   const [events, setEvents] = useState<JailgunEvent[]>([]);
   const [connection, setConnection] = useState<EventStreamStatus>('connecting');
-  const [dataSource, setDataSource] = useState<DataSource>('api');
   const [error, setError] = useState<string | null>(null);
   const [lastEventAt, setLastEventAt] = useState<Record<number, number>>({});
   const selectedRunIdRef = useRef<string | null>(null);
 
   const refresh = useCallback(async () => {
     try {
-      const nextRuns = await fetchRuns();
+      const nextRuns = await fetchRuns({ mode: dataSource });
+      setAuthenticationRequired(false);
       setRuns(nextRuns);
-      setDataSource('api');
       setError(null);
       setSelectedRunId((current) => {
         const next = current ?? nextRuns[0]?.run_id ?? null;
@@ -43,17 +46,12 @@ export function useDashboardData(): DashboardState {
         return next;
       });
     } catch (loadError) {
+      setAuthenticationRequired(loadError instanceof ApiError && loadError.status === 401);
       setError(loadError instanceof Error ? loadError.message : String(loadError));
-      setDataSource('fixture');
-      const fixtureRuns = await fetchRuns({ mode: 'fixture' });
-      setRuns(fixtureRuns);
-      setSelectedRunId((current) => {
-        const next = current ?? fixtureRuns[0]?.run_id ?? null;
-        selectedRunIdRef.current = next;
-        return next;
-      });
+    } finally {
+      setLoading(false);
     }
-  }, []);
+  }, [dataSource]);
 
   const selectRun = useCallback((runId: string) => {
     selectedRunIdRef.current = runId;
@@ -69,6 +67,7 @@ export function useDashboardData(): DashboardState {
   }, [refresh]);
 
   useEffect(() => {
+    if (authenticationRequired) return;
     let unsubscribe: () => void = () => undefined;
     try {
       unsubscribe = subscribeEvents(
@@ -77,7 +76,7 @@ export function useDashboardData(): DashboardState {
           setEvents((current) => [event, ...current].slice(0, 80));
           setRuns((current) => applyEventToRuns(current, event));
           setSelectedRunId((current) => current ?? event.run_id);
-          if (event.tab_id !== null) {
+          if (event.tab_id != null) {
             const tabId = event.tab_id;
             setLastEventAt((current) => ({ ...current, [tabId]: Date.now() }));
           }
@@ -91,7 +90,7 @@ export function useDashboardData(): DashboardState {
       setConnection('closed');
       unsubscribe();
     };
-  }, [dataSource]);
+  }, [dataSource, authenticationRequired]);
 
   useEffect(() => {
     if (!selectedRunId) {
@@ -121,6 +120,8 @@ export function useDashboardData(): DashboardState {
   );
 
   return {
+    loading,
+    authenticationRequired,
     runs,
     selectedRunId,
     selectedRun,
@@ -152,7 +153,7 @@ function createRunFromEvent(event: JailgunEvent): RunSnapshot {
     deploy_queue: event.kind === 'deploy-queued' ? 'waiting' : 'idle',
     denied_github_prompts: event.fields.decision === 'deny' ? 1 : 0,
     allowed_info_prompts: event.fields.decision === 'allow-info' ? 1 : 0,
-    tabs: event.tab_id === null ? [] : [{
+    tabs: event.tab_id == null ? [] : [{
       tab_id: event.tab_id,
       status: tabStatusForEvent(event, event.fields.tab_status ?? 'active'),
       page_url: event.fields.page_url ?? '',
@@ -166,7 +167,7 @@ function createRunFromEvent(event: JailgunEvent): RunSnapshot {
 
 function applyEventToRun(run: RunSnapshot, event: JailgunEvent): RunSnapshot {
   const decision = event.fields.decision;
-  const tabs = event.tab_id === null ? run.tabs : upsertTab(run.tabs, event);
+  const tabs = event.tab_id == null ? run.tabs : upsertTab(run.tabs, event);
   return {
     ...run,
     status: event.fields.status ?? run.status,
@@ -179,7 +180,7 @@ function applyEventToRun(run: RunSnapshot, event: JailgunEvent): RunSnapshot {
 }
 
 function upsertTab(tabs: RunSnapshot['tabs'], event: JailgunEvent): RunSnapshot['tabs'] {
-  if (event.tab_id === null) return tabs;
+  if (event.tab_id == null) return tabs;
   const existing = tabs.find((tab) => tab.tab_id === event.tab_id);
   const next = applyEventToTab(
     existing ?? {
@@ -213,11 +214,8 @@ function applyEventToTab(tab: RunSnapshot['tabs'][number], event: JailgunEvent):
 
 function tabStatusForEvent(event: JailgunEvent, current: string): string {
   if (event.fields.tab_status) return event.fields.tab_status;
-  if (event.kind === 'download-started') return 'downloading';
   if (event.kind === 'download-receipt') return 'downloaded';
-  if (event.kind === 'generation-stopped') return 'generation-stopped';
   if (event.kind === 'deploy-finished') return event.severity === 'error' ? 'error' : 'deployed';
-  if (event.kind === 'tab-closed') return 'closed';
   return current;
 }
 

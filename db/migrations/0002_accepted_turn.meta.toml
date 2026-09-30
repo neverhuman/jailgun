@@ -1,0 +1,8 @@
+owner = "rust-workflow"
+dialect = "sqlite"
+affected_objects = ["attempts.user_turn_id"]
+lock_timeout = "5s, enforced by Connection::busy_timeout in database.rs"
+statement_timeout = "30s migration VM budget, enforced by SQLite progress_handler every 1000 instructions; blocking filesystem I/O is outside the VM budget"
+backup = "Private SQLite online before-image, synced before applying schema 2"
+rollback = "Stop the daemon and restore the schema-1 before-image with its matching binary; do not open schema 2 with a schema-1 binary"
+verify = "ops/ci/db.sh: schema upgrade, repeat migration, before-image version, accepted-turn recovery and interrupted migration rollback"

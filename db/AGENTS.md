@@ -1,9 +1,9 @@
 # DB Agent Instructions
 
-This directory is the only approved home for future durable database schema,
+This directory is the only approved home for durable database schema,
 migration notes, and constraint policy.
 
-Current state: no production SQL is committed. Do not add credentials, dumps,
+The workflow schema is implemented by `crates/jailgun-workflow`. Do not add credentials, dumps,
 real customer data, local database paths, or ad hoc seed data here.
 
 If SQL is added, route it through `db/migrations/` and `db/constraints/`, update

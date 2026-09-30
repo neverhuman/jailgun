@@ -1,0 +1,22 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Synthetic ChatGPT test service</title></head>
+<body>
+  <main>
+    <h1>Synthetic ChatGPT test service</h1>
+    <p>This is a credential-free test fixture.</p>
+    <button id="login">Sign in to synthetic account</button>
+    <button data-testid="model-switcher-dropdown-button" aria-label="Model selector">Fixture One</button>
+    <div id="models"></div>
+    <div id="conversation"></div>
+    <div id="alerts"></div>
+    <form id="composer">
+      <label for="prompt-textarea">Prompt</label>
+      <textarea id="prompt-textarea" data-testid="composer-text-input"></textarea>
+      <button data-testid="send-button" aria-label="Send prompt" type="submit">Send</button>
+      <button data-testid="stop-button" aria-label="Stop generating" type="button" hidden>Stop</button>
+    </form>
+  </main>
+  <script type="module" src="/concept-client.mjs"></script>
+</body>
+</html>

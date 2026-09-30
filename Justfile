@@ -58,6 +58,9 @@ rust:
     cargo clippy --workspace --all-targets -- -D warnings
     cargo test --workspace --jobs 5
 
+worker:
+    bash ops/ci/worker.sh
+
 test-core:
     cargo test -p jailgun-core --jobs 5
 

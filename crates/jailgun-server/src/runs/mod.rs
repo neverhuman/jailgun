@@ -43,6 +43,9 @@ pub(crate) async fn start_agent_run_inner(
     body: Value,
     ingress: RunIngress,
 ) -> Response {
+    if state.workflow.is_some() {
+        return crate::auth::error(StatusCode::CONFLICT,"workflow-runtime-owned","The concept supervisor owns these accounts. Use a separate runtime and profile for the advanced archive scheduler.");
+    }
     if state.event_bus.is_none() {
         return (
             StatusCode::SERVICE_UNAVAILABLE,
@@ -54,30 +57,8 @@ pub(crate) async fn start_agent_run_inner(
         )
             .into_response();
     }
-    let Some(expected) = state.ingest_token.as_deref() else {
-        return (
-            StatusCode::SERVICE_UNAVAILABLE,
-            Json(agent_error(
-                "agent-run-unavailable",
-                "start a Jailgun agent run",
-                "x-jailgun-token is required when run ingestion is enabled",
-            )),
-        )
-            .into_response();
-    };
-    let provided = headers
-        .get("x-jailgun-token")
-        .and_then(|value| value.to_str().ok());
-    if provided != Some(expected) {
-        return (
-            StatusCode::UNAUTHORIZED,
-            Json(agent_error(
-                "agent-run-unauthorized",
-                "start a Jailgun agent run",
-                "x-jailgun-token did not match the configured token",
-            )),
-        )
-            .into_response();
+    if let Some(response) = crate::auth::unauthorized(&state, &headers) {
+        return response;
     }
 
     let mut request = match parse_agent_run_request(body, ingress) {
