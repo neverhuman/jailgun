@@ -7,7 +7,7 @@ client. Jailgun keeps conversations, results and recovery state on your machine.
 **Concept → 5–10 explorations → comparison → synthesis → critique → revision.**
 
 <!-- jankurai-badge:start -->
-[![Jankurai score: 84/100 advisory](agent/jankurai-badge.svg)](agent/repo-score.md)
+[![Jankurai score: 95/100 advisory](agent/jankurai-badge.svg)](agent/repo-score.md)
 <!-- jankurai-badge:end -->
 
 **v0.2.0 is under development and has not been published or accepted for live

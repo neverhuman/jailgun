@@ -10,6 +10,8 @@ pub mod service;
 pub mod startup;
 mod startup_paths;
 
+pub(crate) use connect::configured_client;
+
 use anyhow::Result;
 use jailgun_workflow::model::{FinalResult, Run};
 use options::{AccountsCommand, ConnectionOptions, RunsCommand};

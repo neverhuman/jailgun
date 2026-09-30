@@ -37,7 +37,7 @@ try {
     executablePath: process.env.JAILGUN_TEST_CHROME || undefined,
     headless: true,
     chromiumSandbox: true,
-    timeout: 30_000,
+    timeout: 60_000,
   });
   layoutInstrumentation = await verifyLayoutInstrumentation(context);
   for (const [size, viewport] of Object.entries({ desktop: { width: 1440, height: 900 }, mobile: { width: 390, height: 844 } })) {

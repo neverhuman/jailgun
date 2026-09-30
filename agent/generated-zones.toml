@@ -143,11 +143,3 @@ generator = "scripts/generate-contracts.mjs"
 command = "bash ops/ci/contracts.sh --write"
 read_only = true
 write_policy = "generator-only"
-
-[[zone]]
-path = "target/distribution/"
-source = "scripts/build-bundle.mjs"
-generator = "cargo-auditable, Vite, esbuild, Syft and distribution builder"
-command = "bash ops/ci/package.sh"
-read_only = true
-write_policy = "generator-only"

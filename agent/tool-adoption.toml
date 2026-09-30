@@ -51,6 +51,11 @@ mode = "advisory"
 notes = "ops/ci/ux-qa.sh writes target/jankurai/ux-qa.json and artifacts/ux-qa screenshots."
 
 [[tools]]
+id = "db-migration-analyze"
+mode = "auto"
+notes = "The dedicated Jankurai workflow writes a migration liability report before the database proof lane."
+
+[[tools]]
 id = "contract-drift"
 mode = "advisory"
 notes = "ops/ci/contracts.sh checks generated event schema and fixture drift."

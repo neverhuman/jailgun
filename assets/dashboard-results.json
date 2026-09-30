@@ -2,7 +2,7 @@
   "generated_by": "node scripts/publish-doc-screenshot.mjs",
   "capture_command": "node scripts/render-dashboard-ux-qa.mjs",
   "content": "Synthetic dashboard fixture, including an explicit three-candidate subset; not a live provider result",
-  "captured_at": "2026-09-30T18:36:30.555Z",
+  "captured_at": "2026-09-30T20:57:39.703Z",
   "browser": {
     "name": "chromium",
     "version": "149.0.7827.53"
@@ -12,17 +12,17 @@
     "height": 900
   },
   "source": {
-    "commit": "6368eb7747a3504283eb6d30e1550eda1f0e6134",
-    "tree": "673fa3274c8ea3a2ba322e35faf625bdaf447817",
-    "dirty": true,
+    "commit": "e4db327047a314940669226ff7726cf7a6a54e9b",
+    "tree": "fe66d7f21831326f8f6739b8d8ddd6830c8aa69a",
+    "dirty": false,
     "inputs": [
       {
         "path": "agent/ux-qa.toml",
         "sha256": "68ad32a1d135ef6bf3bc7937d420bc1b1a024f3009a72fd251bd3f578dcc9475"
       },
       {
-        "path": "apps/dashboard/dist/assets/index-Bp8cRAtk.js",
-        "sha256": "97ccdaa2b6ae2a14175e30d40c8c6b99918e2ff56829516e0a3db4d90f31314b"
+        "path": "apps/dashboard/dist/assets/index-7z9G3cc4.js",
+        "sha256": "d7e4ceddcd3c87b9d59377b35e80054695423a15bbc8c611e4e929bd6724fd0d"
       },
       {
         "path": "apps/dashboard/dist/assets/index-DCp4h6B8.css",
@@ -34,7 +34,7 @@
       },
       {
         "path": "apps/dashboard/dist/index.html",
-        "sha256": "0e4b049b02709499d526d05a99d2f080d9cf9ed115289dd7169b76873ac058ff"
+        "sha256": "23291206aeec1e617cdf98abdc945756b637ef52ad47dbc34a9fbdd2d819efe2"
       },
       {
         "path": "apps/dashboard/index.html",
@@ -70,7 +70,7 @@
       },
       {
         "path": "apps/dashboard/src/ArchiveDashboard.tsx",
-        "sha256": "5c167a8e4ef3e5798992a5b608a1b8babfe554e3a91a7b630eb7749174c3d4ed"
+        "sha256": "10937f7596c3f417b9c267a924cc14ef75cf285d8cdad2a677862c5a4b7b694b"
       },
       {
         "path": "apps/dashboard/src/PairDashboard.test.tsx",
@@ -134,7 +134,7 @@
       },
       {
         "path": "apps/dashboard/src/concept/Markdown.tsx",
-        "sha256": "957546e3d8205e067324a25b01c947f28c5a7d34dec3b7911a8786880ac59315"
+        "sha256": "a8809c256c541bb84a83bf568e7faba9c38046e50cc289397e4884a6cd32cb23"
       },
       {
         "path": "apps/dashboard/src/concept/NewConcept.tsx",
@@ -146,7 +146,7 @@
       },
       {
         "path": "apps/dashboard/src/concept/RunProgress.tsx",
-        "sha256": "48a7894965df4def1f272edd1b2849a90ef6e5cddf0db623b142de792de894a7"
+        "sha256": "e845cdd69cd116ad20f8df400483e4f069f5b6717a1adaa6b73e0f37a4c0acbf"
       },
       {
         "path": "apps/dashboard/src/concept/Tokens.test.tsx",
@@ -350,7 +350,7 @@
       },
       {
         "path": "ops/ci/ux-qa.sh",
-        "sha256": "0742d32040e5d8c38146431d744ad012cfac8e33f10c1d099c680d9134eae693"
+        "sha256": "98c3ca879d84261f3dc3da76a2219d7aff7d84d5e10861f6f00429dbe7ca9ded"
       },
       {
         "path": "package-lock.json",
@@ -374,7 +374,7 @@
       },
       {
         "path": "scripts/render-dashboard-ux-qa.mjs",
-        "sha256": "a7394409d140220d7deb7cd8bd49baec0e2b1e9464ae22e81c147088509f860b"
+        "sha256": "5d4456ad5ad09846ec86ffbe474dbfc094a104a3ea6a4ea047cd29b06756b8a3"
       }
     ]
   },

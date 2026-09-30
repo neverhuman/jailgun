@@ -71,7 +71,11 @@ run_optional_tool "gitleaks" "gitleaks detect" gitleaks gitleaks detect --no-ban
 run_optional_tool "zizmor" "zizmor workflow and local action audit" zizmor zizmor --persona auditor --no-config .github/workflows .github/actions
 run_required "sbom_snapshot_tests" "source SBOM isolation tests" node --test scripts/source-sbom.test.mjs
 run_optional_tool "syft" "Git-selected source SBOM" syft node scripts/source-sbom.mjs
-run_optional_tool "actionlint" "actionlint workflow lint" actionlint actionlint
+# actionlint can automatically discover ambient ShellCheck and pyflakes binaries.
+# Those integrations are intentionally disabled here: they are not installed or
+# pinned by this job, and made identical workflow sources behave differently on
+# hosted runners. Dedicated repository checks cover shell and Python sources.
+run_optional_tool "actionlint" "actionlint workflow lint" actionlint actionlint -shellcheck= -pyflakes=
 
 overall="pass"
 if [[ "$failed" -ne 0 ]]; then
@@ -91,7 +95,7 @@ cat > target/jankurai/security/evidence.json <<JSON
     { "name": "zizmor", "command": "zizmor --persona auditor --no-config .github/workflows .github/actions", "required": true, "status": "${scan_status[zizmor]}" },
     { "name": "sbom-snapshot-tests", "command": "node --test scripts/source-sbom.test.mjs", "required": true, "status": "${scan_status[sbom_snapshot_tests]}" },
     { "name": "syft", "command": "node scripts/source-sbom.mjs", "required": true, "status": "${scan_status[syft]}" },
-    { "name": "actionlint", "command": "actionlint", "required": true, "status": "${scan_status[actionlint]}" }
+    { "name": "actionlint", "command": "actionlint -shellcheck= -pyflakes=", "required": true, "status": "${scan_status[actionlint]}" }
   ],
   "artifacts": {
     "evidence": "target/jankurai/security/evidence.json",

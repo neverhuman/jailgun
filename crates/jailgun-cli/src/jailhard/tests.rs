@@ -216,8 +216,17 @@ fn git_selection_includes_tracked_and_untracked_source_only() {
     fs::write(temp.path().join(".env.local"), "TOKEN=secret\n").unwrap();
     run_git(temp.path(), &["add", "src/lib.rs"]);
 
-    let scope = TargetScope::resolve(temp.path(), &[]).unwrap();
-    let selected = select_source_files(temp.path(), &scope).unwrap();
+    #[cfg(unix)]
+    let invocation_dir = {
+        let alias = temp.path().join("repo-alias");
+        std::os::unix::fs::symlink(".", &alias).unwrap();
+        alias
+    };
+    #[cfg(not(unix))]
+    let invocation_dir = temp.path().to_path_buf();
+
+    let scope = TargetScope::resolve(&invocation_dir, &[]).unwrap();
+    let selected = select_source_files(&invocation_dir, &scope).unwrap();
     let paths = selected
         .iter()
         .map(|file| path_to_slash(&file.entry_path))

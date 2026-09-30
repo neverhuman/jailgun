@@ -84,6 +84,23 @@ fn address(options: &ConnectionOptions, runtime: &Path) -> Result<reqwest::Url> 
         loopback_url("http://127.0.0.1:8787")
     }
 }
+
+/// Build an authenticated loopback client without assuming which MCP service
+/// owns the endpoint. The MCP handshake performs the protocol/authentication
+/// probe, allowing the same stdio gateway to front concept and worker daemons.
+pub fn configured_client(options: &ConnectionOptions) -> Result<Client> {
+    let runtime = runtime_root(options)?;
+    let url = address(options, &runtime)?;
+    let token = credential(options, &runtime)?.ok_or_else(|| {
+        failure(
+            "credential-required",
+            "No private daemon credential is available.",
+            "Pass --token-file or set JAILGUN_TOKEN.",
+        )
+    })?;
+    Client::new(url, token)
+}
+
 pub async fn connect(options: &ConnectionOptions) -> Result<Client> {
     let runtime = runtime_root(options)?;
     let url = address(options, &runtime)?;

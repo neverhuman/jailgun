@@ -11,7 +11,7 @@ ci_require_cmd npm
 ci_log "building dashboard before rendered UX evidence"
 npm --workspace @jailgun/dashboard run build
 
-ci_log "writing dashboard UX QA artifacts"
+ci_log "writing dashboard visual review and UX QA artifacts"
 # Screenshots, DOM assertions and accessibility results come from real Chromium.
 node scripts/render-dashboard-ux-qa.mjs
 

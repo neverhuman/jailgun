@@ -143,7 +143,7 @@ jobs:
           persist-credentials: false
       - uses: ./.github/actions/setup
       - name: Install Jankurai
-        run: cargo install --git https://github.com/neverhuman/jankurai.git --rev 34608d016de5fd24e677244112941d240ca00188 --locked --force --target-dir "$PWD/target" jankurai
+        run: cargo install --git https://github.com/neverhuman/jankurai.git --rev b88562fdb124aa86dedd70ab972e7d0d87e58be1 --locked --force --target-dir "$PWD/target" jankurai
       - run: bash ops/ci/copy-code.sh # catalog: cargo run -p jankurai -- copy-code . --json target/jankurai/copy-code.json --md target/jankurai/copy-code.md
       - uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5
         if: always()
@@ -278,7 +278,7 @@ jobs:
           path: target/jankurai/docs
       - run: sudo apt-get update && sudo apt-get install -y ripgrep
       - name: Install Jankurai
-        run: cargo install --git https://github.com/neverhuman/jankurai.git --rev 34608d016de5fd24e677244112941d240ca00188 --locked --force --target-dir "$PWD/target" jankurai
+        run: cargo install --git https://github.com/neverhuman/jankurai.git --rev b88562fdb124aa86dedd70ab972e7d0d87e58be1 --locked --force --target-dir "$PWD/target" jankurai
       - run: bash ops/ci/install-security.sh
       - run: jankurai security run . --strict --profile ci --out target/jankurai/security/evidence.json
       - run: bash ops/ci/jankurai.sh

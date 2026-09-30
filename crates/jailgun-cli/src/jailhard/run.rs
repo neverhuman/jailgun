@@ -1,9 +1,11 @@
 use super::*;
 
 pub async fn run(args: JailhardArgs) -> Result<()> {
+    let _application_use = jailgun_core::managed_installation::current_use()
+        .map_err(crate::concept_cli::error::installation)?;
     let invocation_dir = env::current_dir().context("resolving current directory")?;
-    let config_path = resolve_config_path(&args.config);
-    let mut config = JailgunConfig::from_toml_path(&config_path)
+    let config_path = &args.config;
+    let mut config = JailgunConfig::from_toml_path(config_path)
         .with_context(|| format!("loading {}", config_path.display()))?;
     config.source_archive.enabled = true;
     config.source_archive.archive_filename = SOURCE_ARCHIVE_FILENAME.into();
@@ -95,10 +97,10 @@ pub async fn run(args: JailhardArgs) -> Result<()> {
         tabs_override: Some(tabs),
         no_deploy: true,
         dry_run: true,
-        profile_dir: match accounts.first() {
-            Some(account) => account.profile_dir.clone(),
-            None => default_managed_chrome_profile_dir(),
-        },
+        profile_dir: accounts
+            .first()
+            .map(|account| account.profile_dir.clone())
+            .unwrap_or_else(default_managed_chrome_profile_dir),
         profile_pool: accounts
             .iter()
             .map(|account| account.profile_dir.clone())

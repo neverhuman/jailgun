@@ -29,7 +29,7 @@ jobs:
           persist-credentials: false
       - uses: ./.github/actions/setup
       - name: Install Jankurai
-        run: cargo install --git https://github.com/neverhuman/jankurai.git --rev 34608d016de5fd24e677244112941d240ca00188 --locked --force --target-dir "$PWD/target" jankurai
+        run: cargo install --git https://github.com/neverhuman/jankurai.git --rev b88562fdb124aa86dedd70ab972e7d0d87e58be1 --locked --force --target-dir "$PWD/target" jankurai
       - run: npm ci
       - run: node node_modules/playwright-core/cli.js install --with-deps chromium
       - run: bash ops/ci/ux-qa.sh
@@ -39,6 +39,17 @@ jobs:
       - run: bash ops/ci/security.sh
       - run: bash ops/ci/db.sh
       - run: bash ops/ci/contracts.sh
+      - name: Build Jankurai proof receipts
+        run: |
+          mkdir -p target/jankurai
+          cp agent/repo-score.json target/jankurai/accepted-baseline.json
+          jankurai security run . --strict --profile ci --out target/jankurai/security/evidence.json
+          jankurai audit . --mode ratchet --baseline target/jankurai/accepted-baseline.json --json target/jankurai/repo-score.json --md target/jankurai/repo-score.md
+          jankurai proof . --changed-from origin/main --out target/jankurai/proof-plan.json --md target/jankurai/proof-plan.md
+          jankurai proofbind verify . --changed-from origin/main
+          jankurai proofmark rust . --obligations target/jankurai/proofbind/obligations.json
+          jankurai rust witness build .
+          jankurai migrate . --analyze --out target/jankurai/migration-report.json
       - run: bash ops/ci/jankurai.sh
       - name: Enforce zero findings
         run: jq -e '(.caps_applied | type == "array" and length == 0) and (.findings | type == "array" and length == 0) and .score >= 95' target/jankurai/audit/repo-score.json
@@ -50,6 +61,17 @@ jobs:
           path: |
             target/jankurai/audit/repo-score.json
             target/jankurai/audit/repo-score.md
+            target/jankurai/repo-score.json
+            target/jankurai/repo-score.md
+            target/jankurai/proof-plan.json
+            target/jankurai/proof-plan.md
+            target/jankurai/proofbind/surface-witness.json
+            target/jankurai/proofbind/obligations.json
+            target/jankurai/proofmark/proofmark-receipt.json
+            target/jankurai/proofmark/proof-receipt.json
+            target/jankurai/rust/witness-graph.json
+            target/jankurai/migration-report.json
             target/jankurai/security/evidence.json
             target/jankurai/db/evidence.json
             target/jankurai/repair-queue.jsonl
+            artifacts/ux-qa/

@@ -2,7 +2,8 @@ const modelButton = document.querySelector('[data-testid="model-switcher-dropdow
 const stopButton = document.querySelector('[data-testid="stop-button"]');
 const sendButton = document.querySelector('[data-testid="send-button"]');
 const composer = document.querySelector('#prompt-textarea');
-let model = localStorage.getItem('fixture-model') || 'Fixture One';
+const modelCookie = document.cookie.split('; ').find((part) => part.startsWith('fixture-model='));
+let model = modelCookie ? decodeURIComponent(modelCookie.slice('fixture-model='.length)) : localStorage.getItem('fixture-model') || 'Fixture One';
 let models = [];
 modelButton.textContent = model;
 let conversationId = location.pathname.match(/^\/c\/([^/]+)$/)?.[1];
@@ -18,7 +19,11 @@ modelButton.onclick = () => {
   const menu = document.querySelector('#models');menu.replaceChildren();menu.setAttribute('role', 'menu');
   for (const name of models) {
     const item = document.createElement('button');item.setAttribute('role', 'menuitem');item.textContent = name;
-    item.onclick = () => { model = name;modelButton.textContent = model;localStorage.setItem('fixture-model', model);menu.replaceChildren(); };
+    item.onclick = () => {
+      model = name;modelButton.textContent = model;localStorage.setItem('fixture-model', model);
+      document.cookie = `fixture-model=${encodeURIComponent(model)}; Path=/; Max-Age=31536000; SameSite=Lax`;
+      menu.replaceChildren();
+    };
     menu.append(item);
   }
 };

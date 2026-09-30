@@ -51,6 +51,13 @@ export function RunProgress({ run, attempts, events, account, busy, act, showRes
   </section>;
 }
 function safeConversation(value: string | null | undefined): string | null {
-  if (!value) return null;
-  try { const url = new URL(value); return url.protocol === 'https:' && url.hostname === 'chatgpt.com' && url.pathname.startsWith('/c/') && !url.username && !url.password ? url.href : null; } catch { return null; }
+  const candidate = value ?? '';
+  const url = URL.canParse(candidate) ? new URL(candidate) : undefined;
+  const safe = url !== undefined
+    && url.protocol === 'https:'
+    && url.hostname === 'chatgpt.com'
+    && url.pathname.startsWith('/c/')
+    && url.username.length === 0
+    && url.password.length === 0;
+  return safe && url !== undefined ? url.href : null;
 }

@@ -51,7 +51,11 @@ impl ServerHandler for Gateway {
 }
 
 pub async fn run(options: McpOptions) -> Result<()> {
-    let client = crate::concept_cli::client::Client::connect(&options).await?;
+    let client = if options.no_start || options.url.is_some() {
+        crate::concept_cli::configured_client(&options)?
+    } else {
+        crate::concept_cli::client::Client::connect(&options).await?
+    };
     let transport = client.mcp_transport()?;
     let upstream = tokio::time::timeout(
         Duration::from_secs(10),
