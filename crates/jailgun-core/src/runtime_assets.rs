@@ -18,6 +18,9 @@ pub fn root() -> io::Result<PathBuf> {
 }
 
 pub fn root_for_executable(executable: &Path) -> io::Result<PathBuf> {
+    // macOS may report the public launcher symlink. Assets belong to the
+    // resolved release, not the installation's mutable inventory directory.
+    let executable = executable.canonicalize()?;
     executable
         .parent()
         .and_then(Path::parent)
@@ -64,17 +67,55 @@ pub fn archive_bridge_command() -> io::Result<Vec<String>> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[cfg(unix)]
+    #[test]
+    fn managed_launcher_symlinks_resolve_assets_inside_the_verified_release() {
+        let directory = tempfile::tempdir().unwrap();
+        let prefix = directory
+            .path()
+            .canonicalize()
+            .unwrap()
+            .join("installation with spaces $ % \" &");
+        let base = prefix.join("lib/jailgun");
+        let release = base.join("releases/0.2.0-proof");
+        std::fs::create_dir_all(prefix.join("bin")).unwrap();
+        std::fs::create_dir_all(release.join("bin")).unwrap();
+        std::os::unix::fs::symlink("releases/0.2.0-proof", base.join("current")).unwrap();
+        for name in ["jailgun", "jailhard"] {
+            let actual = release.join("bin").join(name);
+            std::fs::write(&actual, b"synthetic executable").unwrap();
+            let launcher = prefix.join("bin").join(name);
+            std::os::unix::fs::symlink(format!("../lib/jailgun/current/bin/{name}"), &launcher)
+                .unwrap();
+            assert_eq!(
+                root_for_executable(&launcher).unwrap(),
+                release.join("lib/jailgun")
+            );
+            assert_eq!(
+                root_for_executable(&actual).unwrap(),
+                release.join("lib/jailgun")
+            );
+        }
+    }
     #[test]
     fn installation_paths_preserve_spaces_and_do_not_use_working_directory() {
-        assert_eq!(
-            root_for_executable(Path::new("/opt/Jailgun Release/bin/jailgun")).unwrap(),
-            PathBuf::from("/opt/Jailgun Release/lib/jailgun")
-        );
-        assert_eq!(
-            root_for_executable(Path::new("/opt/Jailgun Release/bin/jailhard")).unwrap(),
-            PathBuf::from("/opt/Jailgun Release/lib/jailgun")
-        );
+        let directory = tempfile::tempdir().unwrap();
+        let prefix = directory
+            .path()
+            .canonicalize()
+            .unwrap()
+            .join("Jailgun Release");
+        std::fs::create_dir_all(prefix.join("bin")).unwrap();
+        for name in ["jailgun", "jailhard"] {
+            let executable = prefix.join("bin").join(name);
+            std::fs::write(&executable, b"synthetic executable").unwrap();
+            assert_eq!(
+                root_for_executable(&executable).unwrap(),
+                prefix.join("lib/jailgun")
+            );
+        }
         assert!(root_for_executable(Path::new("/")).is_err());
+        assert!(root_for_executable(&prefix.join("bin/missing")).is_err());
     }
     #[test]
     fn explicit_missing_config_is_not_replaced_with_a_shipped_default() {
