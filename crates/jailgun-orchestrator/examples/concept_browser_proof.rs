@@ -47,6 +47,9 @@ async fn main() -> Result<()> {
     anyhow::ensure!([5, 10].contains(&count), "proof count must be five or ten");
     let runtime = output.join("runtime");
     let profile = output.join("profile");
+    let cdp_listener = std::net::TcpListener::bind((std::net::Ipv4Addr::LOCALHOST, 0))?;
+    let cdp_port = cdp_listener.local_addr()?.port();
+    drop(cdp_listener);
     let mut store = Store::open(&runtime)?;
     let account = BrowserAccount {
         id: "synthetic-account".into(),
@@ -54,7 +57,7 @@ async fn main() -> Result<()> {
         profile_dir: profile.clone(),
         state_dir: output.join("state"),
         downloads_dir: output.join("downloads"),
-        cdp_port: 9224,
+        cdp_port,
         max_tabs: 10,
         status: BrowserAccountStatus::Ready,
         last_verified_at: Some("synthetic".into()),
@@ -70,7 +73,7 @@ async fn main() -> Result<()> {
     let script = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
         .join("../../apps/chrome-bridge/bin/concept-bridge.mjs")
         .canonicalize()?;
-    let mut bridge = browser(&script, &profile, origin, &args[2]).await?;
+    let mut bridge = browser(&script, &profile, origin, &args[2], cdp_port).await?;
     bridge
         .call(
             "concept.fixture-login",
@@ -204,7 +207,7 @@ async fn main() -> Result<()> {
         bridge.shutdown().await?;
         store.close().await?;
         store = Store::open(&runtime)?;
-        bridge = browser(&script, &profile, origin, &args[2]).await?;
+        bridge = browser(&script, &profile, origin, &args[2], cdp_port).await?;
         let reused = bridge
             .call(
                 "concept.auth-status",
@@ -383,7 +386,8 @@ async fn browser(
     profile: &Path,
     origin: &str,
     executable: &str,
+    cdp_port: u16,
 ) -> Result<ConceptBridge> {
     ConceptBridge::spawn(BridgeSpawnConfig {command:vec!["node".into(),script.to_string_lossy().into()],env:BTreeMap::new()},
-        json!({"profile_dir":profile,"base_url":origin,"identity":{"id":"synthetic-chatgpt-account","email":"synthetic@example.invalid"},"headless":true,"executable":executable})).await
+        json!({"profile_dir":profile,"base_url":origin,"identity":{"id":"synthetic-chatgpt-account","email":"synthetic@example.invalid"},"headless":true,"executable":executable,"cdp_port":cdp_port})).await
 }

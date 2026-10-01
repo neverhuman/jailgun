@@ -1,7 +1,7 @@
 use anyhow::{Context, Result};
 use jailgun_core::{installation::Installation, BrowserLeaseManager, JailgunConfig};
 use jailgun_orchestrator::concept::{AccountSupervisor, BrowserRuntime};
-use jailgun_server::{router_with_static, AppState, DaemonControl};
+use jailgun_server::{router_with_static, AppState, DaemonControl, WorkerService};
 use jailgun_workflow::Store;
 use std::{collections::BTreeMap, path::PathBuf};
 
@@ -73,12 +73,14 @@ pub async fn serve(options: ConceptDaemonOptions, addr: std::net::SocketAddr) ->
     )
     .await?;
     supervisor.restore_accounts().await?;
+    let worker = WorkerService::browser(&runtime, supervisor.clone())?;
     let (state, _events) = AppState::live(JailgunConfig::default(), runtime.join("receipts"), 1024);
     let control = DaemonControl::new(runtime.clone());
     let state = state
         .with_daemon_control(control.clone())
         .with_ingest_token(Some(installation.operator_token()?))
-        .with_account_supervisor(supervisor.clone());
+        .with_account_supervisor(supervisor.clone())
+        .with_worker(worker);
     let addr = listener.local_addr()?;
     installation.record_address(addr)?;
     eprintln!("Dashboard: http://{addr}\nRun jailgun setup to pair an operator browser.");

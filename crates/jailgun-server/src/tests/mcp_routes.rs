@@ -296,7 +296,7 @@ async fn mcp_worker_mock_covers_tabs_models_jobs_status_and_output_objects() {
     )
     .await;
     let tab = tab.structured_content.unwrap();
-    assert_eq!(tab["model"], "gpt-5.6-sol");
+    assert_eq!(tab["model"], "Sol");
     let job = call(
         &client,
         "jailgun.worker.job_submit",
@@ -333,7 +333,7 @@ async fn mcp_worker_mock_covers_tabs_models_jobs_status_and_output_objects() {
     })
     .await
     .unwrap();
-    assert_eq!(completed["model"], "gpt-6-astra");
+    assert_eq!(completed["model"], "Astra");
     assert_eq!(completed["reasoning_effort"], "ultra");
     assert!(completed["output_object_id"].as_str().is_some());
     let objects = call(&client, "jailgun.worker.object_list", json!({})).await;

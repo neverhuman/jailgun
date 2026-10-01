@@ -7,7 +7,7 @@ client. Jailgun keeps conversations, results and recovery state on your machine.
 **Concept → 5–10 explorations → comparison → synthesis → critique → revision.**
 
 <!-- jankurai-badge:start -->
-[![Jankurai score: 95/100 advisory](agent/jankurai-badge.svg)](agent/repo-score.md)
+[![Jankurai score: 84/100 advisory](agent/jankurai-badge.svg)](agent/repo-score.md)
 <!-- jankurai-badge:end -->
 
 **v0.2.0 is under development and has not been published or accepted for live
@@ -117,15 +117,15 @@ tools, schemas, transport settings and troubleshooting.
 
 ## DREAM lightweight worker
 
-`jailgun worker` starts a browser-free Rust MCP server for trusted agents. It
+`jailgun worker` starts a lightweight browser-backed Rust MCP server for trusted agents. It
 offers isolated logical tabs, idempotent jobs, Astra/Sol model aliases, explicit
 `low` through `ultra` reasoning effort, bounded timeouts, selectable error
 reporting, cancellation, and SHA-256-verified chunked tar.gz upload/download.
-Production execution calls `codex exec` without a shell inside each private tab
-workspace. Several authenticated AI accounts can coexist: each gets a private
-`CODEX_HOME`, tabs stay pinned to one account, and MCP reports ready/relogin
-counts without exposing credentials. CI injects a mock executor and never
-contacts a live model.
+Production execution uses supervised ChatGPT website sessions—never Codex CLI
+device authentication. Several authenticated AI accounts can coexist: each gets
+a private Chrome profile and worker identity, tabs stay pinned to one account,
+and MCP reports ready/relogin counts without exposing cookies or credentials.
+CI injects a mock executor and never contacts a live model.
 
 The worker binds loopback only. Remote clients use an SSH local forward and a
 mode-0600 bearer credential; no token belongs in a URL. Start it with:

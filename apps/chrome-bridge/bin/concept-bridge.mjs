@@ -3,11 +3,15 @@ import { mkdir, chmod, lstat } from 'node:fs/promises';
 import { isAbsolute, join } from 'node:path';
 import { chromium } from 'playwright-core';
 import { AdapterError, ChatGPTProvider } from '../src/chatgpt-provider.mjs';
+import { selectAccountPage } from '../src/account-page.mjs';
 import { MAX_LINE_BYTES, readFrames } from '../src/bridge-frames.mjs';
+import { clearStaleProfileLocks, startManagedChrome, stopManagedChrome } from '../src/managed-chrome.mjs';
 
 process.umask(0o077);
 const owned = new Map();
 let context;
+let browser;
+let browserProcess;
 let options;
 let starting;
 let closing = false;
@@ -36,6 +40,7 @@ async function initialize(input) {
 
 async function launch(input) {
   if (!isAbsolute(input.profile_dir)) throw new AdapterError('profile-path-invalid', 'The managed profile path must be absolute.');
+  clearStaleProfileLocks(input.profile_dir);
   for (const name of ['SingletonLock', 'SingletonCookie', 'SingletonSocket']) {
     try { await lstat(join(input.profile_dir, name));throw new AdapterError('profile-locked', 'The profile has an existing browser ownership lock.', 'Stop or reconnect the verified owning browser; profile locks are preserved.'); }
     catch (error) { if (error.code !== 'ENOENT') throw error; }
@@ -46,16 +51,30 @@ async function launch(input) {
   await mkdir(input.profile_dir, { recursive: true, mode: 0o700 });
   await chmod(input.profile_dir, 0o700);
   if (closing) throw new AdapterError('browser-unavailable', 'The account browser is closing.');
-  context = await chromium.launchPersistentContext(input.profile_dir, {
-    headless: input.headless === true, chromiumSandbox: true,
-    ...(input.executable ? { executablePath: input.executable } : { channel: 'chrome' }),
-    viewport: { width: 1280, height: 900 },
+  const base = new URL(input.base_url || 'https://chatgpt.com');
+  if (input.headless === true && !['127.0.0.1', 'localhost'].includes(base.hostname)) {
+    throw new AdapterError('browser-display-required', 'ChatGPT accounts require a normal interactive Chrome display.');
+  }
+  const managed = await startManagedChrome({
+    executable: input.executable,
+    profileDir: input.profile_dir,
+    port: Number(input.cdp_port),
+    headless: input.headless === true,
   });
+  browserProcess = managed.child;
+  try {
+    browser = await chromium.connectOverCDP(managed.endpoint, { timeout: 30_000 });
+  } catch (error) {
+    await stopManagedChrome(browserProcess);
+    browserProcess = null;
+    throw error;
+  }
+  context = browser.contexts()[0];
+  if (!context) throw new AdapterError('browser-context-missing', 'Managed Chrome did not expose its default context.');
   if (closing) throw new AdapterError('browser-unavailable', 'The account browser is closing.');
-  const page = context.pages()[0] || await context.newPage();
-  accountPage = page;
-  await page.goto(input.base_url || 'https://chatgpt.com', { waitUntil: 'domcontentloaded' });
-  return { started: true, browser_version: context.browser()?.version() || 'persistent-chrome', sandbox: true };
+  accountPage = await selectAccountPage(context, accountPage, input.base_url);
+  await accountPage.goto(input.base_url || 'https://chatgpt.com', { waitUntil: 'domcontentloaded' });
+  return { started: true, browser_version: await browser.version(), sandbox: true };
 }
 
 async function handle(request) {
@@ -64,18 +83,21 @@ async function handle(request) {
   if (request.type === 'concept.initialize') return initialize(payload);
   if (!context || closing) throw new AdapterError('browser-unavailable', 'The account browser is not running.');
   if (request.type === 'concept.auth-status') {
-    const page = accountPage;
+    const page = await selectAccountPage(context, accountPage, options.base_url);
+    accountPage = page;
     const provider = new ChatGPTProvider(page, { identity: options.identity, baseUrl: options.base_url });
     const { identity, model } = await provider.checkReadiness();
     const available_models = payload.discover_models === true ? await provider.availableModels() : [model];
     return { identity, model, available_models };
   }
   if (request.type === 'concept.bind-identity') {
+    accountPage = await selectAccountPage(context, accountPage, options.base_url);
     const provider = new ChatGPTProvider(accountPage, { identity: payload.identity, baseUrl: options.base_url });
     options.identity = await provider.verifyIdentity();
     return { bound: true };
   }
   if (request.type === 'concept.login-open') {
+    accountPage = await selectAccountPage(context, accountPage, options.base_url);
     await accountPage.goto(options.base_url || 'https://chatgpt.com', { waitUntil: 'domcontentloaded' });
     await accountPage.bringToFront();
     return { opened: true };
@@ -91,7 +113,14 @@ async function handle(request) {
     if (!payload.attempt_id || owned.has(payload.attempt_id)) throw new AdapterError('attempt-already-owned', 'This attempt already owns a page.');
     if (owned.size >= 10) throw new AdapterError('browser-capacity', 'The managed browser already has ten owned conversations.');
     const page = await context.newPage();
-    const provider = new ChatGPTProvider(page, { identity: options.identity, baseUrl: options.base_url, model: payload.model, timeoutMs: payload.timeout_ms });
+    const provider = new ChatGPTProvider(page, {
+      identity: options.identity,
+      baseUrl: options.base_url,
+      model: payload.model,
+      reasoningEffort: payload.reasoning_effort,
+      attachmentPath: payload.attachment_path,
+      timeoutMs: payload.timeout_ms,
+    });
     const entry = { page, provider, runId: request.run_id, phase: 'preparing', abort: new AbortController() };
     owned.set(payload.attempt_id, entry);
     if (request.type === 'concept.reattach') {
@@ -147,7 +176,8 @@ async function shutdown() {
   for (const entry of owned.values()) entry.abort.abort();
   // EOF may arrive while launch is awaiting filesystem or browser startup.
   await starting?.catch(() => {});
-  await context?.close();context = null;
+  await browser?.close().catch(() => {});browser = null;context = null;
+  await stopManagedChrome(browserProcess);browserProcess = null;
 }
 
 function dispatch(line) {

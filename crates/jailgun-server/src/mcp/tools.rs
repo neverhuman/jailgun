@@ -39,7 +39,7 @@ pub(super) async fn call(
             return output::<Value>(Err(Error::action(
                 "worker-unavailable",
                 "The lightweight worker runtime is not active.",
-                "Start `jailgun worker` and reconnect the MCP client.",
+                "Start `jailgun worker` or `jailgun serve` and reconnect the MCP client.",
             )));
         };
         return match name {

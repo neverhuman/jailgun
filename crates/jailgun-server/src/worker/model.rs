@@ -61,6 +61,8 @@ pub struct WorkerAccount {
     pub status: WorkerAccountStatus,
     pub last_checked_ms: Option<i64>,
     pub active_tabs: usize,
+    pub selected_model: Option<String>,
+    pub available_models: Vec<String>,
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize, JsonSchema)]
@@ -251,9 +253,11 @@ pub struct ObjectChunk {
 #[derive(Debug, Clone)]
 pub struct ExecutionRequest {
     pub job_id: String,
+    pub tab_id: String,
+    pub account_id: String,
     pub workspace: PathBuf,
-    pub codex_home: PathBuf,
     pub log_dir: PathBuf,
+    pub input_archive_path: Option<PathBuf>,
     pub prompt: String,
     pub model: String,
     pub reasoning_effort: ReasoningEffort,
@@ -283,7 +287,7 @@ pub struct ExecutionFailure {
 #[async_trait]
 pub trait WorkerExecutor: Send + Sync {
     fn name(&self) -> &'static str;
-    async fn auth_status(&self, _codex_home: PathBuf) -> WorkerAccountStatus {
+    async fn auth_status(&self, _account_id: &str) -> WorkerAccountStatus {
         WorkerAccountStatus::Ready
     }
     async fn execute(

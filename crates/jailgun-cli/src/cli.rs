@@ -22,11 +22,10 @@ pub struct Cli {
 #[derive(Debug, Subcommand)]
 #[allow(clippy::large_enum_variant)]
 pub enum Command {
-    /// Run the lightweight, operator-only MCP worker without browser assets.
+    /// Run the browser-backed operator MCP worker and dashboard.
     Worker {
-        /// Private worker state and object root (defaults to ~/.jailgun-worker).
-        #[arg(long, env = "JAILGUN_WORKER_RUNTIME")]
-        runtime: Option<PathBuf>,
+        #[command(flatten)]
+        options: crate::commands::concept_daemon::ConceptDaemonOptions,
         /// Loopback listener. Remote clients must use an SSH local forward.
         #[arg(long, default_value = "127.0.0.1:8790")]
         addr: SocketAddr,

@@ -1,9 +1,9 @@
 # Standard MCP interface
 
-For the browser-free trusted-agent daemon, see the dedicated
+For the browser-backed trusted-agent fleet, see the dedicated
 [Jailgun Worker MCP guide](worker-mcp.md). Worker mode exposes isolated account
 profiles, account-bound tabs, generic jobs, model/effort controls and verified
-tar.gz transfer without loading the concept scheduler.
+tar.gz transfer through the supervised ChatGPT browser runtime.
 
 The implementation branch supports MCP protocol versions through 2025-11-25
 using the official Rust SDK. The daemon owns accounts, scheduling and SQLite

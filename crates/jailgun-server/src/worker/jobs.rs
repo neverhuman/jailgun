@@ -144,28 +144,43 @@ impl WorkerService {
     async fn run_job(&self, job_id: String, prompt: String, cancel: watch::Receiver<bool>) {
         let (tab_id, account_id, request) = {
             let mut state = self.inner.state.write().await;
-            let Some(job) = state.jobs.get_mut(&job_id) else {
-                return;
+            let (tab_id, account_id, model, reasoning_effort, timeout_seconds, error_reporting) = {
+                let Some(job) = state.jobs.get_mut(&job_id) else {
+                    return;
+                };
+                job.status = "running".into();
+                job.started_ms = Some(now_ms());
+                (
+                    job.tab_id.clone(),
+                    job.account_id.clone(),
+                    job.model.clone(),
+                    job.reasoning_effort,
+                    job.timeout_seconds,
+                    job.error_reporting,
+                )
             };
-            job.status = "running".into();
-            job.started_ms = Some(now_ms());
-            let tab_id = job.tab_id.clone();
-            let account_id = job.account_id.clone();
+            let input_archive_path = state
+                .tabs
+                .get(&tab_id)
+                .and_then(|tab| tab.input_object_id.as_deref())
+                .map(|object_id| self.object_path(object_id));
             let request = ExecutionRequest {
                 job_id: job_id.clone(),
+                tab_id: tab_id.clone(),
+                account_id: account_id.clone(),
                 workspace: self.inner.root.join("tabs").join(&tab_id),
-                codex_home: self.codex_home(&account_id),
                 log_dir: self.inner.root.join("jobs").join(&job_id),
+                input_archive_path,
                 prompt,
-                model: job.model.clone(),
-                reasoning_effort: job.reasoning_effort,
-                timeout_seconds: job.timeout_seconds,
-                error_reporting: job.error_reporting,
+                model,
+                reasoning_effort,
+                timeout_seconds,
+                error_reporting,
             };
             (tab_id, account_id, request)
         };
         let result = match tokio::time::timeout(
-            Duration::from_secs(request.timeout_seconds),
+            Duration::from_secs(request.timeout_seconds.saturating_add(20)),
             self.inner.executor.execute(request.clone(), cancel),
         )
         .await
@@ -233,7 +248,7 @@ impl WorkerService {
             None
         };
         drop(state);
-        if let Some(account) = account {
+        if let Some(account) = account.filter(|_| self.inner.account_store.is_none()) {
             let _ = persist_account(&self.inner.root, &account);
         }
         self.inner.cancellations.lock().await.remove(&job_id);

@@ -165,6 +165,24 @@ impl AccountSupervisor {
         self.start_login(account, true).await
     }
 
+    /// Return the already supervised browser bridge only for an account that
+    /// the durable store currently considers ready. Worker jobs share this
+    /// browser owner; they never launch or copy a second authenticated profile.
+    pub async fn bridge_for_ready_account(&self, id: &str) -> Option<ConceptBridge> {
+        let ready = self
+            .store
+            .accounts()
+            .await
+            .ok()?
+            .into_iter()
+            .any(|account| account.id == id && account.readiness == "ready");
+        if !ready {
+            return None;
+        }
+        let bridge = self.bridges.lock().await.get(id).cloned()?;
+        bridge.is_alive().await.then_some(bridge)
+    }
+
     pub async fn confirm(&self, id: String, request: ConfirmAccount) -> anyhow::Result<()> {
         let control = self.account_control(&id).await;
         let _guard = control.lock().await;

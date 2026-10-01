@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { authenticatedComposerState, readAuthenticatedIdentity } from '../src/auth-signal.mjs';
+import { authenticatedComposerState, readAuthenticatedIdentity, uniqueEmailFromTexts } from '../src/auth-signal.mjs';
 
 test('an anonymous composer is not an authenticated session', () => {
   assert.equal(authenticatedComposerState({ composerDetected: true }).state, 'auth-required');
@@ -22,4 +22,11 @@ test('session projection never returns access tokens', async () => {
     globalThis.fetch = async () => { throw new Error('unavailable'); };
     assert.equal(await readAuthenticatedIdentity({ evaluate: fn => fn() }), null);
   } finally { globalThis.fetch = originalFetch; }
+});
+
+test('visible account identity requires one unambiguous email', () => {
+  assert.equal(uniqueEmailFromTexts(['Ben Example', 'ben@example.com']), 'ben@example.com');
+  assert.equal(uniqueEmailFromTexts(['ben@example.com', 'BEN@example.com']), 'ben@example.com');
+  assert.equal(uniqueEmailFromTexts(['ben@example.com', 'other@example.com']), null);
+  assert.equal(uniqueEmailFromTexts(['No email here']), null);
 });

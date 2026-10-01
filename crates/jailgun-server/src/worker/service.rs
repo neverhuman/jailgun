@@ -8,6 +8,7 @@ pub struct WorkerService {
 pub(super) struct WorkerInner {
     pub(super) root: PathBuf,
     pub(super) executor: Arc<dyn WorkerExecutor>,
+    pub(super) account_store: Option<jailgun_workflow::Store>,
     pub(super) state: RwLock<WorkerState>,
     pub(super) uploads: Mutex<HashMap<String, UploadState>>,
     pub(super) cancellations: Mutex<HashMap<String, watch::Sender<bool>>>,
@@ -30,14 +31,27 @@ pub(super) struct UploadState {
 }
 
 impl WorkerService {
-    pub fn process(root: impl AsRef<Path>) -> Result<Self> {
-        let program = std::env::var_os("JAILGUN_CODEX_BIN")
-            .map(PathBuf::from)
-            .unwrap_or_else(|| PathBuf::from("codex"));
-        Self::new(root, Arc::new(ProcessExecutor::new(program)))
+    pub fn browser(
+        root: impl AsRef<Path>,
+        supervisor: jailgun_orchestrator::concept::AccountSupervisor,
+    ) -> Result<Self> {
+        let account_store = supervisor.store.clone();
+        Self::build(
+            root,
+            Arc::new(BrowserExecutor::new(supervisor)),
+            Some(account_store),
+        )
     }
 
     pub fn new(root: impl AsRef<Path>, executor: Arc<dyn WorkerExecutor>) -> Result<Self> {
+        Self::build(root, executor, None)
+    }
+
+    fn build(
+        root: impl AsRef<Path>,
+        executor: Arc<dyn WorkerExecutor>,
+        account_store: Option<jailgun_workflow::Store>,
+    ) -> Result<Self> {
         let root = root.as_ref().join("worker");
         for path in [
             root.clone(),
@@ -79,6 +93,7 @@ impl WorkerService {
             inner: Arc::new(WorkerInner {
                 root,
                 executor,
+                account_store,
                 state: RwLock::new(state),
                 uploads: Mutex::new(HashMap::new()),
                 cancellations: Mutex::new(HashMap::new()),
@@ -87,6 +102,9 @@ impl WorkerService {
     }
 
     pub async fn info(&self) -> WorkerInfo {
+        if self.inner.account_store.is_some() {
+            let _ = self.sync_browser_accounts().await;
+        }
         WorkerInfo {
             interface_version: 2,
             executor: self.inner.executor.name().into(),
@@ -103,6 +121,13 @@ impl WorkerService {
     }
 
     pub async fn register_account(&self, request: AccountRegister) -> Result<WorkerAccount> {
+        if self.inner.account_store.is_some() {
+            return Err(action(
+                "dashboard-account-required",
+                "Browser accounts are registered only through the operator dashboard.",
+                "Open Accounts → Connect ChatGPT, complete normal website login, then call account_list.",
+            ));
+        }
         validate_id(&request.account_id, "account")?;
         let label = request
             .label
@@ -127,17 +152,16 @@ impl WorkerService {
             }
         }
         let account_root = self.account_root(&request.account_id);
-        let codex_home = account_root.join("codex");
         std::fs::create_dir(&account_root)?;
         restrict_directory(&account_root)?;
-        std::fs::create_dir(&codex_home)?;
-        restrict_directory(&codex_home)?;
         let account = WorkerAccount {
             account_id: request.account_id.clone(),
             label,
             status: WorkerAccountStatus::LoginRequired,
             last_checked_ms: None,
             active_tabs: 0,
+            selected_model: None,
+            available_models: Vec::new(),
         };
         persist_account(&self.inner.root, &account)?;
         self.inner
@@ -153,6 +177,9 @@ impl WorkerService {
     }
 
     pub async fn accounts(&self, refresh: bool) -> Result<WorkerAccounts> {
+        if self.inner.account_store.is_some() {
+            self.sync_browser_accounts().await?;
+        }
         if refresh {
             let account_ids = self
                 .inner
@@ -184,17 +211,25 @@ impl WorkerService {
 
     pub async fn refresh_account(&self, request: AccountRef) -> Result<WorkerAccount> {
         validate_id(&request.account_id, "account")?;
+        if self.inner.account_store.is_some() {
+            self.sync_browser_accounts().await?;
+            return self
+                .inner
+                .state
+                .read()
+                .await
+                .accounts
+                .get(&request.account_id)
+                .cloned()
+                .ok_or_else(|| not_found("account"));
+        }
         {
             let state = self.inner.state.read().await;
             if !state.accounts.contains_key(&request.account_id) {
                 return Err(not_found("account"));
             }
         }
-        let status = self
-            .inner
-            .executor
-            .auth_status(self.codex_home(&request.account_id))
-            .await;
+        let status = self.inner.executor.auth_status(&request.account_id).await;
         let account = {
             let mut state = self.inner.state.write().await;
             let account = state
@@ -213,10 +248,6 @@ impl WorkerService {
         self.inner.root.join("accounts").join(account_id)
     }
 
-    pub(super) fn codex_home(&self, account_id: &str) -> PathBuf {
-        self.account_root(account_id).join("codex")
-    }
-
     pub(super) async fn resolve_account(&self, requested: Option<&str>) -> Result<String> {
         if let Some(account_id) = requested {
             validate_id(account_id, "account")?;
@@ -230,12 +261,12 @@ impl WorkerService {
                 WorkerAccountStatus::LoginRequired => Err(action(
                     "account-login-required",
                     "The selected account must be logged in again.",
-                    "Log in through that account's private CODEX_HOME, then call account_refresh.",
+                    "Reconnect the account through the Jailgun dashboard, then call account_refresh.",
                 )),
                 WorkerAccountStatus::Unavailable => Err(action(
                     "account-check-unavailable",
                     "The selected account could not be checked.",
-                    "Verify the Codex executable, then call account_refresh.",
+                    "Inspect the supervised browser and reconnect through the Jailgun dashboard.",
                 )),
             };
         }
@@ -251,7 +282,7 @@ impl WorkerService {
             [] => Err(action(
                 "account-login-required",
                 "No authenticated worker account is ready.",
-                "Register and log in an account, then call account_refresh.",
+                "Connect and verify an account in the Jailgun dashboard, then call account_refresh.",
             )),
             _ => Err(action(
                 "account-required",
@@ -259,5 +290,49 @@ impl WorkerService {
                 "Set account_id when opening the tab or submitting an implicit-tab job.",
             )),
         }
+    }
+
+    async fn sync_browser_accounts(&self) -> Result<()> {
+        let Some(store) = self.inner.account_store.as_ref() else {
+            return Ok(());
+        };
+        let readiness = store.accounts().await?;
+        let sessions = store.account_sessions().await?;
+        let mut state = self.inner.state.write().await;
+        let open_tabs = state.tabs.values().filter(|tab| tab.status == "open").fold(
+            BTreeMap::<String, usize>::new(),
+            |mut counts, tab| {
+                *counts.entry(tab.account_id.clone()).or_default() += 1;
+                counts
+            },
+        );
+        let mut accounts = BTreeMap::new();
+        for account in readiness {
+            let session = sessions
+                .iter()
+                .find(|session| session.account_id == account.id);
+            let observation = session.and_then(|session| session.observation.as_ref());
+            let status = match account.readiness.as_str() {
+                "ready" => WorkerAccountStatus::Ready,
+                "login-required" => WorkerAccountStatus::LoginRequired,
+                _ => WorkerAccountStatus::Unavailable,
+            };
+            let worker_account = WorkerAccount {
+                account_id: account.id.clone(),
+                label: session
+                    .map(|session| session.email.clone())
+                    .unwrap_or_else(|| account.id.clone()),
+                status,
+                last_checked_ms: Some(now_ms()),
+                active_tabs: open_tabs.get(&account.id).copied().unwrap_or(0),
+                selected_model: observation.map(|observation| observation.model.clone()),
+                available_models: observation
+                    .map(|observation| observation.available_models.clone())
+                    .unwrap_or_default(),
+            };
+            accounts.insert(account.id, worker_account);
+        }
+        state.accounts = accounts;
+        Ok(())
     }
 }

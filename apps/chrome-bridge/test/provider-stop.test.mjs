@@ -29,3 +29,41 @@ test('missing turn ownership cannot be acknowledged as a successful stop', async
   await assert.rejects(provider.stop(), { code: 'adapter-turn-missing' });
   assert.equal(clicked, false);
 });
+
+test('capture accepts verified local-chatgpt route canonicalization', async () => {
+  const localTurn = {
+    conversation_url: 'http://127.0.0.1:9999/c/local-chatgpt%3Atemporary',
+    user_turn_id: 'owned-turn',
+    observed_model: 'current',
+  };
+  const page = {
+    url: () => 'http://127.0.0.1:9999/c/durable-conversation',
+    evaluate: async (_, args) => args?.userTurnId ? {
+      error: null,
+      markdown: 'JAILGUN_OK',
+      assistantId: 'assistant-turn',
+      completionSignal: true,
+      streaming: false,
+      rateLimited: false,
+      expired: false,
+      observedModel: 'current',
+    } : { id: 'provider-account', email: 'worker@example.com' },
+  };
+  const provider = new ChatGPTProvider(page, {
+    baseUrl: 'http://127.0.0.1:9999',
+    identity: { id: 'provider-account', email: 'worker@example.com' },
+    pollMs: 1,
+    settleMs: 0,
+  });
+  const result = await provider.capture(localTurn);
+  assert.equal(result.complete, true);
+  assert.equal(result.markdown, 'JAILGUN_OK');
+});
+
+test('capture rejects a change between durable conversation routes', async () => {
+  const page = { url: () => 'http://127.0.0.1:9999/c/other' };
+  const provider = new ChatGPTProvider(page, { baseUrl: 'http://127.0.0.1:9999' });
+  const result = await provider.capture(turn);
+  assert.equal(result.complete, false);
+  assert.equal(result.error_code, 'adapter-conversation-changed');
+});

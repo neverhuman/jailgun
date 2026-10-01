@@ -1,7 +1,7 @@
 use super::*;
 
 pub(super) fn default_model() -> String {
-    "gpt-6-astra".into()
+    "current".into()
 }
 
 pub(super) fn default_timeout_seconds() -> u64 {
@@ -33,29 +33,24 @@ pub(super) fn account_counts<'a>(
 
 pub(super) fn model_aliases() -> BTreeMap<String, String> {
     BTreeMap::from([
-        ("astra".into(), "gpt-6-astra".into()),
-        ("sol".into(), "gpt-5.6-sol".into()),
+        ("astra".into(), "Astra".into()),
+        ("sol".into(), "Sol".into()),
     ])
 }
 
 pub(super) fn normalize_model(model: &str) -> Result<String> {
-    let value = model.trim().to_lowercase();
-    if let Some(model) = model_aliases().get(&value) {
+    let value = model.trim();
+    if let Some(model) = model_aliases().get(&value.to_lowercase()) {
         return Ok(model.clone());
     }
-    if value.is_empty()
-        || value.len() > 80
-        || !value
-            .chars()
-            .all(|character| character.is_ascii_alphanumeric() || ".-_".contains(character))
-    {
+    if value.is_empty() || value.len() > 80 || value.chars().any(char::is_control) {
         return Err(action(
             "invalid-model",
-            "Model must be an alias such as astra/sol or a safe model identifier.",
-            "Call jailgun.worker.info for aliases and supported efforts.",
+            "Model must be `current`, an alias such as astra/sol, or an observed browser model label.",
+            "Call account_list for each account's observed available_models.",
         ));
     }
-    Ok(value)
+    Ok(value.to_string())
 }
 
 pub(super) fn validate_job(request: &JobSubmit) -> Result<()> {
@@ -172,41 +167,6 @@ pub(super) fn io_failure(error: std::io::Error) -> ExecutionFailure {
         kind: ExecutionFailureKind::Failed,
         message: format!("executor-io-failed: {error}"),
     }
-}
-
-pub(super) fn error_detail(path: &Path, mode: ErrorReporting) -> String {
-    if mode == ErrorReporting::Off {
-        return String::new();
-    }
-    let Ok(mut bytes) = std::fs::read(path) else {
-        return String::new();
-    };
-    let limit = match mode {
-        ErrorReporting::Off => 0,
-        ErrorReporting::Summary => 4 * 1024,
-        ErrorReporting::Detailed => 64 * 1024,
-    };
-    if bytes.len() > limit {
-        bytes = bytes.split_off(bytes.len() - limit);
-    }
-    String::from_utf8_lossy(&bytes).trim().to_string()
-}
-
-pub(super) fn stderr_indicates_auth_failure(path: &Path) -> bool {
-    let Ok(bytes) = std::fs::read(path) else {
-        return false;
-    };
-    let text = String::from_utf8_lossy(&bytes).to_ascii_lowercase();
-    [
-        "not logged in",
-        "login required",
-        "authentication required",
-        "unauthorized",
-        "status 401",
-        "http 401",
-    ]
-    .iter()
-    .any(|needle| text.contains(needle))
 }
 
 pub(super) fn restrict_directory(path: &Path) -> Result<()> {

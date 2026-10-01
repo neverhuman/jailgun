@@ -32,7 +32,7 @@ function providerLimit(state, message, code = 'account-rate-limited') {
 
 /** ChatGPT website operations only. Rust owns scheduling, persistence, budgets and browser lifetime. */
 export class ChatGPTProvider {
-  constructor(page, { identity, baseUrl = 'https://chatgpt.com', model = { mode: 'current' }, pollMs = 300, settleMs = 1500, timeoutMs = 1800000 } = {}) {
+  constructor(page, { identity, baseUrl = 'https://chatgpt.com', model = { mode: 'current' }, reasoningEffort = null, attachmentPath = null, pollMs = 300, settleMs = 1500, timeoutMs = 1800000 } = {}) {
     const base = new URL(baseUrl);
     if (base.origin !== 'https://chatgpt.com' && !(base.protocol === 'http:' && ['127.0.0.1', 'localhost'].includes(base.hostname))) {
       throw new AdapterError('provider-origin-invalid', 'The provider origin is not ChatGPT or a loopback test service.');
@@ -41,6 +41,8 @@ export class ChatGPTProvider {
     this.identity = identity;
     this.baseUrl = base.origin;
     this.model = model;
+    this.reasoningEffort = reasoningEffort;
+    this.attachmentPath = attachmentPath;
     this.pollMs = pollMs;
     this.settleMs = settleMs;
     this.timeoutMs = timeoutMs;
@@ -50,16 +52,15 @@ export class ChatGPTProvider {
   async verifyIdentity() {
     const identity = await readAuthenticatedIdentity(this.page);
     if (!identity) throw new AdapterError('authentication-expired', 'An authenticated account signal is required.', 'Reconnect the account in the operator dashboard.');
-    if (this.identity && (identity.id !== this.identity.id || identity.email.toLowerCase() !== this.identity.email.toLowerCase())) {
+    if (this.identity && identity.email.toLowerCase() !== this.identity.email.toLowerCase()) {
       throw new AdapterError('account-mismatch', 'The page is signed in to a different account.', 'Reconnect the registered account.');
     }
-    return identity;
+    return this.identity ? { id: this.identity.id, email: identity.email } : identity;
   }
 
   async currentModel() {
     const state = await this.page.evaluate(readChatGPTTextDom);
-    if (!state.observedModel || state.observedModel === 'ChatGPT') throw new AdapterError('adapter-model-unobservable', 'The current model is not identified by the page.', 'Inspect the model selector in the account browser.');
-    return state.observedModel;
+    return !state.observedModel || state.observedModel === 'ChatGPT' ? 'current' : state.observedModel;
   }
 
   async checkReadiness() {
@@ -70,8 +71,8 @@ export class ChatGPTProvider {
   }
 
   async availableModels() {
-    const control = this.page.locator('[data-testid="model-switcher-dropdown-button"],button[aria-label^="Model selector"]').first();
-    if (!await control.isVisible().catch(() => false)) throw new AdapterError('adapter-model-selector-missing', 'The model selector is unavailable.');
+    const control = this.page.locator('[data-testid="model-switcher-dropdown-button"],button[aria-label^="Model selector"],button[aria-label="Select ChatGPT model"]').first();
+    if (!await control.isVisible().catch(() => false)) return [await this.currentModel()];
     await control.click({ timeout: 5000 });
     try {
       await this.page.locator('[role="menuitem"],[role="menuitemradio"]').first().waitFor({ state: 'visible', timeout: 5000 });
@@ -86,7 +87,7 @@ export class ChatGPTProvider {
     if (this.model.mode === 'current' || this.model.name === current) return current;
     const models = await this.availableModels();
     if (!models.includes(this.model.name)) throw new AdapterError('model-unavailable', 'The configured model is not available on this account.', 'Choose an observed available model or the current selection.');
-    await this.page.locator('[data-testid="model-switcher-dropdown-button"],button[aria-label^="Model selector"]').first().click({ timeout: 5000 });
+    await this.page.locator('[data-testid="model-switcher-dropdown-button"],button[aria-label^="Model selector"],button[aria-label="Select ChatGPT model"]').first().click({ timeout: 5000 });
     const item = this.page.getByRole('menuitem', { name: this.model.name, exact: true }).or(this.page.getByRole('menuitemradio', { name: this.model.name, exact: true })).first();
     await item.click({ timeout: 5000 });
     const observed = await this.currentModel();
@@ -94,15 +95,66 @@ export class ChatGPTProvider {
     return observed;
   }
 
+  async selectReasoningEffort() {
+    if (!this.reasoningEffort) return { requested: null, applied: 'unchanged' };
+    const requested = String(this.reasoningEffort).toLowerCase();
+    const aliases = {
+      low: ['low', 'light'],
+      medium: ['medium', 'standard'],
+      high: ['high', 'extended'],
+      xhigh: ['xhigh', 'extra high', 'very high'],
+      max: ['max', 'maximum'],
+      ultra: ['ultra'],
+    };
+    if (!aliases[requested]) throw new AdapterError('reasoning-effort-invalid', 'The requested reasoning effort is invalid.');
+    const control = this.page.locator('[data-testid="reasoning-effort-switcher"],button[aria-label^="Reasoning effort"],button[aria-label^="Thinking time"]').first();
+    if (!await control.isVisible().catch(() => false)) {
+      if (requested === 'medium') return { requested, applied: 'provider-default' };
+      throw new AdapterError('reasoning-effort-unavailable', 'This browser model does not expose a reasoning-effort selector.', 'Use medium/provider-default or choose a model that exposes the requested effort.');
+    }
+    await control.click({ timeout: 5000 });
+    const items = this.page.locator('[role="menuitem"],[role="menuitemradio"]');
+    try {
+      await items.first().waitFor({ state: 'visible', timeout: 5000 });
+      const labels = await items.evaluateAll((nodes) => nodes.map((node) => (node.getAttribute('aria-label') || node.textContent || '').replace(/\s+/g, ' ').trim().toLowerCase()));
+      const index = labels.findIndex((label) => aliases[requested].includes(label));
+      if (index < 0) throw new AdapterError('reasoning-effort-unavailable', 'The requested reasoning effort is not available for this model.', 'Choose one of the effort labels exposed by the account browser.');
+      await items.nth(index).click({ timeout: 5000 });
+      return { requested, applied: labels[index] };
+    } catch (error) {
+      await this.page.keyboard.press('Escape').catch(() => {});
+      throw error;
+    }
+  }
+
+  async attachFile() {
+    if (!this.attachmentPath) return;
+    let input = this.page.locator('input[type="file"]').first();
+    if (await input.count() === 0) {
+      const attach = this.page.locator('[data-testid="composer-plus-btn"],button[aria-label*="Attach"],button[aria-label*="Upload"]').first();
+      if (!await attach.isVisible().catch(() => false)) throw new AdapterError('attachment-control-missing', 'The ChatGPT attachment control is unavailable.');
+      await attach.click({ timeout: 5000 });
+      input = this.page.locator('input[type="file"]').first();
+    }
+    if (await input.count() === 0) throw new AdapterError('attachment-control-missing', 'The ChatGPT file input is unavailable.');
+    await input.setInputFiles(this.attachmentPath, { timeout: 15000 });
+  }
+
   async prepare(prompt) {
     if (typeof prompt !== 'string' || !prompt.trim()) throw new AdapterError('invalid-prompt', 'Prompt content is required.');
     await this.page.goto(this.baseUrl, { waitUntil: 'domcontentloaded', timeout: 45000 });
     await this.verifyIdentity();
     const observedModel = await this.selectModel();
+    await this.selectReasoningEffort();
     const state = await this.page.evaluate(readChatGPTTextDom);
     if (state.rateLimited) throw providerLimit(state, 'The account is rate limited.');
-    const composer = this.page.locator('#prompt-textarea,[data-testid="composer-text-input"]').first();
-    if (!await composer.isVisible().catch(() => false)) throw new AdapterError('adapter-composer-missing', 'The ChatGPT composer is unavailable.');
+    await this.attachFile();
+    const composer = this.page.locator('#prompt-textarea,[data-testid="composer-text-input"],.ProseMirror[contenteditable="true"],[contenteditable="true"][role="textbox"][aria-label="Ask ChatGPT"]').first();
+    try {
+      await composer.waitFor({ state: 'visible', timeout: 30_000 });
+    } catch {
+      throw new AdapterError('adapter-composer-missing', 'The ChatGPT composer did not become available after navigation.');
+    }
     await composer.fill(prompt, { timeout: 10000 });
     this.prepared = { prompt, beforeUserIds: state.userIds, observedModel };
     return { observed_model: observedModel };
@@ -113,7 +165,7 @@ export class ChatGPTProvider {
     if (!this.prepared) throw new AdapterError('adapter-not-prepared', 'Prepare a prompt before submission.');
     const prepared = this.prepared;
     this.prepared = null; // A second call cannot accidentally send the same prompt.
-    const send = this.page.locator('[data-testid="send-button"],button[aria-label="Send prompt"]').first();
+    const send = this.page.locator('[data-testid="send-button"],button[aria-label="Send prompt"],button[aria-label="Send message"],button[aria-label="Send"]').first();
     if (!await send.isEnabled().catch(() => false)) throw new AdapterError('submission-not-accepted', 'The send control is unavailable or disabled.');
     try { await send.click({ timeout: 10000 }); }
     catch { throw new AdapterError('submission-uncertain', 'The send action did not return a definite result.'); }
@@ -133,7 +185,7 @@ export class ChatGPTProvider {
   }
 
   async capture(turn, { signal } = {}) {
-    const expected = new URL(turn.conversation_url);
+    let expected = new URL(turn.conversation_url);
     let markdown = '';
     let lastContent = null;
     let stableSince = Date.now();
@@ -143,9 +195,24 @@ export class ChatGPTProvider {
       while (Date.now() < deadline) {
         if (signal?.aborted) throw stopReason(signal);
         const current = new URL(this.page.url());
-        if (expected.origin !== this.baseUrl || current.origin !== expected.origin || current.pathname !== expected.pathname) throw new AdapterError('adapter-conversation-changed', 'The owned page navigated away from its conversation.');
+        if (expected.origin !== this.baseUrl || current.origin !== expected.origin) throw new AdapterError('adapter-conversation-changed', 'The owned page navigated away from its conversation.');
+        const expectedId = expected.pathname.match(/^\/c\/([^/]+)$/)?.[1];
+        const currentId = current.pathname.match(/^\/c\/([^/]+)$/)?.[1];
+        const canonicalizing = current.pathname !== expected.pathname
+          && expectedId && currentId
+          && decodeURIComponent(expectedId).startsWith('local-chatgpt:')
+          && !decodeURIComponent(currentId).startsWith('local-chatgpt:');
+        if (current.pathname !== expected.pathname && !canonicalizing) throw new AdapterError('adapter-conversation-changed', 'The owned page navigated away from its conversation.');
         const state = await this.page.evaluate(readChatGPTTextDom, { userTurnId: turn.user_turn_id });
+        // ChatGPT initially assigns a local-chatgpt: route, then replaces it
+        // with the server conversation id. Accept that one-way migration only
+        // after the destination still proves ownership of the submitted turn.
+        if (canonicalizing && state.error === 'adapter-turn-missing') {
+          await wait(this.pollMs, signal);
+          continue;
+        }
         if (state.error) throw new AdapterError(state.error, 'The response cannot be associated with the accepted user turn.');
+        if (canonicalizing) expected = current;
         markdown = state.markdown;
         if (state.rateLimited) throw providerLimit(state, 'Generation was interrupted by an account limit.');
         if (state.expired) throw new AdapterError('authentication-expired', 'The account session expired.');
@@ -170,7 +237,7 @@ export class ChatGPTProvider {
     const expected = new URL(this.activeTurn.conversation_url);
     const current = new URL(this.page.url());
     if (current.origin !== expected.origin || current.pathname !== expected.pathname) throw new AdapterError('ownership-mismatch', 'The page no longer shows the owned conversation.');
-    const button = this.page.locator('[data-testid="stop-button"],button[aria-label="Stop generating"]').first();
+    const button = this.page.locator('[data-testid="stop-button"],button[aria-label="Stop generating"],button[aria-label="Stop"]').first();
     const deadline = Date.now() + 5000;
     while (Date.now() < deadline) {
       const state = await this.page.evaluate(readChatGPTTextDom, { userTurnId: this.activeTurn.user_turn_id });

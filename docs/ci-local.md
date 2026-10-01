@@ -14,8 +14,8 @@ real-browser E2E, SQLite, native packaging and governance. Select an individual
 lane with `bash scripts/ci-local.sh docs` (or `rust`, `node`, `e2e`, `db`,
 `package`, `audit`, and the other names in the script).
 
-Run `bash ops/ci/worker.sh` for the browser-free worker API proof. It uses only
-mock executors and verifies MCP behavior without credentials or live setup.
+Run `bash ops/ci/worker.sh` for the browser-worker API proof. It uses only mock
+executors and verifies MCP behavior without credentials, Chrome, or live setup.
 
 `bash ops/ci/docs.sh` checks local Markdown file links, fenced JSON syntax and
 30 actual CLI help surfaces. Its evidence explicitly does not claim that remote

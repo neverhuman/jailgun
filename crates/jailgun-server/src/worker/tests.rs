@@ -8,11 +8,8 @@ impl WorkerExecutor for MockExecutor {
         "mock"
     }
 
-    async fn auth_status(&self, codex_home: PathBuf) -> WorkerAccountStatus {
-        if codex_home
-            .components()
-            .any(|component| component.as_os_str() == "expired")
-        {
+    async fn auth_status(&self, account_id: &str) -> WorkerAccountStatus {
+        if account_id == "expired" {
             WorkerAccountStatus::LoginRequired
         } else {
             WorkerAccountStatus::Ready
@@ -54,12 +51,12 @@ impl WorkerExecutor for BlockingExecutor {
     }
 }
 
-struct SlowExecutor;
+struct TimeoutExecutor;
 
 #[async_trait]
-impl WorkerExecutor for SlowExecutor {
+impl WorkerExecutor for TimeoutExecutor {
     fn name(&self) -> &'static str {
-        "slow-mock"
+        "timeout-mock"
     }
 
     async fn execute(
@@ -67,7 +64,10 @@ impl WorkerExecutor for SlowExecutor {
         _request: ExecutionRequest,
         _cancel: watch::Receiver<bool>,
     ) -> std::result::Result<ExecutionResult, ExecutionFailure> {
-        std::future::pending().await
+        Err(ExecutionFailure {
+            kind: ExecutionFailureKind::TimedOut,
+            message: "mock timeout observed".into(),
+        })
     }
 }
 
@@ -115,7 +115,7 @@ async fn mock_job_uses_alias_effort_and_returns_verified_tar() {
         })
         .await
         .unwrap();
-    assert_eq!(tab.model, "gpt-5.6-sol");
+    assert_eq!(tab.model, "Sol");
     let request = JobSubmit {
         prompt: "Build the fixture".into(),
         tab_id: Some(tab.tab_id),
@@ -134,7 +134,7 @@ async fn mock_job_uses_alias_effort_and_returns_verified_tar() {
     );
     let job = wait_terminal(&service, &accepted.job_id).await;
     assert_eq!(job.status, "completed");
-    assert_eq!(job.model, "gpt-6-astra");
+    assert_eq!(job.model, "Astra");
     assert_eq!(job.reasoning_effort, ReasoningEffort::Ultra);
     let object = service
         .object(job.output_object_id.as_deref().unwrap())
@@ -281,7 +281,7 @@ async fn mock_cancellation_and_timeout_reach_distinct_terminal_states() {
     assert_eq!(job.error.as_deref(), Some("mock cancellation observed"));
 
     let timeout_root = tempfile::tempdir().unwrap();
-    let timeout = WorkerService::new(timeout_root.path(), Arc::new(SlowExecutor)).unwrap();
+    let timeout = WorkerService::new(timeout_root.path(), Arc::new(TimeoutExecutor)).unwrap();
     register_default(&timeout).await;
     let job = timeout
         .submit_job(JobSubmit {
@@ -370,14 +370,4 @@ async fn multiple_accounts_require_explicit_routing_and_stay_private() {
             & 0o777;
         assert_eq!(mode, 0o600);
     }
-}
-
-#[test]
-fn authentication_failures_are_detected_without_returning_credentials() {
-    let temp = tempfile::tempdir().unwrap();
-    let stderr = temp.path().join("stderr.log");
-    std::fs::write(&stderr, "request failed: HTTP 401 unauthorized\n").unwrap();
-    assert!(stderr_indicates_auth_failure(&stderr));
-    std::fs::write(&stderr, "ordinary model failure\n").unwrap();
-    assert!(!stderr_indicates_auth_failure(&stderr));
 }

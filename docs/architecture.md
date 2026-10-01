@@ -19,11 +19,11 @@ Jailgun is split into a Rust control plane and two TypeScript surfaces.
 - `crates/jailgun-server` exposes authenticated HTTP, Streamable HTTP MCP and
   dashboard WebSockets. It checks operator or account-scoped automation
   authorization and delegates scheduling and durable transitions to Rust services.
-- `jailgun worker` is a browser-free server mode in the same Rust boundary. It
+- `jailgun worker` is a browser-backed server mode in the same Rust boundary. It
   exposes only operator-authorized worker MCP tools, owns isolated tab workspaces
-  and verified tar objects, and executes Codex through an injected executor.
-  Each registered AI account owns a private `CODEX_HOME`; tabs bind one account
-  and never switch credentials in place.
+  and verified tar objects, and executes through the supervised ChatGPT browser
+  bridge. Each dashboard-registered account owns a private Chrome profile; tabs
+  bind one account and never switch sessions in place.
 - `crates/jailgun-cli` owns local commands. `jailgun mcp` is a stdio gateway to
   the same authenticated daemon, with protocol stdout separate from diagnostics.
 - `apps/browser-adapter` owns browser DOM interaction helpers only. It may
@@ -84,9 +84,10 @@ forward; they cannot independently schedule concept-owned profiles.
 
 ## Lightweight Worker Runtime
 
-Worker mode does not open SQLite, Chrome, dashboard assets, or the concept
-scheduler. One logical tab maps to one private workspace and one active job.
-Production uses a no-shell `codex exec` adapter; CI injects a mock executor.
+Worker mode reuses the same SQLite account registry, supervised Chrome profiles,
+and dashboard login path as the concept service. One logical tab maps to one
+private workspace, one browser conversation, and one active job. Production uses
+the browser bridge; CI injects a mock executor and never contacts ChatGPT.
 Input/output tar.gz objects are content-verified and path-checked. The listener
 is loopback-only, remote access uses SSH forwarding, and all worker tools require
 the operator credential because they can execute trusted-agent work.

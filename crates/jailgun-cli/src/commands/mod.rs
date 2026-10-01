@@ -8,7 +8,6 @@ mod server;
 mod telegram;
 mod uninstall;
 mod validate;
-mod worker;
 
 use anyhow::Result;
 
@@ -40,7 +39,7 @@ pub async fn dispatch_with_output(command: Command, json: bool) -> Result<bool> 
     let _application_use = jailgun_core::managed_installation::current_use()
         .map_err(crate::concept_cli::error::installation)?;
     match command {
-        Command::Worker { runtime, addr } => worker::serve(runtime, addr).await,
+        Command::Worker { options, addr } => concept_daemon::serve(options, addr).await,
         Command::Uninstall { .. } => unreachable!("uninstall is dispatched before acquiring shared application use"),
         Command::Setup { options, no_open } => {
             return crate::concept_cli::setup(options, no_open, json).await

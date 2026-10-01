@@ -59,7 +59,7 @@ impl AccountSupervisor {
                     email: account.email_hint.clone(),
                 });
             let environment = self.browser_environment(account).await?;
-            let bridge = ConceptBridge::spawn(BridgeSpawnConfig {command:vec![self.runtime.node.to_string_lossy().into(),self.runtime.bridge.to_string_lossy().into()], env:environment}, json!({"profile_dir":account.profile_dir,"identity":identity,"headless":self.runtime.headless,"executable":self.runtime.chrome,"base_url":self.runtime.provider_url})).await?;
+            let bridge = ConceptBridge::spawn(BridgeSpawnConfig {command:vec![self.runtime.node.to_string_lossy().into(),self.runtime.bridge.to_string_lossy().into()], env:environment}, json!({"profile_dir":account.profile_dir,"identity":identity,"headless":self.runtime.headless,"executable":self.runtime.chrome,"base_url":self.runtime.provider_url,"cdp_port":account.cdp_port})).await?;
             self.bridges.lock().await.insert(id.clone(), bridge.clone());
             bridge
         };
