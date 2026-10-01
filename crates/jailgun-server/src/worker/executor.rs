@@ -21,6 +21,9 @@ impl WorkerExecutor for BrowserExecutor {
     }
 
     async fn auth_status(&self, account_id: &str) -> WorkerAccountStatus {
+        if self.supervisor.refresh_account(account_id).await.is_err() {
+            return WorkerAccountStatus::Unavailable;
+        }
         match self.supervisor.store.accounts().await {
             Ok(accounts)
                 if accounts

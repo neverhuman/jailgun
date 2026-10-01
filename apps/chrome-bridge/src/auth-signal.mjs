@@ -2,17 +2,25 @@
 export async function readAuthenticatedIdentity(page) {
   try {
     const identity = await page.evaluate(async () => {
-      const response = await fetch('/api/auth/session', {
-        credentials: 'same-origin',
-        cache: 'no-store',
-        signal: AbortSignal.timeout(3000),
-      });
-      if (!response.ok) return null;
-      const body = await response.json();
-      const id = body?.user?.id;
-      const email = body?.user?.email;
-      if (typeof id !== 'string' || !id.trim() || typeof email !== 'string' || !email.trim()) return null;
-      return { id, email };
+      // A single timeout during provider navigation is not proof of logout.
+      // Retry only the read-only identity observation; never log in or replay work.
+      for (let attempt = 0; attempt < 3; attempt++) {
+        try {
+          const response = await fetch('/api/auth/session', {
+            credentials: 'same-origin',
+            cache: 'no-store',
+            signal: AbortSignal.timeout(3000),
+          });
+          const body = response.ok ? await response.json() : null;
+          const id = body?.user?.id;
+          const email = body?.user?.email;
+          if (typeof id === 'string' && id.trim() && typeof email === 'string' && email.trim()) return { id, email };
+        } catch {
+          // The visible account menu must still verify one exact identity.
+        }
+        if (attempt < 2) await new Promise(resolve => setTimeout(resolve, 200));
+      }
+      return null;
     });
     if (identity) return identity;
   } catch {

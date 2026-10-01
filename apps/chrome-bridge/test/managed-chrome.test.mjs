@@ -3,7 +3,8 @@ import { existsSync, lstatSync, mkdtempSync, symlinkSync, writeFileSync } from '
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import test from 'node:test';
-import { clearStaleProfileLocks, managedChromeArgs, managedChromeCandidates, resolveManagedChromeExecutable } from '../src/managed-chrome.mjs';
+import { EventEmitter } from 'node:events';
+import { clearStaleProfileLocks, closeManagedChrome, managedChromeArgs, managedChromeCandidates, resolveManagedChromeExecutable } from '../src/managed-chrome.mjs';
 
 test('managed Chrome uses a normal launch with private loopback debugging', () => {
   const args = managedChromeArgs({ profileDir: '/private/account', port: 9444 });
@@ -44,4 +45,31 @@ test('stale profile locks are removed but live locks are preserved', () => {
   symlinkSync('host-31337', join(live, 'SingletonLock'));
   assert.equal(clearStaleProfileLocks(live, () => true), false);
   assert.equal(lstatSync(join(live, 'SingletonLock')).isSymbolicLink(), true);
+});
+
+test('graceful Chrome shutdown waits for cookie flush before disconnecting', async () => {
+  const child = Object.assign(new EventEmitter(), { exitCode: null, signalCode: null });
+  const events = [];
+  child.kill = () => { throw new Error('graceful shutdown must not signal Chrome'); };
+  const browser = {
+    newBrowserCDPSession: async () => ({ send: async (method) => {
+      events.push(method);
+      setTimeout(() => { events.push('cookies-flushed'); child.exitCode = 0; child.emit('exit', 0); }, 10);
+    } }),
+    close: async () => { events.push('disconnected'); },
+  };
+  await closeManagedChrome(browser, child);
+  assert.deepEqual(events, ['Browser.close', 'cookies-flushed', 'disconnected']);
+  assert.equal(child.listenerCount('exit'), 0);
+});
+
+test('lost CDP shutdown still cleans up only the managed process', async () => {
+  const child = Object.assign(new EventEmitter(), { exitCode: null, signalCode: null });
+  const signals = [];
+  child.kill = (signal) => { signals.push(signal); child.signalCode = signal; child.emit('exit', null, signal); };
+  await closeManagedChrome({
+    newBrowserCDPSession: async () => { throw new Error('disconnected'); },
+    close: async () => {},
+  }, child);
+  assert.deepEqual(signals, ['SIGTERM']);
 });

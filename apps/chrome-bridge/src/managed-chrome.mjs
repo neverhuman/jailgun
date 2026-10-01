@@ -111,10 +111,42 @@ export async function startManagedChrome({ executable, profileDir, port, headles
   throw new Error('managed-chrome-start-timeout');
 }
 
+function running(child) {
+  return child && child.exitCode === null && child.signalCode == null;
+}
+
+async function waitForChromeExit(child, timeoutMs) {
+  if (!running(child)) return;
+  await new Promise((resolve) => {
+    const finish = () => { clearTimeout(timer); child.removeListener('exit', finish); resolve(); };
+    const timer = setTimeout(finish, timeoutMs);
+    child.once('exit', finish);
+  });
+}
+
 export async function stopManagedChrome(child) {
-  if (!child || child.exitCode !== null) return;
-  const exited = new Promise((resolve) => child.once('exit', resolve));
+  if (!running(child)) return;
   child.kill('SIGTERM');
-  await Promise.race([exited, new Promise((resolve) => setTimeout(resolve, 2000))]);
-  if (child.exitCode === null) child.kill('SIGKILL');
+  await waitForChromeExit(child, 2000);
+  if (running(child)) {
+    child.kill('SIGKILL');
+    await waitForChromeExit(child, 2000);
+  }
+}
+
+/** CDP disconnect alone does not close externally launched Chrome or flush its cookies. */
+export async function closeManagedChrome(browser, child) {
+  if (browser && running(child)) {
+    try {
+      const session = await browser.newBrowserCDPSession();
+      await session.send('Browser.close');
+      // The protocol response precedes disk flush and process exit. Do not signal
+      // Chrome during this grace period: doing so loses newly authenticated cookies.
+      await waitForChromeExit(child, 5000);
+    } catch {
+      // A lost CDP connection still requires bounded cleanup of our own process.
+    }
+  }
+  await browser?.close().catch(() => {});
+  await stopManagedChrome(child);
 }

@@ -14,7 +14,7 @@ impl AccountSupervisor {
         loop {
             let delay = {
                 let _guard = control.lock().await;
-                match self.probe_account(&account, &mut bridge).await {
+                match self.probe_account(&account, &mut bridge, false).await {
                     Ok(delay) => delay,
                     Err(error) => {
                         tracing::error!(account_id=%account.id, "account supervisor stopped; reconnect through the dashboard");
@@ -37,6 +37,24 @@ impl AccountSupervisor {
             };
             tokio::time::sleep(delay).await;
         }
+    }
+
+    /// Recheck a bound browser without navigating it or authenticating on behalf
+    /// of the operator. A transient failed probe can recover; cancellation and
+    /// identity mismatches remain blocked until explicit dashboard reconnect.
+    pub async fn refresh_account(&self, id: &str) -> anyhow::Result<()> {
+        let account = self
+            .store
+            .account_metadata()
+            .await?
+            .into_iter()
+            .find(|account| account.id == id)
+            .ok_or_else(|| anyhow::anyhow!("account-not-found"))?;
+        let control = self.account_control(id).await;
+        let _guard = control.lock().await;
+        let mut bridge = self.bridges.lock().await.get(id).cloned();
+        self.probe_account(&account, &mut bridge, true).await?;
+        Ok(())
     }
 
     async fn managed_bridge(&self, account: &BrowserAccount) -> anyhow::Result<ConceptBridge> {
@@ -70,6 +88,7 @@ impl AccountSupervisor {
         &self,
         account: &BrowserAccount,
         bridge: &mut Option<ConceptBridge>,
+        refresh: bool,
     ) -> anyhow::Result<Duration> {
         let id = account.id.clone();
         let session = self
@@ -79,7 +98,13 @@ impl AccountSupervisor {
             .into_iter()
             .find(|s| s.account_id == id)
             .ok_or_else(|| anyhow::anyhow!("account-not-found"))?;
-        if ["cancelled", "expired", "failed", "mismatch"].contains(&session.lifecycle.as_str()) {
+        let retry_expired = refresh
+            && session.lifecycle == "expired"
+            && session.error_code.as_deref() == Some("authentication-expired")
+            && session.model.is_some();
+        if ["cancelled", "failed", "mismatch"].contains(&session.lifecycle.as_str())
+            || (session.lifecycle == "expired" && !retry_expired)
+        {
             return Ok(Duration::from_secs(2));
         }
         if bridge.is_none() {
@@ -212,7 +237,8 @@ impl AccountSupervisor {
             }
             Err(error) if error.code == "authentication-expired" => {
                 self.store.account_expired(id.clone(), now()).await?;
-                let (state, expiry) = if session.lifecycle == "ready" {
+                let (state, expiry) = if ["ready", "expired"].contains(&session.lifecycle.as_str())
+                {
                     ("expired", None)
                 } else {
                     ("waiting-for-user", session.login_expires_ms)

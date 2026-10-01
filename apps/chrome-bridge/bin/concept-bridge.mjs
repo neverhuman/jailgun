@@ -5,7 +5,7 @@ import { chromium } from 'playwright-core';
 import { AdapterError, ChatGPTProvider } from '../src/chatgpt-provider.mjs';
 import { selectAccountPage } from '../src/account-page.mjs';
 import { MAX_LINE_BYTES, readFrames } from '../src/bridge-frames.mjs';
-import { clearStaleProfileLocks, startManagedChrome, stopManagedChrome } from '../src/managed-chrome.mjs';
+import { clearStaleProfileLocks, closeManagedChrome, startManagedChrome, stopManagedChrome } from '../src/managed-chrome.mjs';
 
 process.umask(0o077);
 const owned = new Map();
@@ -176,8 +176,8 @@ async function shutdown() {
   for (const entry of owned.values()) entry.abort.abort();
   // EOF may arrive while launch is awaiting filesystem or browser startup.
   await starting?.catch(() => {});
-  await browser?.close().catch(() => {});browser = null;context = null;
-  await stopManagedChrome(browserProcess);browserProcess = null;
+  await closeManagedChrome(browser, browserProcess);
+  browser = null;context = null;browserProcess = null;
 }
 
 function dispatch(line) {

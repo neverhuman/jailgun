@@ -190,9 +190,14 @@ impl WorkerService {
                 .keys()
                 .cloned()
                 .collect::<Vec<_>>();
+            let mut accounts = Vec::with_capacity(account_ids.len());
             for account_id in account_ids {
-                self.refresh_account(AccountRef { account_id }).await?;
+                accounts.push(self.refresh_account(AccountRef { account_id }).await?);
             }
+            return Ok(WorkerAccounts {
+                counts: account_counts(accounts.iter()),
+                accounts,
+            });
         }
         let accounts = self
             .inner
@@ -212,16 +217,17 @@ impl WorkerService {
     pub async fn refresh_account(&self, request: AccountRef) -> Result<WorkerAccount> {
         validate_id(&request.account_id, "account")?;
         if self.inner.account_store.is_some() {
+            let status = self.inner.executor.auth_status(&request.account_id).await;
             self.sync_browser_accounts().await?;
-            return self
-                .inner
-                .state
-                .read()
-                .await
+            let mut state = self.inner.state.write().await;
+            let account = state
                 .accounts
-                .get(&request.account_id)
-                .cloned()
-                .ok_or_else(|| not_found("account"));
+                .get_mut(&request.account_id)
+                .ok_or_else(|| not_found("account"))?;
+            if status == WorkerAccountStatus::Unavailable {
+                account.status = WorkerAccountStatus::Unavailable;
+            }
+            return Ok(account.clone());
         }
         {
             let state = self.inner.state.read().await;

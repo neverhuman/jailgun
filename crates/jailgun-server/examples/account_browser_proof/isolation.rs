@@ -51,9 +51,37 @@ pub(super) async fn verify(
     .await?;
     wait(store, "other", "expired").await?;
     wait(store, "synthetic", "ready").await?;
+    let worker = jailgun_server::WorkerService::browser(output, service.clone())?;
+    let expired = worker.accounts(true).await?;
+    anyhow::ensure!(
+        expired.counts.ready == 1,
+        "refresh accepted an expired browser"
+    );
+    wait(store, "other", "expired").await?;
+    admin(
+        &client,
+        options,
+        json!({"accountId":"provider-other","expired":false}),
+    )
+    .await?;
+    let refreshed = worker.accounts(true).await?;
+    anyhow::ensure!(
+        refreshed.counts.ready == 2,
+        "worker refresh did not recheck live identity"
+    );
+    wait(store, "other", "ready").await?;
+    admin(
+        &client,
+        options,
+        json!({"accountId":"provider-other","expired":true}),
+    )
+    .await?;
+    wait(store, "other", "expired").await?;
     service.reconnect("other".into()).await?;
     wait(store, "other", "waiting-for-user").await?;
     service.cancel_login("other".into()).await?;
+    wait(store, "other", "cancelled").await?;
+    worker.accounts(true).await?;
     wait(store, "other", "cancelled").await?;
 
     let workflow = client::WorkflowClient::connect(url, "http", output).await?;
@@ -116,7 +144,7 @@ pub(super) async fn verify(
     std::fs::write(
         output.join("evidence.json"),
         serde_json::to_vec_pretty(
-            &json!({"status":"pass","checks":["two-persistent-identities","distinct-profiles-and-ports","one-account-expiry","one-account-login-cancellation","other-account-five-stage-workflow","two-account-cookie-reuse-after-browser-restart","retained-allocation-and-results"],"candidate_count":5,"submissions":9,"synthetic_provider":true,"live_provider_verified":false}),
+            &json!({"status":"pass","checks":["two-persistent-identities","distinct-profiles-and-ports","one-account-expiry","fresh-probe-recovers-authentication-without-login","refresh-preserves-cancelled-login","one-account-login-cancellation","other-account-five-stage-workflow","two-account-cookie-reuse-after-browser-restart","retained-allocation-and-results"],"candidate_count":5,"submissions":9,"synthetic_provider":true,"live_provider_verified":false}),
         )?,
     )?;
     Ok(())

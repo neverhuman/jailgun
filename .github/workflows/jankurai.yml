@@ -27,6 +27,7 @@ jobs:
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
         with:
           persist-credentials: false
+          fetch-depth: 0
       - uses: ./.github/actions/setup
       - name: Install Jankurai
         run: cargo install --git https://github.com/neverhuman/jankurai.git --rev b88562fdb124aa86dedd70ab972e7d0d87e58be1 --locked --force --target-dir "$PWD/target" jankurai
@@ -40,13 +41,16 @@ jobs:
       - run: bash ops/ci/db.sh
       - run: bash ops/ci/contracts.sh
       - name: Build Jankurai proof receipts
+        env:
+          JANKURAI_BASE_REF: ${{ github.event.pull_request.base.sha || github.event.before }}
         run: |
           mkdir -p target/jankurai
           cp agent/repo-score.json target/jankurai/accepted-baseline.json
           jankurai security run . --strict --profile ci --out target/jankurai/security/evidence.json
           jankurai audit . --mode ratchet --baseline target/jankurai/accepted-baseline.json --json target/jankurai/repo-score.json --md target/jankurai/repo-score.md
-          jankurai proof . --changed-from origin/main --out target/jankurai/proof-plan.json --md target/jankurai/proof-plan.md
-          jankurai proofbind verify . --changed-from origin/main
+          git cat-file -e "$JANKURAI_BASE_REF^{commit}"
+          jankurai proof . --changed-from "$JANKURAI_BASE_REF" --out target/jankurai/proof-plan.json --md target/jankurai/proof-plan.md
+          jankurai proofbind verify . --changed-from "$JANKURAI_BASE_REF"
           jankurai proofmark rust . --obligations target/jankurai/proofbind/obligations.json
           jankurai rust witness build .
           jankurai migrate . --analyze --out target/jankurai/migration-report.json

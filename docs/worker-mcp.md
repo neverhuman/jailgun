@@ -66,7 +66,7 @@ curl --fail http://127.0.0.1:8790/api/health
 6. Leave the account in `ready` state.
 
 Repeat for every account. Use distinct, stable account IDs such as
-`ben-veox-ai` or `klara-jonsson-data-gmail-com`. The dashboard owns account
+`account-one` or `account-two`. The dashboard owns account
 registration; `jailgun.worker.account_register` exists for compatibility with
 older clients and returns `dashboard-account-required` in browser-worker mode.
 
@@ -79,9 +79,11 @@ older clients and returns `dashboard-account-required` in browser-worker mode.
 - each account's ID, label, status, active tab count, selected model, and models
   observed from that account's ChatGPT UI
 
-Use `jailgun.worker.account_refresh` to recheck one account. A failed identity
-probe or expired ChatGPT session moves the account out of `ready`; reconnect it
-in the dashboard. Account metadata is visible to the worker, but authentication
+Use `jailgun.worker.account_refresh` to recheck one account's live supervised
+browser. A fresh matching identity can recover a transient failed probe without
+logging in again. A genuinely expired session requires dashboard reconnect;
+refresh never overrides cancelled login or identity mismatch. Account metadata
+is visible to the worker, but authentication
 material is not.
 
 ## Remote encrypted access
@@ -168,8 +170,8 @@ Open a tab on a specific ready account:
 
 ```json
 {
-  "tab_id": "proof-ben-001",
-  "account_id": "ben-veox-ai",
+  "tab_id": "proof-account-one-001",
+  "account_id": "account-one",
   "model": "current",
   "reasoning_effort": "medium"
 }
@@ -179,11 +181,11 @@ Submit one harmless test job:
 
 ```json
 {
-  "tab_id": "proof-ben-001",
-  "prompt": "Reply with exactly: JAILGUN_OK ben-veox-ai",
+  "tab_id": "proof-account-one-001",
+  "prompt": "Reply with exactly: JAILGUN_OK account-one",
   "timeout_seconds": 120,
   "error_reporting": "detailed",
-  "idempotency_key": "proof-ben-001-2026-10-01"
+  "idempotency_key": "proof-account-one-001-unique-run"
 }
 ```
 
@@ -204,7 +206,7 @@ Close with `jailgun.worker.tab_close`:
 
 ```json
 {
-  "tab_id": "proof-ben-001",
+  "tab_id": "proof-account-one-001",
   "force": false
 }
 ```
@@ -232,7 +234,7 @@ Change an idle tab before its next job:
 
 ```json
 {
-  "tab_id": "analysis-klara-001",
+  "tab_id": "analysis-account-two-001",
   "model": "astra",
   "reasoning_effort": "xhigh"
 }
@@ -280,7 +282,7 @@ returns `object_id`. Open a new tab with that object:
 
 ```json
 {
-  "account_id": "bentaylorche-gmail-com",
+  "account_id": "account-two",
   "model": "sol",
   "reasoning_effort": "high",
   "input_object_id": "object-returned-by-upload"

@@ -30,3 +30,20 @@ test('visible account identity requires one unambiguous email', () => {
   assert.equal(uniqueEmailFromTexts(['ben@example.com', 'other@example.com']), null);
   assert.equal(uniqueEmailFromTexts(['No email here']), null);
 });
+
+test('identity observation retries a transient failure but never accepts an anonymous session', async () => {
+  const originalFetch = globalThis.fetch;
+  try {
+    let calls = 0;
+    globalThis.fetch = async () => {
+      if (++calls === 1) throw new Error('transient timeout');
+      return { ok: true, json: async () => ({ user: { id: 'synthetic-id', email: 'synthetic@example.invalid' } }) };
+    };
+    assert.deepEqual(await readAuthenticatedIdentity({ evaluate: fn => fn() }), { id: 'synthetic-id', email: 'synthetic@example.invalid' });
+    assert.equal(calls, 2);
+    calls = 0;
+    globalThis.fetch = async () => { calls++; return { ok: true, json: async () => ({}) }; };
+    assert.equal(await readAuthenticatedIdentity({ evaluate: fn => fn() }), null);
+    assert.equal(calls, 3);
+  } finally { globalThis.fetch = originalFetch; }
+});
