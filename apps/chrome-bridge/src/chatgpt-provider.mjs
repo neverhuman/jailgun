@@ -69,7 +69,11 @@ export class ChatGPTProvider {
   async verifyIdentity() {
     const identity = await readAuthenticatedIdentity(this.page);
     if (!identity) throw new AdapterError('authentication-expired', 'An authenticated account signal is required.', 'Reconnect the account in the operator dashboard.');
-    if (this.identity && identity.email.toLowerCase() !== this.identity.email.toLowerCase()) {
+    const comparableIds = this.identity
+      && !identity.id.startsWith('email:')
+      && !this.identity.id.startsWith('email:');
+    if (this.identity && (identity.email.toLowerCase() !== this.identity.email.toLowerCase()
+      || (comparableIds && identity.id !== this.identity.id))) {
       throw new AdapterError('account-mismatch', 'The page is signed in to a different account.', 'Reconnect the registered account.');
     }
     return this.identity ? { id: this.identity.id, email: identity.email } : identity;
