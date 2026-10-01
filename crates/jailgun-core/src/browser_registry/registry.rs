@@ -8,9 +8,7 @@ use serde::{Deserialize, Serialize};
 use super::{
     account::{BrowserAccount, BrowserAccountRoots, BrowserAccountStatus},
     ids::{default_account_id, validate_account_id},
-    storage::{
-        default_registry_path, ensure_private_dir, registry_tmp_path, set_private_file_permissions,
-    },
+    storage::{atomic_write, default_registry_path, ensure_private_dir, private_file},
     BrowserRegistryError,
 };
 
@@ -33,10 +31,9 @@ impl Default for BrowserProfileRegistry {
 
 impl BrowserProfileRegistry {
     pub fn default_path_from_env(env_name: &str) -> PathBuf {
-        match env::var_os(env_name) {
-            Some(value) => PathBuf::from(value),
-            None => default_registry_path(),
-        }
+        env::var_os(env_name)
+            .map(PathBuf::from)
+            .unwrap_or_else(default_registry_path)
     }
 
     pub fn load_or_default(path: &Path) -> Result<Self, BrowserRegistryError> {
@@ -62,18 +59,88 @@ impl BrowserProfileRegistry {
                 path: path.display().to_string(),
                 source: std::io::Error::new(std::io::ErrorKind::InvalidData, source),
             })?;
-        let tmp_path = registry_tmp_path(path);
-        fs::write(&tmp_path, bytes).map_err(|source| BrowserRegistryError::Write {
-            path: tmp_path.display().to_string(),
+        atomic_write(path, &bytes)
+    }
+
+    /// The lock covers load, mutation and atomic replacement, across processes.
+    pub fn update<T>(
+        path: &Path,
+        update: impl FnOnce(&mut Self) -> Result<T, BrowserRegistryError>,
+    ) -> Result<T, BrowserRegistryError> {
+        if let Some(parent) = path.parent() {
+            ensure_private_dir(parent)?;
+        }
+        let lock_path = path.with_extension("registry.lock");
+        let lock = private_file(&lock_path, false)?;
+        lock.lock().map_err(|source| BrowserRegistryError::Lock {
+            path: lock_path.display().to_string(),
             source,
         })?;
-        set_private_file_permissions(&tmp_path)?;
-        fs::rename(&tmp_path, path).map_err(|source| BrowserRegistryError::Write {
-            path: path.display().to_string(),
-            source,
-        })?;
-        set_private_file_permissions(path)?;
-        Ok(())
+        let mut registry = Self::load_or_default(path)?;
+        let result = update(&mut registry)?;
+        registry.save(path)?;
+        Ok(result)
+    }
+
+    pub fn register_account(
+        path: &Path,
+        email_hint: &str,
+        id: Option<String>,
+        roots: &BrowserAccountRoots,
+        port_start: u16,
+        max_tabs: u16,
+    ) -> Result<BrowserAccount, BrowserRegistryError> {
+        Self::update(path, |registry| {
+            let account_id = id.unwrap_or_else(|| default_account_id(email_hint));
+            if registry.account(&account_id).is_some() {
+                return registry.upsert_account(
+                    email_hint,
+                    Some(account_id),
+                    roots,
+                    port_start,
+                    max_tabs,
+                );
+            }
+            for port in port_start.max(1024)..=u16::MAX {
+                if registry.accounts.iter().any(|a| a.cdp_port == port) {
+                    continue;
+                }
+                // Keep the probe bound until the account is allocated under the registry lock.
+                if let Ok(_listener) =
+                    std::net::TcpListener::bind((std::net::Ipv4Addr::LOCALHOST, port))
+                {
+                    return registry.upsert_account(
+                        email_hint,
+                        Some(account_id),
+                        roots,
+                        port,
+                        max_tabs,
+                    );
+                }
+            }
+            Err(BrowserRegistryError::NoAvailablePort)
+        })
+    }
+
+    pub fn verify_account(
+        path: &Path,
+        id: &str,
+        identity: &super::ProviderIdentity,
+        verified_at: String,
+    ) -> Result<BrowserAccount, BrowserRegistryError> {
+        Self::update(path, |registry| {
+            let account = registry
+                .account_mut(id)
+                .ok_or_else(|| BrowserRegistryError::MissingAccount(id.into()))?;
+            match account.confirm_identity(identity, verified_at) {
+                Ok(()) => Ok(Ok(account.clone())),
+                Err(error) => {
+                    account.status = BrowserAccountStatus::Degraded;
+                    account.last_verified_at = None;
+                    Ok(Err(error))
+                }
+            }
+        })?
     }
 
     pub fn account(&self, id: &str) -> Option<&BrowserAccount> {
@@ -97,11 +164,23 @@ impl BrowserProfileRegistry {
         cdp_port: u16,
         max_tabs: u16,
     ) -> Result<BrowserAccount, BrowserRegistryError> {
-        let id = match id {
-            Some(id) => id,
-            None => default_account_id(email_hint),
-        };
+        let id = id.unwrap_or_else(|| default_account_id(email_hint));
         validate_account_id(&id)?;
+        if let Some(existing) = self.account(&id) {
+            if !existing.email_hint.eq_ignore_ascii_case(email_hint.trim()) {
+                return Err(BrowserRegistryError::AccountIdentityConflict(id));
+            }
+            existing.ensure_runtime_dirs()?;
+            return Ok(existing.clone());
+        }
+        if cdp_port == 0
+            || self
+                .accounts
+                .iter()
+                .any(|account| account.cdp_port == cdp_port)
+        {
+            return Err(BrowserRegistryError::PortUnavailable(cdp_port));
+        }
         let account = BrowserAccount {
             id: id.clone(),
             email_hint: email_hint.trim().to_string(),
@@ -112,20 +191,11 @@ impl BrowserProfileRegistry {
             max_tabs: max_tabs.max(1),
             status: BrowserAccountStatus::AuthRequired,
             last_verified_at: None,
+            provider_account_id: None,
         };
         account.ensure_runtime_dirs()?;
 
-        if let Some(existing) = self.account_mut(&id) {
-            let last_verified_at = existing.last_verified_at.clone();
-            let status = existing.status;
-            *existing = BrowserAccount {
-                status,
-                last_verified_at,
-                ..account.clone()
-            };
-        } else {
-            self.accounts.push(account.clone());
-        }
+        self.accounts.push(account.clone());
         Ok(account)
     }
 

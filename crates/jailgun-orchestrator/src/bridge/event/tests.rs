@@ -33,6 +33,10 @@ fn roundtrip_auth_complete_event() {
     let payload = AuthCompletePayload {
         page_url: "https://chatgpt.com/".into(),
         composer_detected: true,
+        account_identity: Some(jailgun_core::ProviderIdentity {
+            id: "synthetic-user".into(),
+            email: "synthetic@example.invalid".into(),
+        }),
     };
     let event = BridgeEvent::AuthComplete(payload.clone());
     let envelope = envelope_for_event(&event, "auth-run", "2026-05-31T12:00:00Z", None);

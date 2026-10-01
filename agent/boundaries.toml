@@ -10,12 +10,14 @@ event_contract_paths = [
 root_paths = ["db"]
 migration_paths = ["db/migrations"]
 constraint_paths = ["db/constraints"]
+# Migration 0005 backfills request-only identity through the bounded Rust writer.
 
 [runtime]
 rust_truth = [
   "crates/jailgun-core/src/event.rs",
   "crates/jailgun-core/src/run.rs",
-  "crates/jailgun-core/src/receipt.rs"
+  "crates/jailgun-core/src/receipt.rs",
+  "crates/jailgun-workflow/src/model.rs"
 ]
 typescript_surfaces = [
   "apps/browser-adapter/",

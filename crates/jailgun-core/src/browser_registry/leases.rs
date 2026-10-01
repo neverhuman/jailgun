@@ -1,24 +1,25 @@
 use std::{
     collections::{BTreeMap, BTreeSet},
+    fs, io,
     path::{Path, PathBuf},
+    time::{Duration, SystemTime, UNIX_EPOCH},
 };
 
 use serde::{Deserialize, Serialize};
 
 use super::{
-    registry::BrowserProfileRegistry, BrowserAccount, BrowserAccountStatus, BrowserRegistryError,
+    registry::BrowserProfileRegistry,
+    storage::{atomic_write, ensure_private_dir, private_file},
+    BrowserAccount, BrowserAccountStatus, BrowserRegistryError,
 };
 
+mod helpers;
 mod lock;
-mod store;
-
-use store::{
-    lease_path_for_registry, owner_process_is_alive, release_lease_ids, unix_seconds,
-    with_locked_leases,
-};
 
 #[cfg(test)]
 mod tests;
+
+use lock::InterprocessFileLock;
 
 pub const DEFAULT_BROWSER_QUEUE_TIMEOUT_SECONDS: u64 = 30 * 60;
 pub const MAX_BROWSER_QUEUE_TIMEOUT_SECONDS: u64 = 6 * 60 * 60;
@@ -92,6 +93,30 @@ pub struct BrowserLeaseManager {
 }
 
 impl BrowserLeaseManager {
+    /// Permanently route migrated profiles away from the archive scheduler.
+    /// The same lease lock makes migration atomic with respect to new archive reservations.
+    pub fn claim_workflow_profiles(&self, runtime: &Path) -> Result<(), BrowserRegistryError> {
+        with_locked_leases(&self.lease_path, |state| {
+            state.purge_stale(unix_seconds());
+            if !state.leases.is_empty() {
+                return Err(BrowserRegistryError::LeaseInvalid(
+                    "migration-browser-busy: stop archive work before migrating accounts".into(),
+                ));
+            }
+            let registry = BrowserProfileRegistry::load_or_default(&self.registry_path)?;
+            for account in registry.accounts {
+                account.ensure_runtime_dirs()?;
+                super::profile_ownership::claim(&account.profile_dir, runtime).map_err(|source| {
+                    if source.kind() == io::ErrorKind::AlreadyExists {
+                        BrowserRegistryError::LeaseInvalid("migration-profile-conflict: another or invalid owner claims this profile".into())
+                    } else {
+                        BrowserRegistryError::Write { path: account.profile_dir.display().to_string(), source }
+                    }
+                })?;
+            }
+            Ok(())
+        })
+    }
     pub fn new(registry_path: impl Into<PathBuf>) -> Self {
         let registry_path = registry_path.into();
         let lease_path = lease_path_for_registry(&registry_path);
@@ -109,15 +134,25 @@ impl BrowserLeaseManager {
         &self,
         request: &BrowserLeaseRequest,
     ) -> Result<BrowserLease, BrowserRegistryError> {
+        self.try_acquire_at(request, unix_seconds())
+    }
+
+    fn try_acquire_at(
+        &self,
+        request: &BrowserLeaseRequest,
+        now: u64,
+    ) -> Result<BrowserLease, BrowserRegistryError> {
         if request.tabs == 0 {
             return Err(BrowserRegistryError::LeaseInvalid(
                 "requested browser lease tabs must be positive".into(),
             ));
         }
-        let now = unix_seconds();
         with_locked_leases(&self.lease_path, |state| {
             let registry = BrowserProfileRegistry::load_or_default(&self.registry_path)?;
             let accounts = ready_candidate_accounts(&registry, &request.account_ids)?;
+            for account in &accounts {
+                account.require_archive_access()?;
+            }
             ensure_total_capacity(&accounts, request.tabs)?;
             state.purge_stale(now);
             let Some(plan) = allocate_tabs(&accounts, &state.leases, request.tabs) else {
@@ -134,10 +169,7 @@ impl BrowserLeaseManager {
             let lease_ids = plan
                 .allocations
                 .iter()
-                .enumerate()
-                .map(|(index, allocation)| {
-                    format!("{}-{}-{}-{}", owner_pid, now, index, allocation.account_id)
-                })
+                .map(|_| uuid::Uuid::new_v4().to_string())
                 .collect::<Vec<_>>();
             let expires_at_epoch_secs = now.saturating_add(request.lease_ttl_seconds.max(60));
             for (lease_id, allocation) in lease_ids.iter().zip(plan.allocations.iter()) {
@@ -167,7 +199,7 @@ impl BrowserLeaseManager {
 
 #[derive(Debug, Default, Serialize, Deserialize)]
 struct BrowserLeaseState {
-    #[serde(default = "store::default_lease_state_version")]
+    #[serde(default = "default_lease_state_version")]
     version: u16,
     #[serde(default)]
     leases: Vec<BrowserLeaseRecord>,
@@ -199,133 +231,4 @@ struct LeasePlan {
     tab_account_ids: Vec<String>,
 }
 
-fn ready_candidate_accounts(
-    registry: &BrowserProfileRegistry,
-    requested_ids: &[String],
-) -> Result<Vec<BrowserAccount>, BrowserRegistryError> {
-    let mut accounts = Vec::new();
-    if requested_ids.is_empty() {
-        accounts.extend(
-            registry
-                .accounts
-                .iter()
-                .filter(|account| account.status == BrowserAccountStatus::Ready)
-                .cloned(),
-        );
-        if accounts.is_empty() {
-            return Err(BrowserRegistryError::NoReadyAccounts);
-        }
-        return Ok(accounts);
-    }
-
-    let mut seen = BTreeSet::new();
-    for id in requested_ids {
-        super::validate_account_id(id)?;
-        if !seen.insert(id.clone()) {
-            return Err(BrowserRegistryError::DuplicateAccountId(id.clone()));
-        }
-        let account = registry.require_account(id)?;
-        account.require_ready()?;
-        accounts.push(account.clone());
-    }
-    Ok(accounts)
-}
-
-fn ensure_total_capacity(
-    accounts: &[BrowserAccount],
-    requested_tabs: u16,
-) -> Result<(), BrowserRegistryError> {
-    let capacity = total_capacity(accounts);
-    if requested_tabs > capacity {
-        return Err(BrowserRegistryError::InsufficientAccountCapacity {
-            requested: requested_tabs,
-            capacity,
-        });
-    }
-    Ok(())
-}
-
-fn allocate_tabs(
-    accounts: &[BrowserAccount],
-    active: &[BrowserLeaseRecord],
-    requested_tabs: u16,
-) -> Option<LeasePlan> {
-    let account_ids = accounts
-        .iter()
-        .map(|account| account.id.clone())
-        .collect::<BTreeSet<_>>();
-    let mut used = active_loads(active, &account_ids);
-    let mut allocated = BTreeMap::<String, u16>::new();
-    let mut tab_account_ids = Vec::with_capacity(requested_tabs as usize);
-    for _ in 0..requested_tabs {
-        let account = accounts
-            .iter()
-            .filter(|account| used.get(&account.id).copied().unwrap_or(0) < account.max_tabs.max(1))
-            .min_by_key(|account| {
-                let current = used.get(&account.id).copied().unwrap_or(0);
-                let weighted = (current as u32) * 1000 / account.max_tabs.max(1) as u32;
-                (weighted, current, account.id.as_str())
-            })?;
-        *used.entry(account.id.clone()).or_default() += 1;
-        *allocated.entry(account.id.clone()).or_default() += 1;
-        tab_account_ids.push(account.id.clone());
-    }
-    Some(LeasePlan {
-        allocations: allocated
-            .into_iter()
-            .map(|(account_id, tabs)| BrowserLeaseAllocation { account_id, tabs })
-            .collect(),
-        tab_account_ids,
-    })
-}
-
-fn active_loads(
-    active: &[BrowserLeaseRecord],
-    account_ids: &BTreeSet<String>,
-) -> BTreeMap<String, u16> {
-    let mut loads = BTreeMap::new();
-    for lease in active {
-        if account_ids.contains(&lease.account_id) {
-            *loads.entry(lease.account_id.clone()).or_default() += lease.tabs;
-        }
-    }
-    loads
-}
-
-fn unique_accounts_for_allocations(
-    accounts: &[BrowserAccount],
-    allocations: &[BrowserLeaseAllocation],
-) -> Vec<BrowserAccount> {
-    let by_id = accounts
-        .iter()
-        .map(|account| (account.id.as_str(), account))
-        .collect::<BTreeMap<_, _>>();
-    let mut expanded = Vec::new();
-    for allocation in allocations {
-        if let Some(account) = by_id.get(allocation.account_id.as_str()) {
-            expanded.push((*account).clone());
-        }
-    }
-    expanded
-}
-
-fn tab_accounts_for_plan(
-    accounts: &[BrowserAccount],
-    tab_account_ids: &[String],
-) -> Vec<BrowserAccount> {
-    let by_id = accounts
-        .iter()
-        .map(|account| (account.id.as_str(), account))
-        .collect::<BTreeMap<_, _>>();
-    tab_account_ids
-        .iter()
-        .filter_map(|id| by_id.get(id.as_str()).map(|account| (*account).clone()))
-        .collect()
-}
-
-fn total_capacity(accounts: &[BrowserAccount]) -> u16 {
-    accounts
-        .iter()
-        .map(|account| account.max_tabs.max(1))
-        .fold(0u16, u16::saturating_add)
-}
+use helpers::*;

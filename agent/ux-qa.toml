@@ -12,3 +12,9 @@ id = "dashboard"
 url = "http://127.0.0.1:5173/"
 states = ["loading", "empty", "error", "success"]
 viewports = ["390x844", "1440x900"]
+
+[[routes]]
+id = "concept-dashboard"
+url = "http://127.0.0.1:5173/"
+states = ["accounts-empty", "accounts-verifying", "new-concept", "progress-partial", "progress-complete", "results-final", "results-comparison", "service-error", "concept-demo"]
+viewports = ["390x844", "1440x900"]

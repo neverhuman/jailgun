@@ -19,15 +19,7 @@ export interface TabSnapshot {
   prompt_policy_decision: string | null;
 }
 
-export interface JailgunEvent {
-  run_id: string;
-  tab_id: number | null;
-  timestamp: string;
-  kind: string;
-  severity: 'debug' | 'info' | 'warn' | 'error';
-  message: string;
-  fields: Record<string, string>;
-}
+export type { JailgunEvent } from './generated/event';
 
 export interface ReceiptResponse {
   run_id: string;

@@ -7,14 +7,21 @@ repository.workspace = true
 rust-version.workspace = true
 
 [dependencies]
+rmcp.workspace = true
+schemars.workspace = true
 anyhow.workspace = true
 axum.workspace = true
 async-trait.workspace = true
+base64.workspace = true
+flate2.workspace = true
 futures.workspace = true
 jailgun-core = { path = "../jailgun-core" }
 jailgun-orchestrator = { path = "../jailgun-orchestrator" }
+jailgun-workflow = { path = "../jailgun-workflow" }
 serde.workspace = true
 serde_json.workspace = true
+sha2.workspace = true
+tar.workspace = true
 time.workspace = true
 tokio.workspace = true
 tower-http.workspace = true
@@ -22,5 +29,6 @@ tracing.workspace = true
 uuid.workspace = true
 
 [dev-dependencies]
+reqwest.workspace = true
 tempfile.workspace = true
 tower.workspace = true

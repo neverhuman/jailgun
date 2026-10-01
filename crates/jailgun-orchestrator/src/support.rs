@@ -52,17 +52,19 @@ pub fn bridge_command(args: Vec<String>) -> Result<Vec<String>> {
     }
     match env::var("JAILGUN_BRIDGE_CMD") {
         Ok(value) => {
-            let parts = value
-                .split_whitespace()
-                .map(str::to_string)
-                .collect::<Vec<_>>();
-            if parts.is_empty() {
+            let parts: Vec<String> = if value.trim_start().starts_with('[') {
+                serde_json::from_str(&value)
+                    .context("JAILGUN_BRIDGE_CMD must be a JSON argument array")?
+            } else {
+                value.split_whitespace().map(str::to_string).collect()
+            };
+            if parts.is_empty() || parts[0].is_empty() {
                 anyhow::bail!("JAILGUN_BRIDGE_CMD is empty");
             }
             Ok(parts)
         }
         Err(env::VarError::NotPresent) => {
-            anyhow::bail!("bridge command must be provided with --bridge-cmd or JAILGUN_BRIDGE_CMD")
+            Ok(jailgun_core::runtime_assets::archive_bridge_command()?)
         }
         Err(env::VarError::NotUnicode(_)) => {
             anyhow::bail!("JAILGUN_BRIDGE_CMD is not valid UTF-8")

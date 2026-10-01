@@ -4,3 +4,5 @@ mod auth;
 pub mod cli;
 pub mod commands;
 pub mod jailhard;
+
+pub mod concept_cli;

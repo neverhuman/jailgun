@@ -3,7 +3,16 @@
 This directory owns generated event schema and fixture contracts:
 
 - `contracts/json-schema/event.schema.json`
+- `contracts/json-schema/workflow.schema.json`
 - `contracts/fixtures/events/`
+- `contracts/fixtures/workflow/`
+- `apps/dashboard/src/generated/`
+
+Event and workflow schema types come from Rust through Schemars. The Node
+generator creates shared frontend types using json-schema-to-typescript and
+standalone runtime validators using Ajv. Workflow fixtures execute the Rust
+storage state machine before normalizing generated identities. Install
+the locked Node dependencies before running the contracts lane.
 
 Do not hand-edit generated contract outputs. Update the generator or Rust event
 source, then run:

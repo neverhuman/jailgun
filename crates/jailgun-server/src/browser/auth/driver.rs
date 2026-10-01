@@ -81,29 +81,33 @@ async fn publish_auth_event(state: &Arc<AppState>, event: JailgunEvent) {
 async fn apply_auth_event_status(state: &Arc<AppState>, account_id: &str, event: &BridgeEvent) {
     match event {
         BridgeEvent::AuthState(payload) => match payload.state.as_str() {
-            "ready" => {
-                set_account_status(
-                    state,
-                    account_id,
-                    BrowserAccountStatus::Ready,
-                    Some(timestamp_now()),
-                )
-                .await;
-            }
+            "ready" => {} // Only AuthComplete with a verified identity can bind an account.
             "auth-required" | "code-requested" | "session-expired" => {
                 set_account_status(state, account_id, BrowserAccountStatus::AuthRequired, None)
                     .await;
             }
             _ => {}
         },
-        BridgeEvent::AuthComplete(_) => {
-            set_account_status(
-                state,
-                account_id,
-                BrowserAccountStatus::Ready,
-                Some(timestamp_now()),
-            )
-            .await;
+        BridgeEvent::AuthComplete(payload) => {
+            let result = match payload
+                .account_identity
+                .as_ref()
+                .filter(|_| payload.composer_detected)
+            {
+                Some(identity) => jailgun_core::BrowserProfileRegistry::verify_account(
+                    &state.browser_registry_path,
+                    account_id,
+                    identity,
+                    timestamp_now(),
+                ),
+                None => Err(jailgun_core::BrowserRegistryError::AccountIdentityConflict(
+                    account_id.into(),
+                )),
+            };
+            if let Err(error) = result {
+                set_account_status(state, account_id, BrowserAccountStatus::Degraded, None).await;
+                record_session_error(state, &format!("auth-{account_id}"), error.to_string()).await;
+            }
         }
         BridgeEvent::AuthActionNeeded(_) => {
             set_account_status(

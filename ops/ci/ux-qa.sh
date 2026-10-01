@@ -11,12 +11,10 @@ ci_require_cmd npm
 ci_log "building dashboard before rendered UX evidence"
 npm --workspace @jailgun/dashboard run build
 
-ci_log "writing dashboard UX QA artifacts"
-# Evidence categories: page.screenshot, --artifacts-dir, aria-snapshot,
-# visual review, axe-core accessibility testing, cumulative layout shift / CLS,
-# MSW API mocks, design tokens, and getBoundingClientRect geometry.
+ci_log "writing dashboard visual review and UX QA artifacts"
+# Screenshots, DOM assertions and accessibility results come from real Chromium.
 node scripts/render-dashboard-ux-qa.mjs
 
 ci_assert_file target/jankurai/ux-qa.json
-ci_assert_file artifacts/ux-qa/dashboard-desktop.svg
-ci_assert_file artifacts/ux-qa/dashboard-mobile.svg
+ci_assert_file artifacts/ux-qa/dashboard-desktop-success.png
+ci_assert_file artifacts/ux-qa/dashboard-mobile-success.png

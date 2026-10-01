@@ -1,228 +1,204 @@
+use super::{
+    catalog::*,
+    protocol::{input, output, response},
+};
+use crate::{
+    auth::Principal,
+    concepts,
+    runs::{get_agent_summary, get_run, start_agent_run_inner, RunIngress},
+    AppState,
+};
+use axum::{
+    extract::{Path, State},
+    response::IntoResponse,
+};
+use jailgun_workflow::{
+    model::{ArtifactRead, ConceptRequest},
+    Error,
+};
+use rmcp::{model::CallToolResult, service::RequestContext, ErrorData, RoleServer};
+use serde_json::{Map, Value};
 use std::sync::Arc;
 
-use axum::{
-    extract::{Path as AxumPath, State},
-    http::HeaderMap,
-    response::{IntoResponse, Response},
-    Json,
-};
-use serde_json::{json, Value};
-
-use crate::{
-    browser::{browser_write_unauthorized, get_browser_account, post_browser_account_auth_code},
-    mcp::protocol::{mcp_error_response, mcp_tool_response},
-    runs::{get_agent_summary, get_run, start_agent_run_inner, RunIngress},
-    state::AppState,
-};
-
-pub(super) fn mcp_tool_list() -> Vec<Value> {
-    vec![
-        json!({
-            "name": "jailgun.run",
-            "title": "Start Jailgun run",
-            "description": "Start a Jailgun agent run using the published REST contract.",
-            "inputSchema": { "type": "object" },
-        }),
-        json!({
-            "name": "jailgun.run_status",
-            "title": "Get run status",
-            "description": "Return the current run snapshot for a run_id.",
-            "inputSchema": {
-                "type": "object",
-                "properties": { "run_id": { "type": "string" } },
-                "required": ["run_id"],
-            },
-        }),
-        json!({
-            "name": "jailgun.run_summary",
-            "title": "Get run summary",
-            "description": "Return the agent summary for a run_id.",
-            "inputSchema": {
-                "type": "object",
-                "properties": { "run_id": { "type": "string" } },
-                "required": ["run_id"],
-            },
-        }),
-        json!({
-            "name": "jailgun.auth_status",
-            "title": "Get browser auth status",
-            "description": "Return the current browser account auth status.",
-            "inputSchema": {
-                "type": "object",
-                "properties": { "account_id": { "type": "string" } },
-                "required": ["account_id"],
-            },
-        }),
-        json!({
-            "name": "jailgun.submit_code",
-            "title": "Submit auth code",
-            "description": "Submit a browser auth code for the active auth session.",
-            "inputSchema": {
-                "type": "object",
-                "properties": {
-                    "account_id": { "type": "string" },
-                    "code": { "type": "string" },
-                },
-                "required": ["account_id", "code"],
-            },
-        }),
-    ]
-}
-
-pub(super) async fn mcp_call_tool(
-    state: Arc<AppState>,
-    headers: HeaderMap,
-    request_id: Option<Value>,
-    params: Option<&Value>,
-) -> Response {
-    let Some(params) = params.and_then(Value::as_object) else {
-        return mcp_error_response(
-            request_id,
-            -32602,
-            "invalid params",
-            Some(json!({
-                "reason": "tools/call requires params.name",
-            })),
-        );
-    };
-    let Some(tool_name) = params.get("name").and_then(Value::as_str) else {
-        return mcp_error_response(
-            request_id,
-            -32602,
-            "invalid params",
-            Some(json!({
-                "reason": "tools/call requires params.name",
-            })),
-        );
-    };
-    let arguments = match params.get("arguments").cloned() {
-        Some(arguments) => arguments,
-        None => json!({}),
-    };
-    let response = match tool_name {
-        "jailgun.run" => start_agent_run_inner(
-            State(state.clone()),
-            headers.clone(),
-            arguments,
-            RunIngress::Mcp,
+pub(super) async fn call(
+    state: &Arc<AppState>,
+    principal: &Principal,
+    name: &str,
+    args: Map<String, Value>,
+    context: &RequestContext<RoleServer>,
+) -> Result<CallToolResult, ErrorData> {
+    if operator_only(name) && !principal.is_operator() {
+        return output::<Value>(Err(Error::action(
+            "operator-required",
+            "Archive execution requires operator authorization.",
+            "Use concept operations with an automation credential.",
+        )));
+    }
+    if worker_tool(name) {
+        let Some(worker) = state.worker.as_ref() else {
+            return output::<Value>(Err(Error::action(
+                "worker-unavailable",
+                "The lightweight worker runtime is not active.",
+                "Start `jailgun worker` or `jailgun serve` and reconnect the MCP client.",
+            )));
+        };
+        return match name {
+            "jailgun.worker.info" => {
+                let _: Empty = input(args)?;
+                output(Ok(worker.info().await))
+            }
+            "jailgun.worker.account_register" => {
+                output(worker.register_account(input(args)?).await)
+            }
+            "jailgun.worker.account_list" => {
+                let request: crate::worker::AccountList = input(args)?;
+                output(worker.accounts(request.refresh).await)
+            }
+            "jailgun.worker.account_refresh" => output(worker.refresh_account(input(args)?).await),
+            "jailgun.worker.tab_open" => output(worker.open_tab(input(args)?).await),
+            "jailgun.worker.tab_list" => {
+                let _: Empty = input(args)?;
+                output(Ok(worker.tabs().await))
+            }
+            "jailgun.worker.tab_close" => output(worker.close_tab(input(args)?).await),
+            "jailgun.worker.tab_set_model" => output(worker.set_model(input(args)?).await),
+            "jailgun.worker.job_submit" => output(worker.submit_job(input(args)?).await),
+            "jailgun.worker.job_status" => {
+                let request: crate::worker::JobRef = input(args)?;
+                output(worker.job(&request.job_id).await)
+            }
+            "jailgun.worker.job_cancel" => output(worker.cancel_job(input(args)?).await),
+            "jailgun.worker.object_put" => output(worker.put_object(input(args)?).await),
+            "jailgun.worker.object_get" => output(worker.get_object(input(args)?).await),
+            "jailgun.worker.object_list" => {
+                let _: Empty = input(args)?;
+                output(Ok(worker.objects().await))
+            }
+            _ => Err(ErrorData::invalid_params("unknown worker tool", None)),
+        };
+    }
+    if name == "jailgun.run_summary" {
+        let request: RunId = input(args)?;
+        return response(get_agent_summary(State(state.clone()), Path(request.run_id)).await).await;
+    }
+    if name == "jailgun.run_status" && principal.is_operator() {
+        let request: RunId = input(args)?;
+        return response(get_run(State(state.clone()), Path(request.run_id)).await).await;
+    }
+    if name == "jailgun.run" {
+        let headers = context
+            .extensions
+            .get::<axum::http::request::Parts>()
+            .ok_or_else(|| ErrorData::internal_error("request headers unavailable", None))?
+            .headers
+            .clone();
+        return response(
+            start_agent_run_inner(
+                State(state.clone()),
+                headers,
+                Value::Object(args),
+                RunIngress::Mcp,
+            )
+            .await
+            .into_response(),
         )
-        .await
-        .into_response(),
-        "jailgun.run_status" => {
-            match mcp_call_run_status(&state, request_id.clone(), arguments).await {
-                Ok(response) => response,
-                Err(response) => return response,
-            }
+        .await;
+    }
+    let store = match state.workflow.as_ref() {
+        Some(store) => store,
+        None => {
+            return output::<Value>(Err(Error::action(
+                "workflow-unavailable",
+                "The durable concept runtime is not active.",
+                "Start jailgun serve --concepts and connect an account.",
+            )))
         }
-        "jailgun.run_summary" => {
-            match mcp_call_run_summary(&state, request_id.clone(), arguments).await {
-                Ok(response) => response,
-                Err(response) => return response,
+    };
+    match name {
+        "jailgun.brainstorm" => {
+            let request: ConceptRequest = input(args)?;
+            output(concepts::submit_request(state, principal, request).await)
+        }
+        "jailgun.run_artifact" => {
+            let request: ArtifactRead = input(args)?;
+            let run = match store.run(request.run_id.clone()).await {
+                Ok(run) => run,
+                Err(error) => return output::<Value>(Err(error)),
+            };
+            if let Err(error) = principal.require_account(&run.request.account_id) {
+                return output::<Value>(Err(error));
             }
+            output(store.artifact_chunk(request).await)
+        }
+        "jailgun.accounts" => {
+            let _: Empty = input(args)?;
+            output(store.accounts().await.map(|accounts| {
+                Accounts {
+                    accounts: accounts
+                        .into_iter()
+                        .filter(|a| principal.permits_account(&a.id))
+                        .collect(),
+                }
+            }))
         }
         "jailgun.auth_status" => {
-            match mcp_call_auth_status(&state, headers.clone(), request_id.clone(), arguments).await
-            {
-                Ok(response) => response,
-                Err(response) => return response,
+            let query: AuthQuery = input(args)?;
+            if let Some(id) = &query.account_id {
+                if let Err(error) = principal.require_account(id) {
+                    return output::<Value>(Err(error));
+                }
+            }
+            let host = context
+                .extensions
+                .get::<axum::http::request::Parts>()
+                .and_then(|p| p.headers.get("host"))
+                .and_then(|h| h.to_str().ok())
+                .unwrap_or("127.0.0.1:8787");
+            output(store.accounts().await.map(|accounts| {
+                let accounts = accounts
+                    .into_iter()
+                    .filter(|a| {
+                        principal.permits_account(&a.id)
+                            && query.account_id.as_ref().is_none_or(|id| id == &a.id)
+                    })
+                    .collect::<Vec<_>>();
+                let action = (!accounts.iter().any(|a| a.readiness == "ready")).then(|| {
+                    "Ask the operator to connect or reconnect an account in the dashboard."
+                        .to_string()
+                });
+                AuthStatus {
+                    accounts,
+                    dashboard_url: format!("http://{host}/#accounts"),
+                    action,
+                }
+            }))
+        }
+        _ => {
+            let resume = name == "jailgun.run_resume";
+            let (id, allow_incomplete) = if resume {
+                let request: Resume = input(args)?;
+                (request.run_id, request.allow_incomplete)
+            } else {
+                let request: RunId = input(args)?;
+                (request.run_id, false)
+            };
+            let run = match store.run(id.clone()).await {
+                Ok(run) => run,
+                Err(error) => return output::<Value>(Err(error)),
+            };
+            if let Err(error) = principal.require_account(&run.request.account_id) {
+                return output::<Value>(Err(error));
+            }
+            match name {
+                "jailgun.run_status" => output(Ok(run)),
+                "jailgun.run_result" => output(store.result(id).await),
+                "jailgun.run_pause" => output(store.pause(id, concepts::now()).await),
+                "jailgun.run_resume" => {
+                    output(store.resume(id, allow_incomplete, concepts::now()).await)
+                }
+                "jailgun.run_cancel" => output(store.cancel(id, concepts::now()).await),
+                _ => Err(ErrorData::invalid_params("unknown tool", None)),
             }
         }
-        "jailgun.submit_code" => {
-            match mcp_call_submit_code(&state, headers.clone(), request_id.clone(), arguments).await
-            {
-                Ok(response) => response,
-                Err(response) => return response,
-            }
-        }
-        other => {
-            return mcp_error_response(
-                request_id,
-                -32601,
-                "unknown tool",
-                Some(json!({ "tool": other })),
-            );
-        }
-    };
-    mcp_tool_response(request_id, response).await
-}
-
-async fn mcp_call_run_status(
-    state: &Arc<AppState>,
-    request_id: Option<Value>,
-    arguments: Value,
-) -> Result<Response, Response> {
-    let Some(run_id) = arguments.get("run_id").and_then(Value::as_str) else {
-        return Err(required_param_error(request_id, "run_id"));
-    };
-    let response = get_run(State(state.clone()), AxumPath(run_id.to_string())).await;
-    Ok(response.into_response())
-}
-
-async fn mcp_call_run_summary(
-    state: &Arc<AppState>,
-    request_id: Option<Value>,
-    arguments: Value,
-) -> Result<Response, Response> {
-    let Some(run_id) = arguments.get("run_id").and_then(Value::as_str) else {
-        return Err(required_param_error(request_id, "run_id"));
-    };
-    let response = get_agent_summary(State(state.clone()), AxumPath(run_id.to_string())).await;
-    Ok(response.into_response())
-}
-
-async fn mcp_call_auth_status(
-    state: &Arc<AppState>,
-    headers: HeaderMap,
-    request_id: Option<Value>,
-    arguments: Value,
-) -> Result<Response, Response> {
-    let Some(account_id) = arguments.get("account_id").and_then(Value::as_str) else {
-        return Err(required_param_error(request_id, "account_id"));
-    };
-    if let Some(response) = browser_write_unauthorized(state, &headers) {
-        return Ok(response);
     }
-    let response = get_browser_account(
-        State(state.clone()),
-        AxumPath(account_id.to_string()),
-        headers,
-    )
-    .await;
-    Ok(response.into_response())
-}
-
-async fn mcp_call_submit_code(
-    state: &Arc<AppState>,
-    headers: HeaderMap,
-    request_id: Option<Value>,
-    arguments: Value,
-) -> Result<Response, Response> {
-    let Some(account_id) = arguments.get("account_id").and_then(Value::as_str) else {
-        return Err(required_param_error(request_id, "account_id"));
-    };
-    let Some(code) = arguments.get("code").and_then(Value::as_str) else {
-        return Err(required_param_error(request_id, "code"));
-    };
-    if let Some(response) = browser_write_unauthorized(state, &headers) {
-        return Ok(response);
-    }
-    let response = post_browser_account_auth_code(
-        State(state.clone()),
-        AxumPath(account_id.to_string()),
-        headers,
-        Json(json!({ "code": code })),
-    )
-    .await;
-    Ok(response.into_response())
-}
-
-fn required_param_error(request_id: Option<Value>, name: &str) -> Response {
-    mcp_error_response(
-        request_id,
-        -32602,
-        "invalid params",
-        Some(json!({
-            "reason": format!("{name} is required"),
-        })),
-    )
 }

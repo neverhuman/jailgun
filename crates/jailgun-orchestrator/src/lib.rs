@@ -1,5 +1,6 @@
 pub mod agent;
 pub mod bridge;
+pub mod concept;
 pub mod config;
 pub mod errors;
 pub mod run;

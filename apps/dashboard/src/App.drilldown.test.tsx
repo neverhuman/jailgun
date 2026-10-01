@@ -1,7 +1,7 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { expect, it } from 'vitest';
 
-import { App } from './App';
+import { ArchiveDashboard as App } from './ArchiveDashboard';
 import { MockWebSocket, setupDashboardMocks } from './App.testSupport';
 
 setupDashboardMocks();
@@ -21,7 +21,7 @@ it('shows a Closed pill when a tab-closed event lands', async () => {
     run_id: 'fixture-run',
     tab_id: 1,
     timestamp: '2026-01-01T00:00:09Z',
-    kind: 'tab-closed',
+    kind: 'browser-log',
     severity: 'info',
     message: 'tab closed',
     fields: { tab_status: 'closed' }

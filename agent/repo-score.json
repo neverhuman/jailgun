@@ -1,21 +1,21 @@
 {
-  "report_fingerprint": "sha256:e7d88fd2491ccdf8b2bd62c23f677c63c613ee63dac85a9d6e7a2887d95db5fc",
-  "input_fingerprint": "sha256:2b909783e5be658cdb7a0919a3f6266543aaa93ce398a7b07eadb41a16682220",
+  "report_fingerprint": "sha256:b2ea35eaa1e53809dbae9165ff5338d089efd67831e0080176182c2d1a9cdb58",
+  "input_fingerprint": "sha256:febacc7277c3c8845c5dd8d7072d2cdaa777df78314257d29589edd1370b19da",
   "policy_fingerprint": "sha256:2e02fe1c1919de94a47a99164c962683a934c73ca5bb30bec62384f7b17fe742",
   "manifest_fingerprints": {
-    "owner_map": "sha256:c5d6ff65c3420d96e00ff0232f7d382635d4e54169dc799c4c14d8602d9491ef",
-    "test_map": "sha256:84747d495eb8ed36ebee4f12f6c49dbb111562b4fa69fdb06c235312ac7ea578",
-    "generated_zones": "sha256:e0d08bcd5dc39068bb9929dd463afebb2e6a16b208ef255348196e78dae8c17c",
-    "boundaries": "sha256:e603dc2c37fd526ad62380eb9f3d8dda55bfd85d62125e9479e2ecc8004bf771",
+    "owner_map": "sha256:5a31b5becddc33ecf8ecacd089c564aa5e19b6acc6da2647c9f78badc93dd077",
+    "test_map": "sha256:4551c2608980859f939ef6a6219c17af65e2bee8cc8d4fd9b4ad6234aa34d1b8",
+    "generated_zones": "sha256:b7d26165da365cfe6953423fa8b2b5aa151c0b21af5d6f9d84e85942aff073df",
+    "boundaries": "sha256:564885954986bf7044bceabbbf83fbaf60f18a0841d9fa9af2ba1045027b4d52",
     "proof_lanes": "sha256:15ec3d011b63046bbc896e0de66f4c8ec26bc4b72e286200e2ece5f714024c73",
     "standard_version": "sha256:e89e3b08c1e1ab55b195b4041787100956f3888aaba37595bce4403606dcb996"
   },
   "dirty_worktree": false,
-  "generated_at": "1790311586",
+  "generated_at": "1790796415",
   "schema_url": "schemas/repo-score.schema.json",
   "standard": "jankurai",
   "standard_version": "0.9.0",
-  "auditor_version": "1.4.3",
+  "auditor_version": "1.6.11",
   "schema_version": "1.9.0",
   "paper_edition": "2026.05-ed8",
   "target_stack_id": "rust-ts-vite-react-postgres-bounded-python",
@@ -25,15 +25,15 @@
   "conformance_decision": "pass",
   "conformance_blockers": [],
   "repo": ".",
-  "run_id": "1790311586",
-  "started_at": "1790311586",
-  "elapsed_ms": 2137,
+  "run_id": "1790796415",
+  "started_at": "1790796415",
+  "elapsed_ms": 30381,
   "scope": {
     "mode": "full",
     "paths": []
   },
-  "score": 97,
-  "raw_score": 97,
+  "score": 95,
+  "raw_score": 95,
   "decision": {
     "status": "advisory",
     "minimum_score": 85,
@@ -41,7 +41,7 @@
     "hard_findings": 0,
     "soft_findings": 0,
     "ratchet": {
-      "baseline_score": 97,
+      "baseline_score": 95,
       "allowed_drop": 0,
       "passed": true,
       "score_delta": 0,
@@ -54,7 +54,7 @@
     }
   },
   "git": {
-    "head": "7426337",
+    "head": "e710fa1",
     "base": null,
     "changed_files": 0,
     "mode": "full",
@@ -67,7 +67,7 @@
     "advisory_on": [],
     "mode": "advisory",
     "standard_version": "0.9.0",
-    "auditor_version": "1.4.3",
+    "auditor_version": "1.6.11",
     "schema_version": "1.9.0",
     "paper_edition": "2026.05-ed8",
     "target_stack": "rust-ts-vite-react-postgres-bounded-python"
@@ -328,10 +328,12 @@
         "security lane present",
         "canonical security lane wrapper present",
         "agent-readiness audit gate found in CI",
-        "rust bad-behavior advisory signals: 424",
-        "typescript bad-behavior advisory signals: 1",
+        "rust bad-behavior advisory signals: 703",
+        "sql bad-behavior advisory signals: 3",
+        "typescript bad-behavior advisory signals: 4",
         "ci bad-behavior advisory signals: 3",
         "gittools bad-behavior advisory signals: 2",
+        "web security bad-behavior advisory signals: 9",
         "Rust and npm dependency audits are operational commands",
         "secret scanning command is operational",
         "complete operational security command posture with zero hard language findings"
@@ -344,12 +346,13 @@
       "score": 100,
       "weighted_points": 12.0,
       "evidence": [
-        "largest authored code file: crates/jailgun-core/src/browser_registry/leases.rs (331 LOC)",
+        "largest authored code file: crates/jailgun-cli/src/cli.rs (339 LOC)",
         "most code files stay under 300 LOC",
-        "copy-code advisory classes found: 10 (advisory only, no score impact)",
+        "copy-code advisory classes found: 25 (advisory only, no score impact)",
         "authored code stays below hard LOC limits with no shape markers",
-        "rust bad-behavior advisory signals: 424",
-        "typescript bad-behavior advisory signals: 1",
+        "rust bad-behavior advisory signals: 703",
+        "sql bad-behavior advisory signals: 3",
+        "typescript bad-behavior advisory signals: 4",
         "ci bad-behavior advisory signals: 3",
         "gittools bad-behavior advisory signals: 2",
         "no hard bad-behavior findings across detector-backed language families"
@@ -406,16 +409,22 @@
     {
       "name": "Jankurai tool adoption and CI replacement",
       "weight": 7,
-      "score": 100,
-      "weighted_points": 7.0,
+      "score": 80,
+      "weighted_points": 5.6,
       "evidence": [
         "control-plane files present",
-        "applicable=17",
-        "configured=17",
-        "ci_evidence=17",
-        "artifact_verified=17"
+        "applicable=18",
+        "configured=18",
+        "ci_evidence=14",
+        "artifact_verified=6"
       ],
-      "notes": []
+      "notes": [
+        "some applicable tools lack CI evidence",
+        "missing CI evidence for `audit-ci`",
+        "missing CI evidence for `proof-routing`",
+        "missing CI evidence for `ci-bad-behavior`",
+        "missing CI evidence for `git-bad-behavior`"
+      ]
     },
     {
       "name": "Python containment and polyglot hygiene",
@@ -430,13 +439,12 @@
     {
       "name": "Build speed signals",
       "weight": 4,
-      "score": 95,
-      "weighted_points": 3.8,
+      "score": 85,
+      "weighted_points": 3.4,
       "evidence": [
         "build acceleration markers found",
         "targeted test/build commands found",
         "locked dependency graph present",
-        "CI cache hint found",
         "fast lane uses targeted commands and target-only audit artifacts",
         "explicit cache marker plus narrow per-package target found"
       ],
@@ -449,15 +457,14 @@
     "missing_categories": [],
     "evidence": {
       "accessibility": [
+        "agent/generated-zones.toml",
         "agent/repo-score.json",
         "agent/repo-score.md",
-        "ops/ci/ux-qa.sh",
-        "scripts/render-dashboard-ux-qa.mjs"
+        "artifacts/ux-qa/dashboard-desktop-accounts-empty.accessibility.json",
+        "artifacts/ux-qa/dashboard-desktop-accounts-verifying.accessibility.json"
       ],
       "api_mocks": [
-        "ops/ci/ux-qa.sh",
-        "package-lock.json",
-        "scripts/render-dashboard-ux-qa.mjs"
+        "package-lock.json"
       ],
       "artifact_backed_proof": [
         "agent/ux-qa.toml",
@@ -467,48 +474,53 @@
         "apps/dashboard/src/components/TabProgressBar.tsx"
       ],
       "design_tokens": [
-        "ops/ci/ux-qa.sh",
-        "scripts/render-dashboard-ux-qa.mjs"
+        "agent/repo-score.json",
+        "agent/repo-score.md",
+        "apps/dashboard/src/tokens.css"
       ],
       "geometry_runtime": [
+        "agent/repo-score.json",
+        "agent/repo-score.md",
         "agent/ux-qa.toml",
         "apps/browser-adapter/bin/live-capture.mjs",
-        "apps/browser-adapter/src/domContracts/domHelpers.ts",
-        "apps/browser-adapter/src/domContracts/popups.ts",
-        "apps/browser-adapter/src/domContracts/rateLimit.ts"
+        "apps/browser-adapter/src/domContracts/domHelpers.ts"
       ],
       "layout_stability": [
-        "ops/ci/ux-qa.sh",
+        "agent/repo-score.json",
+        "agent/repo-score.md",
+        "scripts/lib/layout-stability.mjs",
         "scripts/render-dashboard-ux-qa.mjs"
       ],
       "playwright_visual": [
         "apps/chrome-bridge/bin/chrome-bridge.mjs",
-        "ops/ci/ux-qa.sh",
+        "scripts/check-concept-dashboard.mjs",
         "scripts/render-dashboard-ux-qa.mjs"
       ],
       "storybook": [
-        "agent/repo-score.json"
+        "agent/repo-score.json",
+        "agent/repo-score.md"
       ],
       "visual_review": [
-        "ops/ci/ux-qa.sh",
-        "scripts/render-dashboard-ux-qa.mjs"
+        "agent/repo-score.json",
+        "agent/repo-score.md",
+        "ops/ci/ux-qa.sh"
       ]
     }
   },
   "tool_adoption": {
     "control_plane_present": true,
-    "applicable_count": 17,
-    "configured_count": 17,
-    "ci_evidence_count": 17,
-    "artifact_verified_count": 17,
-    "replaced_count": 17,
+    "applicable_count": 18,
+    "configured_count": 18,
+    "ci_evidence_count": 14,
+    "artifact_verified_count": 6,
+    "replaced_count": 14,
     "items": [
       {
         "id": "audit-ci",
         "category": "audit",
         "mode": "advisory",
         "applicable": true,
-        "status": "artifact_verified",
+        "status": "ci_evidence",
         "replaced_tools": [
           "manual repo scoring",
           "ad hoc score gates"
@@ -516,15 +528,16 @@
         "evidence": [
           "mode=advisory",
           "tool-adoption config entry present",
-          "CI command found in workflow",
-          "artifact uploads found: agent/repo-score.json, agent/repo-score.md"
+          "CI command found in workflow"
         ],
-        "missing": [],
-        "local_command": "jankurai audit . --mode advisory --json agent/repo-score.json --md agent/repo-score.md",
+        "missing": [
+          "artifact upload reference"
+        ],
+        "local_command": "jankurai audit . --mode advisory --json .jankurai/repo-score.json --md .jankurai/repo-score.md",
         "ci_command": "jankurai audit . --mode ratchet --baseline target/jankurai/accepted-baseline.json --json target/jankurai/repo-score.json --md target/jankurai/repo-score.md",
         "artifact_paths": [
-          "agent/repo-score.json",
-          "agent/repo-score.md"
+          ".jankurai/repo-score.json",
+          ".jankurai/repo-score.md"
         ]
       },
       {
@@ -532,7 +545,7 @@
         "category": "proof",
         "mode": "advisory",
         "applicable": true,
-        "status": "artifact_verified",
+        "status": "ci_evidence",
         "replaced_tools": [
           "ad hoc proof lane selection",
           "manual proof receipts"
@@ -540,15 +553,16 @@
         "evidence": [
           "mode=advisory",
           "tool-adoption config entry present",
-          "CI command found in workflow",
-          "artifact uploads found: agent/repo-score.json, agent/repo-score.md, target/jankurai/repair-queue.jsonl"
+          "CI command found in workflow"
         ],
-        "missing": [],
+        "missing": [
+          "artifact upload reference"
+        ],
         "local_command": "jankurai proof . --changed-from origin/main --out target/jankurai/proof-plan.json --md target/jankurai/proof-plan.md",
         "ci_command": "jankurai audit . --mode ratchet --baseline target/jankurai/accepted-baseline.json --json target/jankurai/repo-score.json --md target/jankurai/repo-score.md",
         "artifact_paths": [
-          "agent/repo-score.json",
-          "agent/repo-score.md",
+          ".jankurai/repo-score.json",
+          ".jankurai/repo-score.md",
           "target/jankurai/repair-queue.jsonl"
         ]
       },
@@ -653,7 +667,7 @@
         "category": "security",
         "mode": "advisory",
         "applicable": true,
-        "status": "artifact_verified",
+        "status": "configured",
         "replaced_tools": [
           "mutable workflow refs",
           "secret echo/debug workflow checks",
@@ -661,11 +675,11 @@
         ],
         "evidence": [
           "mode=advisory",
-          "tool-adoption config entry present",
-          "CI command found in workflow",
-          "artifact uploads found: target/jankurai/language-bad-behavior.log"
+          "tool-adoption config entry present"
         ],
-        "missing": [],
+        "missing": [
+          "CI command evidence"
+        ],
         "local_command": "cargo test -p jankurai --test language_bad_behavior",
         "ci_command": "cargo test -p jankurai --test language_bad_behavior",
         "artifact_paths": [
@@ -677,7 +691,7 @@
         "category": "audit",
         "mode": "advisory",
         "applicable": true,
-        "status": "artifact_verified",
+        "status": "configured",
         "replaced_tools": [
           "destructive git automation",
           "force-push release scripts",
@@ -685,11 +699,11 @@
         ],
         "evidence": [
           "mode=advisory",
-          "tool-adoption config entry present",
-          "CI command found in workflow",
-          "artifact uploads found: target/jankurai/language-bad-behavior.log"
+          "tool-adoption config entry present"
         ],
-        "missing": [],
+        "missing": [
+          "CI command evidence"
+        ],
         "local_command": "cargo test -p jankurai --test language_bad_behavior",
         "ci_command": "cargo test -p jankurai --test language_bad_behavior",
         "artifact_paths": [
@@ -701,7 +715,7 @@
         "category": "release",
         "mode": "auto",
         "applicable": true,
-        "status": "artifact_verified",
+        "status": "configured",
         "replaced_tools": [
           "manual release checklist",
           "ad hoc tag and artifact review",
@@ -709,11 +723,11 @@
         ],
         "evidence": [
           "mode=auto",
-          "tool-adoption config entry present",
-          "CI command found in workflow",
-          "artifact uploads found: target/jankurai/language-bad-behavior.log"
+          "tool-adoption config entry present"
         ],
-        "missing": [],
+        "missing": [
+          "CI command evidence"
+        ],
         "local_command": "cargo test -p jankurai --test language_bad_behavior",
         "ci_command": "cargo test -p jankurai --test language_bad_behavior",
         "artifact_paths": [
@@ -748,15 +762,18 @@
         "id": "db-migration-analyze",
         "category": "db",
         "mode": "auto",
-        "applicable": false,
-        "status": "not_applicable",
+        "applicable": true,
+        "status": "configured",
         "replaced_tools": [
           "manual migration review"
         ],
         "evidence": [
-          "mode=auto"
+          "mode=auto",
+          "tool-adoption config entry present"
         ],
-        "missing": [],
+        "missing": [
+          "CI command evidence"
+        ],
         "local_command": "jankurai migrate . --analyze --json target/jankurai/migration-report.json",
         "ci_command": "jankurai migrate . --analyze --json target/jankurai/migration-report.json",
         "artifact_paths": [
@@ -768,7 +785,7 @@
         "category": "contract",
         "mode": "advisory",
         "applicable": true,
-        "status": "artifact_verified",
+        "status": "ci_evidence",
         "replaced_tools": [
           "handwritten contract drift checks",
           "openapi diff"
@@ -776,15 +793,16 @@
         "evidence": [
           "mode=advisory",
           "tool-adoption config entry present",
-          "CI command found in workflow",
-          "artifact uploads found: agent/repo-score.json, agent/repo-score.md"
+          "CI command found in workflow"
         ],
-        "missing": [],
-        "local_command": "jankurai audit . --mode advisory --json agent/repo-score.json --md agent/repo-score.md",
+        "missing": [
+          "artifact upload reference"
+        ],
+        "local_command": "jankurai audit . --mode advisory --json .jankurai/repo-score.json --md .jankurai/repo-score.md",
         "ci_command": "jankurai audit . --mode ratchet --baseline target/jankurai/accepted-baseline.json --json target/jankurai/repo-score.json --md target/jankurai/repo-score.md",
         "artifact_paths": [
-          "agent/repo-score.json",
-          "agent/repo-score.md"
+          ".jankurai/repo-score.json",
+          ".jankurai/repo-score.md"
         ]
       },
       {
@@ -855,22 +873,23 @@
         "category": "security",
         "mode": "auto",
         "applicable": true,
-        "status": "artifact_verified",
+        "status": "ci_evidence",
         "replaced_tools": [
           "manual authz matrix review"
         ],
         "evidence": [
           "mode=auto",
           "tool-adoption config entry present",
-          "CI command found in workflow",
-          "artifact uploads found: agent/repo-score.json, agent/repo-score.md"
+          "CI command found in workflow"
         ],
-        "missing": [],
-        "local_command": "jankurai audit . --mode advisory --json agent/repo-score.json --md agent/repo-score.md",
+        "missing": [
+          "artifact upload reference"
+        ],
+        "local_command": "jankurai audit . --mode advisory --json .jankurai/repo-score.json --md .jankurai/repo-score.md",
         "ci_command": "jankurai audit . --mode ratchet --baseline target/jankurai/accepted-baseline.json --json target/jankurai/repo-score.json --md target/jankurai/repo-score.md",
         "artifact_paths": [
-          "agent/repo-score.json",
-          "agent/repo-score.md"
+          ".jankurai/repo-score.json",
+          ".jankurai/repo-score.md"
         ]
       },
       {
@@ -878,22 +897,23 @@
         "category": "security",
         "mode": "advisory",
         "applicable": true,
-        "status": "artifact_verified",
+        "status": "ci_evidence",
         "replaced_tools": [
           "manual unsafe sink review"
         ],
         "evidence": [
           "mode=advisory",
           "tool-adoption config entry present",
-          "CI command found in workflow",
-          "artifact uploads found: agent/repo-score.json, agent/repo-score.md"
+          "CI command found in workflow"
         ],
-        "missing": [],
-        "local_command": "jankurai audit . --mode advisory --json agent/repo-score.json --md agent/repo-score.md",
+        "missing": [
+          "artifact upload reference"
+        ],
+        "local_command": "jankurai audit . --mode advisory --json .jankurai/repo-score.json --md .jankurai/repo-score.md",
         "ci_command": "jankurai audit . --mode ratchet --baseline target/jankurai/accepted-baseline.json --json target/jankurai/repo-score.json --md target/jankurai/repo-score.md",
         "artifact_paths": [
-          "agent/repo-score.json",
-          "agent/repo-score.md"
+          ".jankurai/repo-score.json",
+          ".jankurai/repo-score.md"
         ]
       },
       {
@@ -901,22 +921,23 @@
         "category": "security",
         "mode": "advisory",
         "applicable": true,
-        "status": "artifact_verified",
+        "status": "ci_evidence",
         "replaced_tools": [
           "manual MCP/tool trust review"
         ],
         "evidence": [
           "mode=advisory",
           "tool-adoption config entry present",
-          "CI command found in workflow",
-          "artifact uploads found: agent/repo-score.json, agent/repo-score.md"
+          "CI command found in workflow"
         ],
-        "missing": [],
-        "local_command": "jankurai audit . --mode advisory --json agent/repo-score.json --md agent/repo-score.md",
+        "missing": [
+          "artifact upload reference"
+        ],
+        "local_command": "jankurai audit . --mode advisory --json .jankurai/repo-score.json --md .jankurai/repo-score.md",
         "ci_command": "jankurai audit . --mode ratchet --baseline target/jankurai/accepted-baseline.json --json target/jankurai/repo-score.json --md target/jankurai/repo-score.md",
         "artifact_paths": [
-          "agent/repo-score.json",
-          "agent/repo-score.md"
+          ".jankurai/repo-score.json",
+          ".jankurai/repo-score.md"
         ]
       },
       {
@@ -924,22 +945,23 @@
         "category": "release",
         "mode": "auto",
         "applicable": true,
-        "status": "artifact_verified",
+        "status": "ci_evidence",
         "replaced_tools": [
           "manual launch checklist"
         ],
         "evidence": [
           "mode=auto",
           "tool-adoption config entry present",
-          "CI command found in workflow",
-          "artifact uploads found: agent/repo-score.json, agent/repo-score.md"
+          "CI command found in workflow"
         ],
-        "missing": [],
-        "local_command": "jankurai audit . --mode advisory --json agent/repo-score.json --md agent/repo-score.md",
+        "missing": [
+          "artifact upload reference"
+        ],
+        "local_command": "jankurai audit . --mode advisory --json .jankurai/repo-score.json --md .jankurai/repo-score.md",
         "ci_command": "jankurai audit . --mode ratchet --baseline target/jankurai/accepted-baseline.json --json target/jankurai/repo-score.json --md target/jankurai/repo-score.md",
         "artifact_paths": [
-          "agent/repo-score.json",
-          "agent/repo-score.md"
+          ".jankurai/repo-score.json",
+          ".jankurai/repo-score.md"
         ]
       },
       {
@@ -947,27 +969,28 @@
         "category": "release",
         "mode": "auto",
         "applicable": true,
-        "status": "artifact_verified",
+        "status": "ci_evidence",
         "replaced_tools": [
           "manual spend review"
         ],
         "evidence": [
           "mode=auto",
           "tool-adoption config entry present",
-          "CI command found in workflow",
-          "artifact uploads found: agent/repo-score.json, agent/repo-score.md"
+          "CI command found in workflow"
         ],
-        "missing": [],
-        "local_command": "jankurai audit . --mode advisory --json agent/repo-score.json --md agent/repo-score.md",
+        "missing": [
+          "artifact upload reference"
+        ],
+        "local_command": "jankurai audit . --mode advisory --json .jankurai/repo-score.json --md .jankurai/repo-score.md",
         "ci_command": "jankurai audit . --mode ratchet --baseline target/jankurai/accepted-baseline.json --json target/jankurai/repo-score.json --md target/jankurai/repo-score.md",
         "artifact_paths": [
-          "agent/repo-score.json",
-          "agent/repo-score.md"
+          ".jankurai/repo-score.json",
+          ".jankurai/repo-score.md"
         ]
       }
     ],
     "evidence": {
-      "applicable_count": 17,
+      "applicable_count": 18,
       "applicable_tools": [
         "audit-ci",
         "proof-routing",
@@ -979,6 +1002,7 @@
         "git-bad-behavior",
         "release-bad-behavior",
         "ux-qa",
+        "db-migration-analyze",
         "contract-drift",
         "rust-witness",
         "authz-matrix",
@@ -987,27 +1011,16 @@
         "release-readiness",
         "cost-budget"
       ],
-      "artifact_verified_count": 17,
+      "artifact_verified_count": 6,
       "artifact_verified_tools": [
-        "audit-ci",
-        "proof-routing",
         "proofbind",
         "proofmark-rust",
         "copy-code",
         "security",
-        "ci-bad-behavior",
-        "git-bad-behavior",
-        "release-bad-behavior",
         "ux-qa",
-        "contract-drift",
-        "rust-witness",
-        "authz-matrix",
-        "input-boundary",
-        "agent-tool-supply",
-        "release-readiness",
-        "cost-budget"
+        "rust-witness"
       ],
-      "ci_evidence_count": 17,
+      "ci_evidence_count": 14,
       "ci_evidence_tools": [
         "audit-ci",
         "proof-routing",
@@ -1015,9 +1028,6 @@
         "proofmark-rust",
         "copy-code",
         "security",
-        "ci-bad-behavior",
-        "git-bad-behavior",
-        "release-bad-behavior",
         "ux-qa",
         "contract-drift",
         "rust-witness",
@@ -1028,7 +1038,7 @@
         "cost-budget"
       ],
       "config_present": true,
-      "configured_count": 17,
+      "configured_count": 18,
       "configured_tools": [
         "audit-ci",
         "proof-routing",
@@ -1040,6 +1050,7 @@
         "git-bad-behavior",
         "release-bad-behavior",
         "ux-qa",
+        "db-migration-analyze",
         "contract-drift",
         "rust-witness",
         "authz-matrix",
@@ -1050,7 +1061,20 @@
       ],
       "control_plane_present": true
     },
-    "missing": []
+    "missing": [
+      "audit-ci",
+      "proof-routing",
+      "ci-bad-behavior",
+      "git-bad-behavior",
+      "release-bad-behavior",
+      "db-migration-analyze",
+      "contract-drift",
+      "authz-matrix",
+      "input-boundary",
+      "agent-tool-supply",
+      "release-readiness",
+      "cost-budget"
+    ]
   },
   "security_evidence": {},
   "boundaries": {
@@ -1059,9 +1083,9 @@
   "copy_code": {
     "schema_version": "1.1.0",
     "generated_by": "jankurai copy-code",
-    "generated_at": "2026-09-25T04:46:24.836130584+00:00",
+    "generated_at": "2026-09-30T19:26:25.320666503+00:00",
     "repo": ".",
-    "auditor_version": "1.4.3",
+    "auditor_version": "1.6.11",
     "status": "review",
     "policy": {
       "active_source_only": true,
@@ -1097,20 +1121,20 @@
       ]
     },
     "summary": {
-      "files_scanned": 342,
-      "files_considered": 178,
-      "active_files": 178,
+      "files_scanned": 678,
+      "files_considered": 278,
+      "active_files": 278,
       "exact_file_classes": 0,
       "hard_classes": 0,
-      "warning_classes": 10,
+      "warning_classes": 25,
       "hard_instances": 0,
-      "warning_instances": 25,
-      "duplicate_lines": 45,
-      "duplicate_tokens": 111,
-      "duplicate_bytes": 1094,
-      "total_redundant_lines": 55,
-      "total_redundant_tokens": 116,
-      "total_redundant_bytes": 1161
+      "warning_instances": 61,
+      "duplicate_lines": 104,
+      "duplicate_tokens": 272,
+      "duplicate_bytes": 2908,
+      "total_redundant_lines": 123,
+      "total_redundant_tokens": 301,
+      "total_redundant_bytes": 3208
     },
     "classes": [
       {
@@ -1150,6 +1174,42 @@
         ]
       },
       {
+        "id": "copy-code-unit-rust-e726fe538bf738d4",
+        "kind": "exact_unit_same_name",
+        "severity": "warning",
+        "confidence": "high",
+        "language": "rust",
+        "unit_name": "release_lease_ids",
+        "duplicate_lines": 13,
+        "duplicate_tokens": 32,
+        "duplicate_bytes": 390,
+        "instance_count": 2,
+        "total_redundant_lines": 13,
+        "total_redundant_tokens": 32,
+        "total_redundant_bytes": 390,
+        "effective_severity": "warning",
+        "hard_fail": false,
+        "fingerprint": "c4e77c89a8601664",
+        "reason": "same-name semantic unit copied across multiple files",
+        "recommended_action": "keep the named unit in one owner and call it from the other sites",
+        "instances": [
+          {
+            "path": "crates/jailgun-core/src/browser_registry/leases/helpers.rs",
+            "language": "rust",
+            "start_line": 134,
+            "end_line": 147,
+            "unit_name": "release_lease_ids"
+          },
+          {
+            "path": "crates/jailgun-core/src/browser_registry/leases/store.rs",
+            "language": "rust",
+            "start_line": 14,
+            "end_line": 27,
+            "unit_name": "release_lease_ids"
+          }
+        ]
+      },
+      {
         "id": "copy-code-unit-rust-18f5cfa0a6c192c4",
         "kind": "exact_unit_same_name",
         "severity": "warning",
@@ -1172,8 +1232,8 @@
           {
             "path": "crates/jailgun-cli/src/auth/bridge.rs",
             "language": "rust",
-            "start_line": 30,
-            "end_line": 42,
+            "start_line": 13,
+            "end_line": 25,
             "unit_name": "parse_env_overrides"
           },
           {
@@ -1182,6 +1242,170 @@
             "start_line": 174,
             "end_line": 186,
             "unit_name": "parse_env_overrides"
+          }
+        ]
+      },
+      {
+        "id": "copy-code-unit-rust-3a774ef1ebbe4177",
+        "kind": "exact_unit_same_name",
+        "severity": "warning",
+        "confidence": "high",
+        "language": "rust",
+        "unit_name": "load_lease_state",
+        "duplicate_lines": 12,
+        "duplicate_tokens": 39,
+        "duplicate_bytes": 452,
+        "instance_count": 2,
+        "total_redundant_lines": 12,
+        "total_redundant_tokens": 39,
+        "total_redundant_bytes": 452,
+        "effective_severity": "warning",
+        "hard_fail": false,
+        "fingerprint": "cb05bd397ff9f467",
+        "reason": "same-name semantic unit copied across multiple files",
+        "recommended_action": "keep the named unit in one owner and call it from the other sites",
+        "instances": [
+          {
+            "path": "crates/jailgun-core/src/browser_registry/leases/helpers.rs",
+            "language": "rust",
+            "start_line": 166,
+            "end_line": 178,
+            "unit_name": "load_lease_state"
+          },
+          {
+            "path": "crates/jailgun-core/src/browser_registry/leases/store.rs",
+            "language": "rust",
+            "start_line": 56,
+            "end_line": 68,
+            "unit_name": "load_lease_state"
+          }
+        ]
+      },
+      {
+        "id": "copy-code-body-rust-292e97ca3c1379b2",
+        "kind": "exact_unit_different_name",
+        "severity": "warning",
+        "confidence": "medium",
+        "language": "rust",
+        "duplicate_lines": 2,
+        "duplicate_tokens": 1,
+        "duplicate_bytes": 10,
+        "instance_count": 5,
+        "total_redundant_lines": 8,
+        "total_redundant_tokens": 4,
+        "total_redundant_bytes": 40,
+        "effective_severity": "warning",
+        "hard_fail": false,
+        "fingerprint": "99088d12dfdfa817",
+        "reason": "same body appears under different names across files",
+        "recommended_action": "choose one owner for the shared body or intentionally differentiate the behavior",
+        "instances": [
+          {
+            "path": "crates/jailgun-core/src/agent/request.rs",
+            "language": "rust",
+            "start_line": 243,
+            "end_line": 245,
+            "unit_name": "default_true"
+          },
+          {
+            "path": "crates/jailgun-core/src/browser_registry/leases/helpers.rs",
+            "language": "rust",
+            "start_line": 224,
+            "end_line": 226,
+            "unit_name": "owner_process_is_alive"
+          },
+          {
+            "path": "crates/jailgun-core/src/browser_registry/leases/store.rs",
+            "language": "rust",
+            "start_line": 125,
+            "end_line": 127,
+            "unit_name": "owner_process_is_alive"
+          },
+          {
+            "path": "crates/jailgun-orchestrator/src/bridge/command.rs",
+            "language": "rust",
+            "start_line": 45,
+            "end_line": 47,
+            "unit_name": "default_delete_after_upload"
+          },
+          {
+            "path": "crates/jailgun-server/src/worker/support.rs",
+            "language": "rust",
+            "start_line": 15,
+            "end_line": 17,
+            "unit_name": "default_true"
+          }
+        ]
+      },
+      {
+        "id": "copy-code-unit-rust-5da898d179107a45",
+        "kind": "exact_unit_same_name",
+        "severity": "warning",
+        "confidence": "high",
+        "language": "rust",
+        "unit_name": "lock_path_for_lease_path",
+        "duplicate_lines": 6,
+        "duplicate_tokens": 19,
+        "duplicate_bytes": 210,
+        "instance_count": 2,
+        "total_redundant_lines": 6,
+        "total_redundant_tokens": 19,
+        "total_redundant_bytes": 210,
+        "effective_severity": "warning",
+        "hard_fail": false,
+        "fingerprint": "ebf193264735996e",
+        "reason": "same-name semantic unit copied across multiple files",
+        "recommended_action": "keep the named unit in one owner and call it from the other sites",
+        "instances": [
+          {
+            "path": "crates/jailgun-core/src/browser_registry/leases/helpers.rs",
+            "language": "rust",
+            "start_line": 199,
+            "end_line": 205,
+            "unit_name": "lock_path_for_lease_path"
+          },
+          {
+            "path": "crates/jailgun-core/src/browser_registry/leases/store.rs",
+            "language": "rust",
+            "start_line": 100,
+            "end_line": 106,
+            "unit_name": "lock_path_for_lease_path"
+          }
+        ]
+      },
+      {
+        "id": "copy-code-unit-rust-4f645a30b96a8a8a",
+        "kind": "exact_unit_same_name",
+        "severity": "warning",
+        "confidence": "high",
+        "language": "rust",
+        "unit_name": "lease_path_for_registry",
+        "duplicate_lines": 6,
+        "duplicate_tokens": 18,
+        "duplicate_bytes": 210,
+        "instance_count": 2,
+        "total_redundant_lines": 6,
+        "total_redundant_tokens": 18,
+        "total_redundant_bytes": 210,
+        "effective_severity": "warning",
+        "hard_fail": false,
+        "fingerprint": "ebf193264735996e",
+        "reason": "same-name semantic unit copied across multiple files",
+        "recommended_action": "keep the named unit in one owner and call it from the other sites",
+        "instances": [
+          {
+            "path": "crates/jailgun-core/src/browser_registry/leases/helpers.rs",
+            "language": "rust",
+            "start_line": 191,
+            "end_line": 197,
+            "unit_name": "lease_path_for_registry"
+          },
+          {
+            "path": "crates/jailgun-core/src/browser_registry/leases/store.rs",
+            "language": "rust",
+            "start_line": 92,
+            "end_line": 98,
+            "unit_name": "lease_path_for_registry"
           }
         ]
       },
@@ -1264,16 +1488,150 @@
           {
             "path": "crates/jailgun-core/src/browser_registry/storage.rs",
             "language": "rust",
-            "start_line": 54,
-            "end_line": 56,
+            "start_line": 63,
+            "end_line": 65,
             "unit_name": "set_private_dir_permissions"
           },
           {
             "path": "crates/jailgun-core/src/browser_registry/storage.rs",
             "language": "rust",
-            "start_line": 70,
-            "end_line": 72,
+            "start_line": 79,
+            "end_line": 81,
             "unit_name": "set_private_file_permissions"
+          }
+        ]
+      },
+      {
+        "id": "copy-code-unit-rust-18a1ee58fb049db8",
+        "kind": "exact_unit_same_name",
+        "severity": "warning",
+        "confidence": "high",
+        "language": "rust",
+        "unit_name": "unix_seconds",
+        "duplicate_lines": 5,
+        "duplicate_tokens": 10,
+        "duplicate_bytes": 130,
+        "instance_count": 2,
+        "total_redundant_lines": 5,
+        "total_redundant_tokens": 10,
+        "total_redundant_bytes": 130,
+        "effective_severity": "warning",
+        "hard_fail": false,
+        "fingerprint": "b7b434a05a3fe3e6",
+        "reason": "same-name semantic unit copied across multiple files",
+        "recommended_action": "keep the named unit in one owner and call it from the other sites",
+        "instances": [
+          {
+            "path": "crates/jailgun-core/src/browser_registry/leases/helpers.rs",
+            "language": "rust",
+            "start_line": 207,
+            "end_line": 212,
+            "unit_name": "unix_seconds"
+          },
+          {
+            "path": "crates/jailgun-core/src/browser_registry/leases/store.rs",
+            "language": "rust",
+            "start_line": 108,
+            "end_line": 113,
+            "unit_name": "unix_seconds"
+          }
+        ]
+      },
+      {
+        "id": "copy-code-body-rust-e920603efb2ee00b",
+        "kind": "exact_unit_different_name",
+        "severity": "warning",
+        "confidence": "medium",
+        "language": "rust",
+        "duplicate_lines": 1,
+        "duplicate_tokens": 5,
+        "duplicate_bytes": 44,
+        "instance_count": 5,
+        "total_redundant_lines": 4,
+        "total_redundant_tokens": 20,
+        "total_redundant_bytes": 176,
+        "effective_severity": "warning",
+        "hard_fail": false,
+        "fingerprint": "702f42d28c638448",
+        "reason": "same body appears under different names across files",
+        "recommended_action": "choose one owner for the shared body or intentionally differentiate the behavior",
+        "instances": [
+          {
+            "path": "crates/jailgun-server/src/worker/tests.rs",
+            "language": "rust",
+            "start_line": 104,
+            "end_line": 105,
+            "unit_name": "mock_job_uses_alias_effort_and_returns_verified_tar"
+          },
+          {
+            "path": "crates/jailgun-server/src/worker/tests.rs",
+            "language": "rust",
+            "start_line": 151,
+            "end_line": 152,
+            "unit_name": "chunked_objects_round_trip_and_extract_safely"
+          },
+          {
+            "path": "crates/jailgun-server/src/worker/tests.rs",
+            "language": "rust",
+            "start_line": 223,
+            "end_line": 224,
+            "unit_name": "busy_tabs_and_idempotency_conflicts_fail_closed"
+          },
+          {
+            "path": "crates/jailgun-server/src/worker/tests.rs",
+            "language": "rust",
+            "start_line": 306,
+            "end_line": 307,
+            "unit_name": "multiple_accounts_require_explicit_routing_and_stay_private"
+          },
+          {
+            "path": "crates/jailgun-server/src/worker/tests.rs",
+            "language": "rust",
+            "start_line": 376,
+            "end_line": 377,
+            "unit_name": "authentication_failures_are_detected_without_returning_credentials"
+          }
+        ]
+      },
+      {
+        "id": "copy-code-body-rust-d90cd75f4347592f",
+        "kind": "exact_unit_different_name",
+        "severity": "warning",
+        "confidence": "medium",
+        "language": "rust",
+        "duplicate_lines": 2,
+        "duplicate_tokens": 7,
+        "duplicate_bytes": 81,
+        "instance_count": 3,
+        "total_redundant_lines": 4,
+        "total_redundant_tokens": 14,
+        "total_redundant_bytes": 162,
+        "effective_severity": "warning",
+        "hard_fail": false,
+        "fingerprint": "ccbf14b9b98e0dd6",
+        "reason": "same body appears under different names across files",
+        "recommended_action": "choose one owner for the shared body or intentionally differentiate the behavior",
+        "instances": [
+          {
+            "path": "crates/jailgun-cli/src/commands/concept_daemon.rs",
+            "language": "rust",
+            "start_line": 129,
+            "end_line": 131,
+            "unit_name": "now"
+          },
+          {
+            "path": "crates/jailgun-server/src/concepts.rs",
+            "language": "rust",
+            "start_line": 53,
+            "end_line": 55,
+            "unit_name": "now"
+          },
+          {
+            "path": "crates/jailgun-server/src/worker/archive.rs",
+            "language": "rust",
+            "start_line": 134,
+            "end_line": 136,
+            "unit_name": "now_ms"
           }
         ]
       },
@@ -1300,8 +1658,8 @@
           {
             "path": "crates/jailgun-cli/src/auth/mod.rs",
             "language": "rust",
-            "start_line": 138,
-            "end_line": 142,
+            "start_line": 137,
+            "end_line": 141,
             "unit_name": "timestamp_now"
           },
           {
@@ -1310,48 +1668,6 @@
             "start_line": 183,
             "end_line": 187,
             "unit_name": "timestamp_now"
-          }
-        ]
-      },
-      {
-        "id": "copy-code-body-rust-292e97ca3c1379b2",
-        "kind": "exact_unit_different_name",
-        "severity": "warning",
-        "confidence": "medium",
-        "language": "rust",
-        "duplicate_lines": 2,
-        "duplicate_tokens": 1,
-        "duplicate_bytes": 10,
-        "instance_count": 3,
-        "total_redundant_lines": 4,
-        "total_redundant_tokens": 2,
-        "total_redundant_bytes": 20,
-        "effective_severity": "warning",
-        "hard_fail": false,
-        "fingerprint": "a4b51a89af6234fd",
-        "reason": "same body appears under different names across files",
-        "recommended_action": "choose one owner for the shared body or intentionally differentiate the behavior",
-        "instances": [
-          {
-            "path": "crates/jailgun-core/src/agent/request.rs",
-            "language": "rust",
-            "start_line": 243,
-            "end_line": 245,
-            "unit_name": "default_true"
-          },
-          {
-            "path": "crates/jailgun-core/src/browser_registry/leases/store.rs",
-            "language": "rust",
-            "start_line": 125,
-            "end_line": 127,
-            "unit_name": "owner_process_is_alive"
-          },
-          {
-            "path": "crates/jailgun-orchestrator/src/bridge/command.rs",
-            "language": "rust",
-            "start_line": 45,
-            "end_line": 47,
-            "unit_name": "default_delete_after_upload"
           }
         ]
       },
@@ -1388,6 +1704,114 @@
             "start_line": 15,
             "end_line": 18,
             "unit_name": "new"
+          }
+        ]
+      },
+      {
+        "id": "copy-code-unit-rust-7a8f8e80618a1c3d",
+        "kind": "exact_unit_same_name",
+        "severity": "warning",
+        "confidence": "high",
+        "language": "rust",
+        "unit_name": "drop",
+        "duplicate_lines": 3,
+        "duplicate_tokens": 4,
+        "duplicate_bytes": 39,
+        "instance_count": 2,
+        "total_redundant_lines": 3,
+        "total_redundant_tokens": 4,
+        "total_redundant_bytes": 39,
+        "effective_severity": "warning",
+        "hard_fail": false,
+        "fingerprint": "a5c60edee583dfa4",
+        "reason": "same-name semantic unit copied across multiple files",
+        "recommended_action": "keep the named unit in one owner and call it from the other sites",
+        "instances": [
+          {
+            "path": "crates/jailgun-core/src/browser_registry/leases.rs",
+            "language": "rust",
+            "start_line": 84,
+            "end_line": 87,
+            "unit_name": "drop"
+          },
+          {
+            "path": "crates/jailgun-core/src/managed_installation/removal.rs",
+            "language": "rust",
+            "start_line": 264,
+            "end_line": 267,
+            "unit_name": "drop"
+          }
+        ]
+      },
+      {
+        "id": "copy-code-unit-rust-87920319395f4416",
+        "kind": "exact_unit_same_name",
+        "severity": "warning",
+        "confidence": "high",
+        "language": "rust",
+        "unit_name": "owner_process_is_alive",
+        "duplicate_lines": 2,
+        "duplicate_tokens": 10,
+        "duplicate_bytes": 81,
+        "instance_count": 2,
+        "total_redundant_lines": 2,
+        "total_redundant_tokens": 10,
+        "total_redundant_bytes": 81,
+        "effective_severity": "warning",
+        "hard_fail": false,
+        "fingerprint": "13f1e39e1518708d",
+        "reason": "same-name semantic unit copied across multiple files",
+        "recommended_action": "keep the named unit in one owner and call it from the other sites",
+        "instances": [
+          {
+            "path": "crates/jailgun-core/src/browser_registry/leases/helpers.rs",
+            "language": "rust",
+            "start_line": 219,
+            "end_line": 221,
+            "unit_name": "owner_process_is_alive"
+          },
+          {
+            "path": "crates/jailgun-core/src/browser_registry/leases/store.rs",
+            "language": "rust",
+            "start_line": 120,
+            "end_line": 122,
+            "unit_name": "owner_process_is_alive"
+          }
+        ]
+      },
+      {
+        "id": "copy-code-unit-rust-a82ab0238c027503",
+        "kind": "exact_unit_same_name",
+        "severity": "warning",
+        "confidence": "high",
+        "language": "rust",
+        "unit_name": "supported_protocol_versions",
+        "duplicate_lines": 2,
+        "duplicate_tokens": 8,
+        "duplicate_bytes": 102,
+        "instance_count": 2,
+        "total_redundant_lines": 2,
+        "total_redundant_tokens": 8,
+        "total_redundant_bytes": 102,
+        "effective_severity": "warning",
+        "hard_fail": false,
+        "fingerprint": "db34cb87778f4b96",
+        "reason": "same-name semantic unit copied across multiple files",
+        "recommended_action": "keep the named unit in one owner and call it from the other sites",
+        "instances": [
+          {
+            "path": "crates/jailgun-cli/src/commands/mcp.rs",
+            "language": "rust",
+            "start_line": 28,
+            "end_line": 30,
+            "unit_name": "supported_protocol_versions"
+          },
+          {
+            "path": "crates/jailgun-server/src/mcp.rs",
+            "language": "rust",
+            "start_line": 55,
+            "end_line": 57,
+            "unit_name": "supported_protocol_versions"
           }
         ]
       },
@@ -1464,6 +1888,78 @@
         ]
       },
       {
+        "id": "copy-code-unit-rust-c54575c2918b1378",
+        "kind": "exact_unit_same_name",
+        "severity": "warning",
+        "confidence": "high",
+        "language": "rust",
+        "unit_name": "owner_process_is_alive",
+        "duplicate_lines": 2,
+        "duplicate_tokens": 1,
+        "duplicate_bytes": 10,
+        "instance_count": 2,
+        "total_redundant_lines": 2,
+        "total_redundant_tokens": 1,
+        "total_redundant_bytes": 10,
+        "effective_severity": "warning",
+        "hard_fail": false,
+        "fingerprint": "13f1e39e1518708d",
+        "reason": "same-name semantic unit copied across multiple files",
+        "recommended_action": "keep the named unit in one owner and call it from the other sites",
+        "instances": [
+          {
+            "path": "crates/jailgun-core/src/browser_registry/leases/helpers.rs",
+            "language": "rust",
+            "start_line": 224,
+            "end_line": 226,
+            "unit_name": "owner_process_is_alive"
+          },
+          {
+            "path": "crates/jailgun-core/src/browser_registry/leases/store.rs",
+            "language": "rust",
+            "start_line": 125,
+            "end_line": 127,
+            "unit_name": "owner_process_is_alive"
+          }
+        ]
+      },
+      {
+        "id": "copy-code-unit-rust-1bda96590aeac78f",
+        "kind": "exact_unit_same_name",
+        "severity": "warning",
+        "confidence": "high",
+        "language": "rust",
+        "unit_name": "default_lease_state_version",
+        "duplicate_lines": 2,
+        "duplicate_tokens": 1,
+        "duplicate_bytes": 7,
+        "instance_count": 2,
+        "total_redundant_lines": 2,
+        "total_redundant_tokens": 1,
+        "total_redundant_bytes": 7,
+        "effective_severity": "warning",
+        "hard_fail": false,
+        "fingerprint": "13f1e39e1518708d",
+        "reason": "same-name semantic unit copied across multiple files",
+        "recommended_action": "keep the named unit in one owner and call it from the other sites",
+        "instances": [
+          {
+            "path": "crates/jailgun-core/src/browser_registry/leases/helpers.rs",
+            "language": "rust",
+            "start_line": 214,
+            "end_line": 216,
+            "unit_name": "default_lease_state_version"
+          },
+          {
+            "path": "crates/jailgun-core/src/browser_registry/leases/store.rs",
+            "language": "rust",
+            "start_line": 115,
+            "end_line": 117,
+            "unit_name": "default_lease_state_version"
+          }
+        ]
+      },
+      {
         "id": "copy-code-body-rust-d10b36aa74a59bcf",
         "kind": "exact_unit_different_name",
         "severity": "warning",
@@ -1502,6 +1998,111 @@
             "start_line": 27,
             "end_line": 28,
             "unit_name": "publish"
+          }
+        ]
+      },
+      {
+        "id": "copy-code-body-rust-03bd0a4494c68019",
+        "kind": "exact_unit_different_name",
+        "severity": "warning",
+        "confidence": "medium",
+        "language": "rust",
+        "duplicate_lines": 1,
+        "duplicate_tokens": 3,
+        "duplicate_bytes": 19,
+        "instance_count": 2,
+        "total_redundant_lines": 1,
+        "total_redundant_tokens": 3,
+        "total_redundant_bytes": 19,
+        "effective_severity": "warning",
+        "hard_fail": false,
+        "fingerprint": "91c511ecfd3da147",
+        "reason": "same body appears under different names across files",
+        "recommended_action": "choose one owner for the shared body or intentionally differentiate the behavior",
+        "instances": [
+          {
+            "path": "crates/jailgun-server/src/worker/support.rs",
+            "language": "rust",
+            "start_line": 221,
+            "end_line": 222,
+            "unit_name": "persist_object"
+          },
+          {
+            "path": "crates/jailgun-server/src/worker/support.rs",
+            "language": "rust",
+            "start_line": 231,
+            "end_line": 232,
+            "unit_name": "persist_account"
+          }
+        ]
+      },
+      {
+        "id": "copy-code-body-rust-4c45565ed9b1e57f",
+        "kind": "exact_unit_different_name",
+        "severity": "warning",
+        "confidence": "medium",
+        "language": "rust",
+        "duplicate_lines": 1,
+        "duplicate_tokens": 2,
+        "duplicate_bytes": 21,
+        "instance_count": 2,
+        "total_redundant_lines": 1,
+        "total_redundant_tokens": 2,
+        "total_redundant_bytes": 21,
+        "effective_severity": "warning",
+        "hard_fail": false,
+        "fingerprint": "9185885dd0a0fb50",
+        "reason": "same body appears under different names across files",
+        "recommended_action": "choose one owner for the shared body or intentionally differentiate the behavior",
+        "instances": [
+          {
+            "path": "crates/jailgun-core/src/startup_unit.rs",
+            "language": "rust",
+            "start_line": 60,
+            "end_line": 61,
+            "unit_name": "quote"
+          },
+          {
+            "path": "crates/jailgun-core/src/startup_unit.rs",
+            "language": "rust",
+            "start_line": 69,
+            "end_line": 70,
+            "unit_name": "xml"
+          }
+        ]
+      },
+      {
+        "id": "copy-code-body-rust-7aea6c60c4728b44",
+        "kind": "exact_unit_different_name",
+        "severity": "warning",
+        "confidence": "medium",
+        "language": "rust",
+        "duplicate_lines": 1,
+        "duplicate_tokens": 2,
+        "duplicate_bytes": 18,
+        "instance_count": 2,
+        "total_redundant_lines": 1,
+        "total_redundant_tokens": 2,
+        "total_redundant_bytes": 18,
+        "effective_severity": "warning",
+        "hard_fail": false,
+        "fingerprint": "53fe362aa22d2d43",
+        "reason": "same body appears under different names across files",
+        "recommended_action": "choose one owner for the shared body or intentionally differentiate the behavior",
+        "instances": [
+          {
+            "path": "crates/jailgun-workflow/src/database.rs",
+            "language": "rust",
+            "start_line": 263,
+            "end_line": 264,
+            "unit_name": "not_found"
+          },
+          {
+            "path": "crates/jailgun-workflow/src/database.rs",
+            "language": "rust",
+            "start_line": 271,
+            "end_line": 272,
+            "unit_name": "invalid_transition"
           }
         ]
       }

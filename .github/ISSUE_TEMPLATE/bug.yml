@@ -1,0 +1,30 @@
+name: Bug report
+description: Report a reproducible Jailgun problem
+body:
+  - type: markdown
+    attributes:
+      value: Keep tokens, profiles, real prompts, and private transcripts out of this report. See SECURITY.md for security issues.
+  - type: input
+    id: version
+    attributes:
+      label: Jailgun version or commit
+    validations:
+      required: true
+  - type: input
+    id: platform
+    attributes:
+      label: OS and browser version
+    validations:
+      required: true
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Synthetic reproduction and expected behavior
+    validations:
+      required: true
+  - type: textarea
+    id: result
+    attributes:
+      label: Actual behavior and sanitized error code
+    validations:
+      required: true

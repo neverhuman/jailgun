@@ -3,11 +3,15 @@ pub mod agent_error;
 pub mod browser_registry;
 pub mod config;
 pub mod event;
+pub mod installation;
+pub mod managed_installation;
 pub mod prompt_policy;
 pub mod receipt;
 pub mod repo_policy;
 pub mod run;
+pub mod runtime_assets;
 pub mod source_archive;
+pub mod startup_unit;
 pub mod tarball;
 
 pub use agent::{
@@ -22,7 +26,7 @@ pub use browser_registry::{
     default_account_id, default_registry_path, validate_account_id, BrowserAccount,
     BrowserAccountRoots, BrowserAccountStatus, BrowserLease, BrowserLeaseAllocation,
     BrowserLeaseManager, BrowserLeaseRequest, BrowserProfileRegistry, BrowserRegistryError,
-    DEFAULT_BROWSER_QUEUE_TIMEOUT_SECONDS, DEFAULT_BROWSER_REGISTRY_ENV,
+    ProviderIdentity, DEFAULT_BROWSER_QUEUE_TIMEOUT_SECONDS, DEFAULT_BROWSER_REGISTRY_ENV,
     MAX_BROWSER_QUEUE_TIMEOUT_SECONDS,
 };
 pub use config::{

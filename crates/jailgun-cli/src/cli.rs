@@ -7,8 +7,14 @@ use crate::jailhard::JailhardArgs;
 
 #[derive(Debug, Parser)]
 #[command(name = "jailgun")]
-#[command(about = "Rust core for ChatGPT archive capture and safe deploy")]
+#[command(
+    version,
+    about = "Concept exploration, comparison and revision through ChatGPT"
+)]
 pub struct Cli {
+    /// Emit stable JSON for concept commands and structured errors.
+    #[arg(long, global = true)]
+    pub json: bool,
     #[command(subcommand)]
     pub command: Command,
 }
@@ -16,6 +22,59 @@ pub struct Cli {
 #[derive(Debug, Subcommand)]
 #[allow(clippy::large_enum_variant)]
 pub enum Command {
+    /// Run the browser-backed operator MCP worker and dashboard.
+    Worker {
+        #[command(flatten)]
+        options: crate::commands::concept_daemon::ConceptDaemonOptions,
+        /// Loopback listener. Remote clients must use an SSH local forward.
+        #[arg(long, default_value = "127.0.0.1:8790")]
+        addr: SocketAddr,
+    },
+    /// Remove verified managed application files, preserving all runtime data.
+    Uninstall {
+        /// Managed installation prefix; defaults to this executable's installation.
+        #[arg(long)]
+        prefix: Option<PathBuf>,
+    },
+    /// Start or connect to the local service and open dashboard onboarding.
+    Setup {
+        #[command(flatten)]
+        options: crate::concept_cli::options::ConnectionOptions,
+        #[arg(long)]
+        no_open: bool,
+    },
+    /// Check runtime assets and local browser prerequisites without starting a daemon.
+    Doctor {
+        #[command(flatten)]
+        options: crate::concept_cli::options::ConnectionOptions,
+    },
+    Brainstorm(crate::concept_cli::options::BrainstormOptions),
+    Accounts {
+        #[command(flatten)]
+        options: crate::concept_cli::options::ConnectionOptions,
+        #[command(subcommand)]
+        command: crate::concept_cli::options::AccountsCommand,
+    },
+    Runs {
+        #[command(flatten)]
+        options: crate::concept_cli::options::ConnectionOptions,
+        #[command(subcommand)]
+        command: crate::concept_cli::options::RunsCommand,
+    },
+    /// Offline backup and restore of private workflow state.
+    Data {
+        #[command(subcommand)]
+        command: crate::commands::data::DataCommand,
+    },
+    /// Inspect or stop the managed concept daemon without starting it.
+    Service {
+        #[command(flatten)]
+        options: crate::concept_cli::options::ConnectionOptions,
+        #[command(subcommand)]
+        command: crate::concept_cli::service::ServiceCommand,
+    },
+    /// Serve standard MCP over stdin/stdout using the authenticated daemon.
+    Mcp(crate::commands::mcp::McpOptions),
     ValidateConfig {
         #[arg(long, default_value = "config/jailgun.example.toml")]
         config: PathBuf,
@@ -185,30 +244,39 @@ pub enum Command {
         revision: String,
     },
     Jailhard(JailhardArgs),
+    /// Run the durable concept service. Use --advanced for the archive compatibility service.
+    #[command(group(clap::ArgGroup::new("advanced_mode").args(["advanced", "live"]).multiple(true)))]
     Serve {
-        #[arg(long, default_value = "config/jailgun.example.toml")]
-        config: PathBuf,
+        #[arg(long, conflicts_with = "concepts")]
+        advanced: bool,
+        /// Explicit alias for the default concept service.
+        #[arg(long)]
+        concepts: bool,
+        #[command(flatten)]
+        concept_options: crate::commands::concept_daemon::ConceptDaemonOptions,
+        #[arg(long, requires = "advanced_mode")]
+        config: Option<PathBuf>,
         #[arg(long, default_value = "127.0.0.1:8787")]
         addr: SocketAddr,
-        #[arg(long)]
+        #[arg(long, requires = "advanced_mode")]
         dashboard_dist: Option<PathBuf>,
         /// Start with a live broadcast bus (AppState::live). The /ws/events
         /// endpoint streams events forwarded via POST /api/events instead of
         /// replaying the fixture once.
-        #[arg(long)]
+        #[arg(long, conflicts_with = "concepts")]
         live: bool,
-        /// Required for POST /api/events. When unset, the endpoint returns 503.
-        #[arg(long, env = "JAILGUN_INGEST_TOKEN")]
+        /// Operator token for all private endpoints; generated privately when omitted.
+        #[arg(long, requires = "advanced_mode", env = "JAILGUN_INGEST_TOKEN")]
         ingest_token: Option<String>,
         /// Spawn a Telegram subscriber on the live broadcast that pings the
         /// configured bot for three milestones: job started on a tab, tar
         /// acquired, and deploy success with CI passed (or any failure).
-        #[arg(long)]
+        #[arg(long, requires = "live")]
         notify_telegram: bool,
-        #[arg(long, default_value = "telegram/token.env")]
-        telegram_token_file: PathBuf,
-        #[arg(long, default_value = "telegram/chat_id.cache")]
-        telegram_chat_id_cache: PathBuf,
+        #[arg(long, requires = "advanced_mode")]
+        telegram_token_file: Option<PathBuf>,
+        #[arg(long, requires = "advanced_mode")]
+        telegram_chat_id_cache: Option<PathBuf>,
     },
     Fixture {
         #[arg(value_enum)]

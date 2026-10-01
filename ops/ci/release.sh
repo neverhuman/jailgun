@@ -61,12 +61,14 @@ path = pathlib.Path("target/jankurai/release-readiness.json")
 path.write_text(json.dumps({
     "schema_version": "1.0.0",
     "status": "pass",
+    "scope": "documentation-control-surface",
+    "release_verified": False,
     "docs": "docs/release.md",
     "changelog": "CHANGELOG.md",
-    "rollback": "preserve-reset",
+    "rollback": "verified-application-and-matching-schema-backup",
     "artifacts": [
-        "agent/repo-score.json",
-        "agent/repo-score.md",
+        "target/jankurai/audit/repo-score.json",
+        "target/jankurai/audit/repo-score.md",
         "target/jankurai/copy-code.json",
         "target/jankurai/ux-qa.json"
     ]

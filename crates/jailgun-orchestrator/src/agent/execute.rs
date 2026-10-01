@@ -318,5 +318,9 @@ fn browser_lease_error_code(error: &BrowserRegistryError) -> &'static str {
         BrowserRegistryError::LeaseInvalid(_) => "browser-lease-invalid",
         BrowserRegistryError::EmptyAccountId => "browser-account-empty",
         BrowserRegistryError::InvalidAccountId(_) => "browser-account-invalid",
+        BrowserRegistryError::AccountIdentityConflict(_) => "account-identity-conflict",
+        BrowserRegistryError::PortUnavailable(_) | BrowserRegistryError::NoAvailablePort => {
+            "cdp-port-unavailable"
+        }
     }
 }

@@ -1,0 +1,5 @@
+{
+  "image": "ubuntu@sha256:008173c23f95b170204355c12626cb5a965d779a7e1283b09e9cffbb1bf33ca3",
+  "platform": "linux/amd64",
+  "ubuntu_version": "24.04"
+}

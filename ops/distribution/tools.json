@@ -1,0 +1,5 @@
+{
+  "cargo_auditable": "0.7.6",
+  "syft": "1.40.0",
+  "esbuild": "0.25.12"
+}

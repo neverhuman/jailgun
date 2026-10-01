@@ -1,5 +1,12 @@
+import { EVENT_KINDS, type EventKind } from './generated/event';
 import { fixtureEvents, fixtureReceipts, fixtureRuns } from './fixtures';
 import type { JailgunEvent, ReceiptResponse, RunSnapshot, TabSnapshot } from './types';
+
+export class ApiError extends Error {
+  constructor(public status: number, path: string) {
+    super(`GET ${path} failed ${status}`);
+  }
+}
 
 export type DashboardDataMode = 'api' | 'fixture';
 
@@ -19,9 +26,9 @@ export async function fetchRuns(options: DashboardRequestOptions = {}): Promise<
     return fixtureRuns;
   }
   const fetcher = options.fetcher ?? fetch;
-  const response = await fetcher('/api/runs');
+  const response = await fetcher('/api/runs?kind=archive');
   if (!response.ok) {
-    throw new Error(`GET /api/runs failed ${response.status}`);
+    throw new ApiError(response.status, '/api/runs?kind=archive');
   }
   return decodeRunSnapshots(await response.json());
 }
@@ -37,7 +44,7 @@ export async function fetchReceipts(
   const fetcher = options.fetcher ?? fetch;
   const response = await fetcher(`/api/receipts/${encodeURIComponent(runId)}`);
   if (!response.ok) {
-    throw new Error(`GET /api/receipts failed ${response.status}`);
+    throw new ApiError(response.status, '/api/receipts');
   }
   return decodeReceiptResponse(await response.json());
 }
@@ -127,7 +134,7 @@ function decodeJailgunEvent(value: unknown): JailgunEvent {
     run_id: expectString(record.run_id, 'event run_id'),
     tab_id: expectNullableNumber(record.tab_id, 'event tab_id'),
     timestamp: expectString(record.timestamp, 'event timestamp'),
-    kind: expectString(record.kind, 'event kind'),
+    kind: expectEventKind(record.kind),
     severity: expectSeverity(record.severity),
     message: expectString(record.message, 'event message'),
     fields: expectStringRecord(record.fields, 'event fields')
@@ -195,4 +202,9 @@ function expectStringRecord(value: unknown, label: string): Record<string, strin
   return Object.fromEntries(
     Object.entries(record).map(([key, item]) => [key, expectString(item, `${label}.${key}`)])
   );
+}
+
+function expectEventKind(value: unknown): EventKind {
+  if (typeof value !== 'string' || !EVENT_KINDS.some((kind) => kind === value)) throw new Error('invalid event kind');
+  return value as EventKind;
 }

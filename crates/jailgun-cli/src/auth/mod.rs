@@ -4,7 +4,7 @@ mod session;
 
 use std::path::PathBuf;
 
-use anyhow::{Context, Result};
+use anyhow::Result;
 use jailgun_core::{
     BrowserAccountRoots, BrowserAccountStatus, BrowserProfileRegistry,
     DEFAULT_BROWSER_REGISTRY_ENV, JAILGUN_AGENT_MAX_TABS,
@@ -39,26 +39,20 @@ pub async fn setup(options: AuthSetupOptions) -> Result<()> {
     let registry_path = options.registry.clone().unwrap_or_else(|| {
         BrowserProfileRegistry::default_path_from_env(DEFAULT_BROWSER_REGISTRY_ENV)
     });
-    let mut registry = BrowserProfileRegistry::load_or_default(&registry_path)
-        .with_context(|| format!("loading browser registry {}", registry_path.display()))?;
     let roots = account_roots(&options);
     let bridge_cmd = auth_bridge_command(options.bridge_cmd.clone())?;
     let bridge_env = parse_env_overrides(options.bridge_env.clone())?;
 
     let mut results = Vec::new();
-    for (index, email) in options.emails.iter().enumerate() {
-        let cdp_port = options
-            .cdp_port_start
-            .checked_add(index as u16)
-            .context("cdp port allocation overflowed")?;
-        let account = registry.upsert_account(
+    for email in &options.emails {
+        let account = BrowserProfileRegistry::register_account(
+            &registry_path,
             email,
             options.id.clone(),
             &roots,
-            cdp_port,
+            options.cdp_port_start,
             JAILGUN_AGENT_MAX_TABS,
         )?;
-        registry.save(&registry_path)?;
 
         let outcome = setup_one_account(
             &account,
@@ -71,15 +65,18 @@ pub async fn setup(options: AuthSetupOptions) -> Result<()> {
         .await;
 
         match outcome {
-            Ok(()) => {
-                if let Some(stored) = registry.account_mut(&account.id) {
-                    stored.status = BrowserAccountStatus::Ready;
-                    stored.last_verified_at = Some(timestamp_now());
-                }
+            Ok(identity) => {
+                BrowserProfileRegistry::verify_account(
+                    &registry_path,
+                    &account.id,
+                    &identity,
+                    timestamp_now(),
+                )?;
                 results.push(serde_json::json!({
                     "id": account.id,
                     "email_hint": account.email_hint,
                     "status": "ready",
+                    "detected_identity": identity,
                     "profile_dir": account.profile_dir,
                     "state_dir": account.state_dir,
                     "downloads_dir": account.downloads_dir,
@@ -87,11 +84,14 @@ pub async fn setup(options: AuthSetupOptions) -> Result<()> {
                 }));
             }
             Err(error) => {
-                if let Some(stored) = registry.account_mut(&account.id) {
+                BrowserProfileRegistry::update(&registry_path, |registry| {
+                    let stored = registry.account_mut(&account.id).ok_or_else(|| {
+                        jailgun_core::BrowserRegistryError::MissingAccount(account.id.clone())
+                    })?;
                     stored.status = status_for_error(&error);
                     stored.last_verified_at = None;
-                }
-                registry.save(&registry_path)?;
+                    Ok(())
+                })?;
                 anyhow::bail!(
                     "auth setup failed for {} ({}): {error}",
                     account.id,
@@ -99,7 +99,6 @@ pub async fn setup(options: AuthSetupOptions) -> Result<()> {
                 );
             }
         }
-        registry.save(&registry_path)?;
     }
 
     println!(

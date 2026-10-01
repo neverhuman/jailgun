@@ -1,0 +1,8 @@
+owner = "rust-workflow"
+dialect = "sqlite"
+affected_objects = ["account_sessions", "account_session_created"]
+lock_timeout = "5s, enforced by Connection::busy_timeout in database.rs"
+statement_timeout = "30s migration VM budget, enforced by SQLite progress_handler; blocking filesystem I/O is outside the VM budget"
+backup = "Private SQLite online before-image before the first pending migration"
+rollback = "Stop the daemon and restore the before-image with its matching binary; do not downgrade in place"
+verify = "ops/ci/db.sh: account registration, model/identity confirmation, cancellation, fresh verification and migration repeatability"

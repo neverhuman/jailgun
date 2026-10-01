@@ -7,8 +7,12 @@ on:
 
 permissions:
   contents: read
-  security-events: write
-  pull-requests: read
+
+env:
+  CARGO_INCREMENTAL: "0"
+  CARGO_PROFILE_DEV_DEBUG: line-tables-only
+  CARGO_BUILD_JOBS: "2"
+  JAILGUN_WORKERS: "2"
 
 concurrency:
   group: security-${{ github.workflow }}-${{ github.ref }}
@@ -16,43 +20,32 @@ concurrency:
 
 jobs:
   scanners:
-    runs-on: ubuntu-latest
+    name: scanners
+    runs-on: ubuntu-24.04
     timeout-minutes: 35
     steps:
-      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
         with:
           persist-credentials: false
-      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
-        with:
-          node-version: "20"
-          cache: npm
-      - name: Install scanner tools
-        run: |
-          cargo install cargo-audit --locked
-          cargo install cargo-deny --locked
-          go install github.com/zricethezav/gitleaks/v8@v8.24.2
-          go install github.com/anchore/syft/cmd/syft@v1.18.1
-          go install github.com/rhysd/actionlint/cmd/actionlint@v1.7.7
-          python3 -m pip install --user zizmor
-          echo "$HOME/go/bin" >> "$GITHUB_PATH"
-          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
-      - run: sudo apt-get update && sudo apt-get install -y ripgrep
+      - uses: ./.github/actions/setup
       - run: npm ci
+      - run: bash ops/ci/install-security.sh
       - run: bash ops/ci/security.sh
-      - name: Check dependency graph
-        id: depgraph
+      - name: Check dependency review availability
+        id: dependency-graph
         if: github.event_name == 'pull_request'
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           if bash ops/ci/dependency_graph_enabled.sh; then
-            echo "run=true" >> "$GITHUB_OUTPUT"
+            echo 'enabled=true' >> "$GITHUB_OUTPUT"
           else
-            echo "run=false" >> "$GITHUB_OUTPUT"
+            echo 'enabled=false' >> "$GITHUB_OUTPUT"
+            echo 'Dependency graph unavailable; pinned local dependency scanners remain authoritative.'
           fi
-      - uses: actions/dependency-review-action@2031cfc080254a8a887f58cffee85186f0e49e48
-        if: github.event_name == 'pull_request' && steps.depgraph.outputs.run == 'true'
-      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+      - uses: actions/dependency-review-action@a1d282b36b6f3519aa1f3fc636f609c47dddb294 # v5.0.0
+        if: github.event_name == 'pull_request' && steps.dependency-graph.outputs.enabled == 'true'
+      - uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5
         if: always()
         with:
           name: security-evidence

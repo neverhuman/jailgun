@@ -5,11 +5,9 @@ use axum::{
     extract::{Query, State, WebSocketUpgrade},
     http::{HeaderMap, StatusCode},
     response::{IntoResponse, Response},
-    Json,
 };
 use futures::{SinkExt, StreamExt};
 use jailgun_core::{EventKind, JailgunEvent};
-use serde_json::json;
 use tokio::sync::broadcast;
 
 use crate::state::AppState;
@@ -100,36 +98,12 @@ pub(crate) fn websocket_unauthorized(
     headers: &HeaderMap,
     query: &WsAuthQuery,
 ) -> Option<Response> {
-    let Some(expected) = state.ingest_token.as_deref() else {
-        return Some(
-            (
-                StatusCode::SERVICE_UNAVAILABLE,
-                Json(json!({ "error": "websocket-token-required" })),
-            )
-                .into_response(),
-        );
-    };
-    let header_token = headers
-        .get("x-jailgun-token")
-        .and_then(|value| value.to_str().ok());
-    let query_token = query
-        .token
-        .as_deref()
-        .filter(|value| !value.is_empty())
-        .or_else(|| {
-            query
-                .jailgun_token
-                .as_deref()
-                .filter(|value| !value.is_empty())
-        });
-    if header_token == Some(expected) || query_token == Some(expected) {
-        return None;
-    }
-    Some(
-        (
+    if query.token.is_some() || query.jailgun_token.is_some() {
+        return Some(crate::auth::error(
             StatusCode::UNAUTHORIZED,
-            Json(json!({ "error": "websocket-unauthorized" })),
-        )
-            .into_response(),
-    )
+            "query-token-removed",
+            "Use a paired dashboard session or a bearer header.",
+        ));
+    }
+    crate::auth::unauthorized(state, headers)
 }

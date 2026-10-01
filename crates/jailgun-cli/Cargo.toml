@@ -15,7 +15,9 @@ name = "jailhard"
 path = "src/bin/jailhard.rs"
 
 [dependencies]
+rmcp.workspace = true
 anyhow.workspace = true
+axum.workspace = true
 async-trait.workspace = true
 clap.workspace = true
 flate2.workspace = true
@@ -24,7 +26,9 @@ jailgun-deploy = { path = "../jailgun-deploy" }
 jailgun-notify = { path = "../jailgun-notify" }
 jailgun-orchestrator = { path = "../jailgun-orchestrator" }
 jailgun-server = { path = "../jailgun-server" }
+jailgun-workflow = { path = "../jailgun-workflow" }
 reqwest.workspace = true
+reqwest-mcp.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 sha2.workspace = true

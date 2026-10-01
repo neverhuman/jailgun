@@ -1,7 +1,7 @@
 import { render, screen } from '@testing-library/react';
 import { expect, it } from 'vitest';
 
-import { App } from './App';
+import { ArchiveDashboard as App } from './ArchiveDashboard';
 import { setupDashboardMocks } from './App.testSupport';
 
 setupDashboardMocks();

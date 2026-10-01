@@ -15,13 +15,17 @@
     "build": "npm run build --workspaces --if-present"
   },
   "devDependencies": {
+    "@axe-core/playwright": "4.13.0",
     "@testing-library/jest-dom": "^6.6.3",
     "@testing-library/react": "^16.3.0",
     "@types/node": "^22.15.29",
     "@types/react": "^19.1.6",
     "@types/react-dom": "^19.1.5",
     "@vitejs/plugin-react": "^4.5.0",
+    "ajv": "8.20.0",
+    "esbuild": "0.25.12",
     "jsdom": "^26.1.0",
+    "json-schema-to-typescript": "16.0.0",
     "typescript": "^5.8.3",
     "vite": "^6.4.3",
     "vitest": "^4.1.11"
@@ -30,5 +34,8 @@
     "lucide-react": "^0.511.0",
     "react": "^19.1.0",
     "react-dom": "^19.1.0"
+  },
+  "engines": {
+    "node": "24.21.0"
   }
 }

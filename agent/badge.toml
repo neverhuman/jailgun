@@ -1,4 +1,6 @@
-enabled = true
+# Tracked badges are published only by ops/ci/jankurai.sh --write.
+# The audit tool must not mutate them implicitly during verification.
+enabled = false
 score = "agent/repo-score.json"
 svg = "agent/jankurai-badge.svg"
 json = "agent/jankurai-badge.json"

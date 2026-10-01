@@ -1,6 +1,6 @@
 //! Spawn the Node chrome-bridge child process and wire NDJSON IO.
 
-use std::{collections::BTreeMap, process::Stdio};
+use std::{collections::BTreeMap, ffi::OsString, process::Stdio};
 
 use tokio::{
     process::{Child, Command},
@@ -49,6 +49,9 @@ pub async fn spawn_bridge(cfg: BridgeSpawnConfig) -> Result<BridgeHandle, Orches
     if cfg.command.len() > 1 {
         command.args(&cfg.command[1..]);
     }
+    command
+        .env_clear()
+        .envs(browser_environment(std::env::vars_os()));
     command.envs(cfg.env.iter().map(|(k, v)| (k.clone(), v.clone())));
     command
         .stdin(Stdio::piped())
@@ -87,12 +90,20 @@ pub async fn spawn_bridge(cfg: BridgeSpawnConfig) -> Result<BridgeHandle, Orches
 
 fn drain_stderr(stderr: tokio::process::ChildStderr) {
     tokio::spawn(async move {
-        use tokio::io::{AsyncBufReadExt, BufReader};
-        let mut reader = BufReader::new(stderr).lines();
+        use tokio::io::AsyncReadExt;
+        let mut reader = stderr;
+        let mut buffer = [0; 8192];
+        let mut reported = false;
         loop {
-            match reader.next_line().await {
-                Ok(Some(line)) => tracing::debug!(target: "chrome-bridge", "{}", line),
-                Ok(None) => break,
+            match reader.read(&mut buffer).await {
+                Ok(0) => break,
+                Ok(_) if !reported => {
+                    // Raw browser diagnostics can include page content or login data.
+                    // Named operation failures travel over the structured protocol.
+                    tracing::debug!(target: "chrome-bridge", "browser emitted private diagnostics; contents discarded");
+                    reported = true;
+                }
+                Ok(_) => {}
                 Err(error) => {
                     tracing::warn!(?error, "bridge stderr read error");
                     break;
@@ -100,4 +111,59 @@ fn drain_stderr(stderr: tokio::process::ChildStderr) {
             }
         }
     });
+}
+
+// Deliberate inherited environment: Node hooks, shell startup files, SSH agents,
+// provider credentials and unrelated application secrets never enter the bridge.
+fn browser_environment(
+    values: impl Iterator<Item = (OsString, OsString)>,
+) -> Vec<(OsString, OsString)> {
+    const ALLOWED: &[&str] = &[
+        "PATH",
+        "HOME",
+        "USER",
+        "LOGNAME",
+        "LANG",
+        "LC_ALL",
+        "LC_CTYPE",
+        "TMPDIR",
+        "DISPLAY",
+        "WAYLAND_DISPLAY",
+        "XDG_RUNTIME_DIR",
+        "XDG_DOWNLOAD_DIR",
+        "XAUTHORITY",
+        "GOOGLE_CHROME_EXECUTABLE",
+        "JAILGUN_CHROME_EXECUTABLE",
+    ];
+    values
+        .filter(|(key, _)| key.to_str().is_some_and(|key| ALLOWED.contains(&key)))
+        .collect()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn child_inherits_only_browser_prerequisites() {
+        let inherited = browser_environment(
+            [
+                ("PATH", "/usr/bin"),
+                ("DISPLAY", ":99"),
+                ("HOME", "/synthetic"),
+                ("GH_TOKEN", "secret"),
+                ("TELEGRAM_BOT_TOKEN", "secret"),
+                ("JAILGUN_INGEST_TOKEN", "secret"),
+                ("NODE_OPTIONS", "--require injected.js"),
+                ("SSH_AUTH_SOCK", "/agent.sock"),
+                ("UNRELATED_SECRET", "secret"),
+            ]
+            .into_iter()
+            .map(|(k, v)| (k.into(), v.into())),
+        );
+        assert_eq!(inherited.len(), 3);
+        assert!(inherited
+            .iter()
+            .all(|(k, _)| ["PATH", "DISPLAY", "HOME"].contains(&k.to_str().unwrap())));
+    }
 }

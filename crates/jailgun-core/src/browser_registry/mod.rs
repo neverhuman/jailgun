@@ -1,10 +1,11 @@
 mod account;
 mod ids;
 mod leases;
+pub mod profile_ownership;
 mod registry;
-mod storage;
+pub(crate) mod storage;
 
-pub use account::{BrowserAccount, BrowserAccountRoots, BrowserAccountStatus};
+pub use account::{BrowserAccount, BrowserAccountRoots, BrowserAccountStatus, ProviderIdentity};
 pub use ids::{default_account_id, validate_account_id};
 pub use leases::{
     BrowserLease, BrowserLeaseAllocation, BrowserLeaseManager, BrowserLeaseRequest,
@@ -66,6 +67,12 @@ pub enum BrowserRegistryError {
         #[source]
         source: std::io::Error,
     },
+    #[error("account-identity-conflict: browser account {0} is bound to another identity")]
+    AccountIdentityConflict(String),
+    #[error("cdp-port-unavailable: browser port {0} is invalid or already registered")]
+    PortUnavailable(u16),
+    #[error("cdp-port-unavailable: no available loopback port could be allocated")]
+    NoAvailablePort,
     #[error("browser account id is required")]
     EmptyAccountId,
     #[error("browser account id is invalid: {0}")]

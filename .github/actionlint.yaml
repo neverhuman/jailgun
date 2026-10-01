@@ -1,0 +1,8 @@
+# actionlint 1.7.12 predates this GitHub-hosted label. Its additional-label
+# mechanism is named self-hosted-runner; the workflow still uses GitHub hosting.
+# Verified 2026-09-23 against the official public runner table:
+# https://docs.github.com/en/actions/reference/runners/github-hosted-runners
+# Recheck by 2026-12-31 and remove when the pinned linter recognizes the label.
+self-hosted-runner:
+  labels:
+    - ubuntu-26.04

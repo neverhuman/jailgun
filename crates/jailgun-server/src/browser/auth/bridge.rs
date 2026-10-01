@@ -1,4 +1,4 @@
-use std::{collections::BTreeMap, env, path::PathBuf, sync::Arc};
+use std::{collections::BTreeMap, sync::Arc};
 
 use anyhow::Context;
 use jailgun_core::BrowserAccount;
@@ -13,21 +13,7 @@ use crate::{
 };
 
 pub(super) fn browser_bridge_command() -> anyhow::Result<Vec<String>> {
-    if let Ok(value) = env::var("JAILGUN_BRIDGE_CMD") {
-        let parts = value
-            .split_whitespace()
-            .map(str::to_string)
-            .collect::<Vec<_>>();
-        if !parts.is_empty() {
-            return Ok(parts);
-        }
-    }
-    let workspace_script = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-        .join("../../apps/chrome-bridge/bin/chrome-bridge.mjs");
-    if workspace_script.exists() {
-        return Ok(vec!["node".into(), workspace_script.display().to_string()]);
-    }
-    anyhow::bail!("JAILGUN_BRIDGE_CMD is required for browser control-plane endpoints")
+    jailgun_orchestrator::support::bridge_command(Vec::new())
 }
 
 pub(super) fn browser_bridge_env(account: &BrowserAccount) -> BTreeMap<String, String> {

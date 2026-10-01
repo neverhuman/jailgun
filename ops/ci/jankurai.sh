@@ -6,7 +6,19 @@ script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "$script_dir/lib.sh"
 ci_enter_repo_root "$script_dir"
 
-mkdir -p agent
+# Verification writes only ignored evidence. Tracked public reports/badges are
+# an explicit authoring operation, never an incidental effect of running CI.
+write_public=0
+case "${1:-}" in
+  "") report_dir="target/jankurai/audit" ;;
+  --write) write_public=1; report_dir="agent" ;;
+  *) printf 'usage: %s [--write]\n' "$0" >&2; exit 2 ;;
+esac
+if [[ $# -gt 1 ]]; then
+  printf 'usage: %s [--write]\n' "$0" >&2
+  exit 2
+fi
+mkdir -p "$report_dir"
 
 jankurai_bin=()
 jankurai_target_dir="${JANKURAI_CARGO_TARGET_DIR:-$PWD/target/jankurai-cargo}"
@@ -242,12 +254,18 @@ resolve_jankurai
 audit_mode="${JANKURAI_AUDIT_MODE:-advisory}"
 ci_log "running jankurai audit in ${audit_mode} mode"
 "${jankurai_bin[@]}" audit . \
+  --full \
   --mode "$audit_mode" \
-  --json agent/repo-score.json \
-  --md agent/repo-score.md
+  --json "$report_dir/repo-score.json" \
+  --md "$report_dir/repo-score.md"
 
-ci_assert_file agent/repo-score.json
-ci_assert_file agent/repo-score.md
+ci_assert_file "$report_dir/repo-score.json"
+ci_assert_file "$report_dir/repo-score.md"
+
+if [[ "$write_public" == 0 ]]; then
+  ci_log "audit evidence: $report_dir/repo-score.json; tracked reports and badges unchanged"
+  exit 0
+fi
 
 badge_args=(
   .

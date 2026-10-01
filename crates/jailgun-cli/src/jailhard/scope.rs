@@ -1,4 +1,7 @@
-use super::source_walk::{canonical_scope_roots, selected_file, walk_source_tree};
+mod walk;
+
+use walk::*;
+
 use super::*;
 
 impl TargetScope {
@@ -91,10 +94,12 @@ pub(super) fn select_source_files(
     invocation_dir: &Path,
     scope: &TargetScope,
 ) -> Result<Vec<SelectedFile>> {
-    if let Some(git_root) = git_root(invocation_dir)? {
-        select_git_source_files(invocation_dir, &git_root, scope)
+    let invocation_dir = fs::canonicalize(invocation_dir)
+        .with_context(|| format!("canonicalizing {}", invocation_dir.display()))?;
+    if let Some(git_root) = git_root(&invocation_dir)? {
+        select_git_source_files(&invocation_dir, &git_root, scope)
     } else {
-        select_recursive_source_files(invocation_dir, scope)
+        select_recursive_source_files(&invocation_dir, scope)
     }
 }
 

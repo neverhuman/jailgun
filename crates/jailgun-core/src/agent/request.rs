@@ -7,7 +7,7 @@ pub const JAILGUN_AGENT_INTERFACE_VERSION: u16 = 1;
 pub const JAILGUN_AGENT_MAX_RUNTIME_SECONDS: u64 = 30 * 60;
 pub const JAILGUN_AGENT_MAX_TABS: u16 = 5;
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Serialize, Deserialize, schemars::JsonSchema, PartialEq, Eq)]
 pub struct JailgunAgentRunRequest {
     #[serde(default = "default_interface_version")]
     pub version: u16,
@@ -35,7 +35,7 @@ pub struct JailgunAgentRunRequest {
     pub github: JailgunGithubPolicyRequest,
 }
 
-#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize, schemars::JsonSchema, PartialEq, Eq)]
 pub struct JailgunRepoRef {
     #[serde(default)]
     pub repository: Option<String>,
@@ -47,7 +47,7 @@ pub struct JailgunRepoRef {
     pub head_sha: Option<String>,
 }
 
-#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize, schemars::JsonSchema, PartialEq, Eq)]
 pub struct JailgunSourceArchiveRequest {
     #[serde(default)]
     pub enabled: Option<bool>,
@@ -61,7 +61,7 @@ pub struct JailgunSourceArchiveRequest {
     pub expected_top_level: Option<String>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Serialize, Deserialize, schemars::JsonSchema, PartialEq, Eq)]
 pub struct JailgunAgentDeployRequest {
     #[serde(default)]
     pub enabled: bool,
@@ -93,7 +93,7 @@ impl Default for JailgunAgentDeployRequest {
     }
 }
 
-#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize, schemars::JsonSchema, PartialEq, Eq)]
 pub struct JailgunCiRequest {
     #[serde(default)]
     pub enabled: bool,
@@ -107,7 +107,7 @@ pub struct JailgunCiRequest {
     pub poll_seconds: Option<u16>,
 }
 
-#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize, schemars::JsonSchema, PartialEq, Eq)]
 pub struct JailgunAgentBrowserRequest {
     #[serde(default)]
     pub profile_dir: Option<PathBuf>,
@@ -135,7 +135,7 @@ pub struct JailgunAgentBrowserRequest {
     pub download_target_name: Option<String>,
 }
 
-#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize, schemars::JsonSchema, PartialEq, Eq)]
 pub struct JailgunGithubPolicyRequest {
     #[serde(default)]
     pub allow_write_prompts: bool,

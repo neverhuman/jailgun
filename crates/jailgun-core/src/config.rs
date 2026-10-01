@@ -90,8 +90,8 @@ pub struct DeployConfig {
 
 impl JailgunConfig {
     pub fn from_toml_path(path: impl AsRef<Path>) -> Result<Self, ConfigError> {
-        let path = path.as_ref();
-        let text = fs::read_to_string(path).map_err(|source| ConfigError::Read {
+        let path = crate::runtime_assets::config_path(path.as_ref());
+        let text = fs::read_to_string(&path).map_err(|source| ConfigError::Read {
             path: path.display().to_string(),
             source,
         })?;

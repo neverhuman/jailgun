@@ -170,8 +170,8 @@ mod browser;
 mod git;
 mod prompt;
 mod review;
+mod run;
 mod scope;
-mod source_walk;
 mod util;
 
 use archive::*;
@@ -184,7 +184,5 @@ use util::*;
 
 #[cfg(test)]
 mod tests;
-
-mod run;
 
 pub use run::run;

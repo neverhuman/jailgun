@@ -23,7 +23,8 @@ pub(super) async fn setup_one_account(
     prefer_email_code: bool,
     code_stdin: bool,
     status_watch: bool,
-) -> Result<()> {
+) -> Result<jailgun_core::ProviderIdentity> {
+    account.require_archive_access()?;
     let run_id = format!("auth-{}", account.id);
     let mut bridge = spawn_bridge(BridgeSpawnConfig {
         command: bridge_cmd.to_vec(),
@@ -56,9 +57,9 @@ pub(super) async fn setup_one_account(
     .await?;
 
     let mut code_requested = false;
-    loop {
+    let identity = loop {
         match next_auth_event(&mut bridge, status_watch).await? {
-            AuthEvent::Complete => break,
+            AuthEvent::Complete(identity) => break identity,
             AuthEvent::CodeRequested => {
                 code_requested = true;
                 let code = read_code(&account.email_hint, code_stdin)?;
@@ -73,11 +74,11 @@ pub(super) async fn setup_one_account(
                 .await?;
             }
             AuthEvent::ManualRequired(reason) => {
-                anyhow::bail!("manual-browser-required: {reason}");
+                eprintln!("waiting-for-user: {reason}");
             }
             AuthEvent::Failed(reason) => anyhow::bail!("{reason}"),
         }
-    }
+    };
 
     if !code_requested {
         eprintln!("account {} already had a valid ChatGPT session", account.id);
@@ -92,7 +93,7 @@ pub(super) async fn setup_one_account(
     .await
     .ok();
     let _ = tokio::time::timeout(Duration::from_secs(10), bridge.child.wait()).await;
-    Ok(())
+    Ok(identity)
 }
 
 fn read_code(email_hint: &str, code_stdin: bool) -> Result<String> {

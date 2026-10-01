@@ -7,7 +7,12 @@ on:
 
 permissions:
   contents: read
-  pull-requests: read
+
+env:
+  CARGO_INCREMENTAL: "0"
+  CARGO_PROFILE_DEV_DEBUG: line-tables-only
+  CARGO_BUILD_JOBS: "2"
+  JAILGUN_WORKERS: "2"
 
 concurrency:
   group: jankurai-${{ github.workflow }}-${{ github.ref }}
@@ -15,37 +20,62 @@ concurrency:
 
 jobs:
   audit:
-    runs-on: ubuntu-latest
+    name: audit
+    runs-on: ubuntu-24.04
     timeout-minutes: 40
     steps:
-      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
         with:
           persist-credentials: false
-      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
-        with:
-          node-version: "20"
-          cache: npm
-      - run: sudo apt-get update && sudo apt-get install -y ripgrep
+          fetch-depth: 0
+      - uses: ./.github/actions/setup
       - name: Install Jankurai
-        run: cargo install --git https://github.com/neverhuman/jankurai.git --rev 34608d016de5fd24e677244112941d240ca00188 --locked --force jankurai
+        run: cargo install --git https://github.com/neverhuman/jankurai.git --rev b88562fdb124aa86dedd70ab972e7d0d87e58be1 --locked --force --target-dir "$PWD/target" jankurai
       - run: npm ci
+      - run: node node_modules/playwright-core/cli.js install --with-deps chromium
+      - run: bash ops/ci/ux-qa.sh
+        env:
+          JAILGUN_TEST_CHROME: /usr/bin/google-chrome
+      - run: bash ops/ci/install-security.sh
       - run: bash ops/ci/security.sh
       - run: bash ops/ci/db.sh
       - run: bash ops/ci/contracts.sh
-      - run: bash ops/ci/jankurai.sh
+      - name: Build Jankurai proof receipts
         env:
-          JANKURAI_CHECK_GIT_DIFF: "0"
+          JANKURAI_BASE_REF: ${{ github.event.pull_request.base.sha || github.event.before }}
+        run: |
+          mkdir -p target/jankurai
+          cp agent/repo-score.json target/jankurai/accepted-baseline.json
+          jankurai security run . --strict --profile ci --out target/jankurai/security/evidence.json
+          jankurai audit . --mode ratchet --baseline target/jankurai/accepted-baseline.json --json target/jankurai/repo-score.json --md target/jankurai/repo-score.md
+          git cat-file -e "$JANKURAI_BASE_REF^{commit}"
+          jankurai proof . --changed-from "$JANKURAI_BASE_REF" --out target/jankurai/proof-plan.json --md target/jankurai/proof-plan.md
+          bash ops/ci/proofbind.sh "$JANKURAI_BASE_REF"
+          jankurai proofmark rust . --obligations target/jankurai/proofbind/obligations.json --changed-from "$JANKURAI_BASE_REF"
+          jankurai rust witness build .
+          jankurai migrate . --analyze --out target/jankurai/migration-report.json
+      - run: bash ops/ci/jankurai.sh
       - name: Enforce zero findings
-        run: jq -e '(.caps_applied | length) == 0 and (.findings | length == 0) and .score >= 95' agent/repo-score.json
-      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        run: jq -e '(.caps_applied | type == "array" and length == 0) and (.findings | type == "array" and length == 0) and .score >= 95' target/jankurai/audit/repo-score.json
+      - uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5
         if: always()
         with:
           name: jankurai-receipts
+          if-no-files-found: error
           path: |
-            agent/repo-score.json
-            agent/repo-score.md
-            agent/jankurai-badge.svg
-            agent/jankurai-badge.json
+            target/jankurai/audit/repo-score.json
+            target/jankurai/audit/repo-score.md
+            target/jankurai/repo-score.json
+            target/jankurai/repo-score.md
+            target/jankurai/proof-plan.json
+            target/jankurai/proof-plan.md
+            target/jankurai/proofbind/surface-witness.json
+            target/jankurai/proofbind/obligations.json
+            target/jankurai/proofmark/proofmark-receipt.json
+            target/jankurai/proofmark/proof-receipt.json
+            target/jankurai/rust/witness-graph.json
+            target/jankurai/migration-report.json
             target/jankurai/security/evidence.json
             target/jankurai/db/evidence.json
             target/jankurai/repair-queue.jsonl
+            artifacts/ux-qa/

@@ -22,7 +22,7 @@ async fn start_run_accepts_request_and_publishes_snapshot() {
         run_id: Some("run-1".into()),
         prompt_ref: "local://prompt/1".into(),
         prompt_file,
-        config_path: None,
+        config_path: Some(fixture_config()),
         tabs: Some(1),
         max_runtime_seconds: Some(60),
         repo: Default::default(),
@@ -39,6 +39,7 @@ async fn start_run_accepts_request_and_publishes_snapshot() {
         .clone()
         .oneshot(
             Request::builder()
+                .header("host", "localhost")
                 .method("POST")
                 .uri("/api/runs")
                 .header("content-type", "application/json")
@@ -68,7 +69,9 @@ async fn start_run_accepts_request_and_publishes_snapshot() {
                 .clone()
                 .oneshot(
                     Request::builder()
+                        .header("host", "localhost")
                         .uri("/api/runs/run-1/agent-summary")
+                        .header("authorization", "Bearer secret")
                         .body(Body::empty())
                         .unwrap(),
                 )
@@ -105,6 +108,7 @@ async fn start_run_accepts_missing_v1_and_rejects_bad_version() {
     std::fs::write(&prompt_file, "review this change").unwrap();
 
     let missing_version = json!({
+        "config_path": fixture_config(),
         "run_id": "missing-version-ok",
         "prompt_ref": "local://prompt/1",
         "prompt_file": prompt_file,
@@ -118,6 +122,7 @@ async fn start_run_accepts_missing_v1_and_rejects_bad_version() {
         .clone()
         .oneshot(
             Request::builder()
+                .header("host", "localhost")
                 .method("POST")
                 .uri("/api/runs")
                 .header("content-type", "application/json")
@@ -137,6 +142,7 @@ async fn start_run_accepts_missing_v1_and_rejects_bad_version() {
     let response = app
         .oneshot(
             Request::builder()
+                .header("host", "localhost")
                 .method("POST")
                 .uri("/api/runs")
                 .header("content-type", "application/json")
@@ -175,6 +181,7 @@ async fn start_run_rejects_path_like_run_id() {
     let response = app
         .oneshot(
             Request::builder()
+                .header("host", "localhost")
                 .method("POST")
                 .uri("/api/runs")
                 .header("content-type", "application/json")
@@ -358,7 +365,9 @@ async fn run_rejects_unknown_and_non_ready_accounts() {
 
 #[tokio::test]
 async fn rejects_path_like_run_id_on_summary_and_receipts() {
-    let app = api_router(AppState::fixture(JailgunConfig::default()));
+    let app = api_router(
+        AppState::fixture(JailgunConfig::default()).with_ingest_token(Some("secret".into())),
+    );
 
     for uri in [
         "/api/runs/..%2Foutside/agent-summary",
@@ -366,7 +375,14 @@ async fn rejects_path_like_run_id_on_summary_and_receipts() {
     ] {
         let response = app
             .clone()
-            .oneshot(Request::builder().uri(uri).body(Body::empty()).unwrap())
+            .oneshot(
+                Request::builder()
+                    .header("host", "localhost")
+                    .uri(uri)
+                    .header("authorization", "Bearer secret")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
             .await
             .unwrap();
         assert_eq!(response.status(), StatusCode::BAD_REQUEST);

@@ -1,0 +1,8 @@
+owner = "rust-workflow"
+dialect = "sqlite"
+affected_objects = ["automation_tokens", "token_accounts"]
+lock_timeout = "5s via rusqlite busy_timeout"
+statement_timeout = "30s migration VM budget via progress_handler; blocked filesystem I/O excluded"
+backup = "Private SQLite online before-image before the first pending migration"
+rollback = "Restore the before-image with its matching binary; rotate credentials after restoring a backup"
+verify = "ops/ci/db.sh: account scopes, digest-only storage, permanent revocation and restart"

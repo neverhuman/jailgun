@@ -1,7 +1,9 @@
+@import './tokens.css';
+
 :root {
-  font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-  color: #162019;
-  background: #f5f7f2;
+  font-family: var(--font-family);
+  color: var(--color-text);
+  background: var(--color-background);
 }
 
 * {
@@ -21,15 +23,15 @@ select {
 
 .shell {
   min-height: 100vh;
-  padding: 24px;
+  padding: var(--space-6);
 }
 
 .topbar {
   display: flex;
   justify-content: space-between;
-  gap: 20px;
+  gap: var(--space-5);
   align-items: flex-start;
-  margin-bottom: 20px;
+  margin-bottom: var(--space-5);
 }
 
 h1,
@@ -40,12 +42,12 @@ p {
 }
 
 h1 {
-  font-size: 32px;
+  font-size: var(--font-title);
   line-height: 1.1;
 }
 
 h2 {
-  font-size: 17px;
+  font-size: var(--font-subheading);
 }
 
 h3 {
@@ -55,7 +57,21 @@ h3 {
 .topbar p,
 .muted {
   color: #647067;
-  margin-top: 4px;
+  margin-top: var(--space-1);
+}
+
+.runHeaderLinks {
+  margin-top: 6px;
+}
+
+.runHeaderLinks a {
+  color: #254f38;
+  text-decoration: none;
+  font-weight: 600;
+}
+
+.runHeaderLinks a:hover {
+  text-decoration: underline;
 }
 
 .runHeaderLinks {
@@ -77,7 +93,7 @@ h3 {
 .layout,
 .tabGrid {
   display: grid;
-  gap: 12px;
+  gap: var(--space-3);
 }
 
 .policyCounters {
@@ -86,17 +102,17 @@ h3 {
 
 .metricGrid {
   grid-template-columns: repeat(4, minmax(0, 1fr));
-  margin-bottom: 12px;
+  margin-bottom: var(--space-3);
 }
 
 .layout {
   grid-template-columns: minmax(0, 1.5fr) minmax(320px, 0.8fr);
-  margin-bottom: 12px;
+  margin-bottom: var(--space-3);
 }
 
 .tabGrid {
   grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-  margin-bottom: 12px;
+  margin-bottom: var(--space-3);
 }
 
 .metric,
@@ -112,16 +128,16 @@ h3 {
 
 .metric {
   min-height: 74px;
-  padding: 12px;
+  padding: var(--space-3);
   display: grid;
   grid-template-columns: 22px 1fr;
-  gap: 4px 8px;
+  gap: var(--space-1) var(--space-2);
   align-items: center;
 }
 
 .metric span {
   color: #657167;
-  font-size: 12px;
+  font-size: var(--font-xs);
 }
 
 .metric strong {
@@ -152,14 +168,14 @@ h3 {
 .tabCardHeader {
   display: flex;
   justify-content: space-between;
-  gap: 8px;
+  gap: var(--space-2);
   align-items: center;
-  margin-bottom: 12px;
+  margin-bottom: var(--space-3);
 }
 
 .panelHeader span {
   color: #657167;
-  font-size: 12px;
+  font-size: var(--font-xs);
 }
 
 table {
@@ -172,7 +188,7 @@ th,
 td {
   text-align: left;
   border-bottom: 1px solid #e7ece5;
-  padding: 10px 8px;
+  padding: 10px var(--space-2);
   font-size: 13px;
   overflow-wrap: anywhere;
 }
@@ -189,7 +205,7 @@ th {
 dl {
   display: grid;
   grid-template-columns: 74px minmax(0, 1fr);
-  gap: 8px;
+  gap: var(--space-2);
   margin: 0;
   font-size: 13px;
 }
@@ -210,7 +226,7 @@ dd {
   grid-auto-columns: minmax(40px, 1fr);
   gap: 10px;
   align-items: end;
-  padding: 8px 2px 0;
+  padding: var(--space-2) 2px 0;
 }
 
 .barWrap {
@@ -219,15 +235,15 @@ dd {
   flex-direction: column;
   align-items: center;
   justify-content: flex-end;
-  gap: 8px;
+  gap: var(--space-2);
   color: #657167;
-  font-size: 12px;
+  font-size: var(--font-xs);
 }
 
 .bar {
   width: 100%;
   min-height: 10px;
-  border-radius: 6px 6px 2px 2px;
+  border-radius: var(--radius-control) 6px 2px 2px;
   background: linear-gradient(180deg, #4a7c59, #203c2a);
 }
 
@@ -241,9 +257,9 @@ dd {
 .timeline li {
   display: grid;
   grid-template-columns: 18px minmax(0, 1fr);
-  gap: 8px;
+  gap: var(--space-2);
   align-items: center;
-  padding: 8px 0;
+  padding: var(--space-2) 0;
 }
 
 .dot {
@@ -255,15 +271,15 @@ dd {
 
 code {
   font-family: "SFMono-Regular", Consolas, monospace;
-  font-size: 12px;
+  font-size: var(--font-xs);
   overflow-wrap: anywhere;
 }
 
 .events li {
   display: grid;
   grid-template-columns: 54px 120px minmax(0, 1fr);
-  gap: 8px;
-  padding: 8px 0;
+  gap: var(--space-2);
+  padding: var(--space-2) 0;
   border-bottom: 1px solid #e7ece5;
   font-size: 13px;
 }
@@ -284,19 +300,19 @@ code {
 
 .emptyState,
 .notice {
-  padding: 24px;
+  padding: var(--space-6);
 }
 
 .emptyState {
   display: grid;
-  gap: 8px;
+  gap: var(--space-2);
   justify-items: start;
 }
 
 .errorState {
   border-color: #e7b0ab;
   color: #8f2d28;
-  margin-bottom: 12px;
+  margin-bottom: var(--space-3);
 }
 
 @media (max-width: 900px) {
@@ -328,8 +344,8 @@ code {
 
   th,
   td {
-    padding: 8px 6px;
-    font-size: 12px;
+    padding: var(--space-2) 6px;
+    font-size: var(--font-xs);
   }
 }
 
@@ -340,7 +356,7 @@ code {
   border: 1px solid #dce4dc;
   border-radius: 10px;
   padding: 18px;
-  margin-bottom: 16px;
+  margin-bottom: var(--space-4);
   box-shadow: 0 1px 2px rgba(22, 32, 25, 0.05);
 }
 
@@ -348,7 +364,7 @@ code {
   display: flex;
   justify-content: space-between;
   align-items: flex-start;
-  gap: 16px;
+  gap: var(--space-4);
   margin-bottom: 14px;
 }
 
@@ -361,8 +377,8 @@ code {
 .runMetric {
   display: grid;
   grid-template-columns: 22px 1fr;
-  gap: 4px 8px;
-  padding: 10px 12px;
+  gap: var(--space-1) var(--space-2);
+  padding: 10px var(--space-3);
   border-radius: 8px;
   background: #f8faf6;
   border: 1px solid #e6ece4;
@@ -398,7 +414,7 @@ code {
   text-align: right;
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: var(--space-1);
 }
 
 .runElapsedLabel {
@@ -416,15 +432,15 @@ code {
 .tabList {
   display: flex;
   flex-direction: column;
-  gap: 8px;
-  margin-bottom: 16px;
+  gap: var(--space-2);
+  margin-bottom: var(--space-4);
 }
 
 .tabRow {
   background: #ffffff;
   border: 1px solid #dce4dc;
   border-radius: 10px;
-  padding: 12px 14px;
+  padding: var(--space-3) 14px;
   box-shadow: 0 1px 2px rgba(22, 32, 25, 0.04);
   transition: border-color 0.15s ease, box-shadow 0.15s ease;
 }
@@ -453,25 +469,25 @@ code {
   align-items: center;
   justify-content: center;
   color: #657167;
-  padding: 4px;
-  border-radius: 6px;
+  padding: var(--space-1);
+  border-radius: var(--radius-control);
 }
 
 .tabRowToggle:hover {
   background: #eef2ec;
-  color: #162019;
+  color: var(--color-text);
 }
 
 .tabRowIdent {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: var(--space-2);
   min-width: 0;
 }
 
 .tabRowNumber {
   font-weight: 600;
-  font-size: 14px;
+  font-size: var(--font-small);
 }
 
 .tabRowLatency {
@@ -483,11 +499,11 @@ code {
 .closedPill {
   display: inline-flex;
   align-items: center;
-  gap: 4px;
+  gap: var(--space-1);
   background: #eef2ec;
   border: 1px solid #dce4dc;
   border-radius: 999px;
-  padding: 2px 8px;
+  padding: 2px var(--space-2);
   font-size: 11px;
   color: #647067;
   text-transform: uppercase;
@@ -495,7 +511,7 @@ code {
 }
 
 .tabRowOutcome {
-  font-size: 12px;
+  font-size: var(--font-xs);
   font-family: "SFMono-Regular", Consolas, monospace;
   color: #647067;
   text-align: right;
@@ -515,7 +531,7 @@ code {
 .progressBar {
   display: grid;
   grid-template-columns: repeat(5, 1fr);
-  gap: 4px;
+  gap: var(--space-1);
   position: relative;
   align-items: stretch;
   min-height: 32px;
@@ -526,16 +542,16 @@ code {
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 4px;
+  gap: var(--space-1);
   border: 1px solid #dce4dc;
-  border-radius: 6px;
+  border-radius: var(--radius-control);
   font-size: 11px;
   text-transform: uppercase;
   letter-spacing: 0.04em;
   color: #647067;
   background: #f3f6f1;
   min-height: 30px;
-  padding: 4px 6px;
+  padding: var(--space-1) 6px;
 }
 
 .progressLabel {
@@ -625,13 +641,13 @@ code {
   color: #f0f4ee;
   border: 1px solid #2b332d;
   border-radius: 8px;
-  padding: 10px 12px;
+  padding: 10px var(--space-3);
   box-shadow: 0 8px 18px rgba(22, 32, 25, 0.25);
-  font-size: 12px;
+  font-size: var(--font-xs);
 }
 
 .failureTooltipHeader {
-  margin: 0 0 8px;
+  margin: 0 0 var(--space-2);
   color: #ffd0cc;
   font-family: "SFMono-Regular", Consolas, monospace;
   font-size: 11px;
@@ -649,8 +665,8 @@ code {
 /* Drilldown */
 
 .tabDrilldown {
-  margin-top: 12px;
-  padding-top: 12px;
+  margin-top: var(--space-3);
+  padding-top: var(--space-3);
   border-top: 1px dashed #dce4dc;
   display: flex;
   flex-direction: column;
@@ -660,7 +676,7 @@ code {
 .tabDrilldownGrid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-  gap: 10px 16px;
+  gap: 10px var(--space-4);
 }
 
 .tabDrilldownField {
@@ -685,11 +701,11 @@ code {
 .conversationLink {
   display: inline-flex;
   align-items: center;
-  gap: 4px;
+  gap: var(--space-1);
   color: #2f5a8a;
   text-decoration: none;
   font-family: "SFMono-Regular", Consolas, monospace;
-  font-size: 12px;
+  font-size: var(--font-xs);
 }
 
 .conversationLink:hover {
@@ -702,34 +718,34 @@ code {
   margin: 0;
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-  gap: 4px 12px;
+  gap: var(--space-1) var(--space-3);
 }
 
 .filesChangedList li {
-  font-size: 12px;
+  font-size: var(--font-xs);
   overflow-wrap: anywhere;
 }
 
 .gitStatusGrid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-  gap: 10px 16px;
+  gap: 10px var(--space-4);
 }
 
 .statusList {
   min-width: 0;
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: var(--space-1);
 }
 
 .logToggleButton {
   background: #eef2ec;
   border: 1px solid #dce4dc;
-  border-radius: 6px;
-  padding: 4px 8px;
-  font-size: 12px;
-  color: #162019;
+  border-radius: var(--radius-control);
+  padding: var(--space-1) var(--space-2);
+  font-size: var(--font-xs);
+  color: var(--color-text);
   cursor: pointer;
 }
 
@@ -738,11 +754,11 @@ code {
 }
 
 .logTail {
-  margin: 8px 0 0;
-  padding: 10px 12px;
+  margin: var(--space-2) 0 0;
+  padding: 10px var(--space-3);
   background: #1a1f1c;
   color: #f0f4ee;
-  border-radius: 6px;
+  border-radius: var(--radius-control);
   font-family: "SFMono-Regular", Consolas, monospace;
   font-size: 11px;
   line-height: 1.4;
@@ -760,10 +776,10 @@ code {
 .tabEventList li {
   display: grid;
   grid-template-columns: 50px 120px minmax(0, 1fr);
-  gap: 8px;
+  gap: var(--space-2);
   padding: 6px 0;
   border-bottom: 1px solid #e7ece5;
-  font-size: 12px;
+  font-size: var(--font-xs);
 }
 
 .eventKind {
@@ -781,7 +797,7 @@ code {
   margin: 0;
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: var(--space-1);
 }
 
 .otherRuns {
@@ -825,7 +841,7 @@ code {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  padding: 4px 10px;
+  padding: var(--space-1) 10px;
   border-radius: 999px;
   font-size: 11px;
   font-weight: 700;
@@ -873,3 +889,9 @@ code {
     justify-self: start;
   }
 }
+
+.pairing { max-width: 36rem; }
+.pairing form { display: grid; gap: 0.75rem; }
+.pairing input { width: 100%; padding: 0.75rem; border: 1px solid #566b5c; border-radius: 0.375rem; font: inherit; }
+.pairing button { padding: 0.75rem; font: inherit; color: var(--color-surface); background: #216237; border: 0; border-radius: 0.375rem; cursor: pointer; }
+.pairing :focus-visible { outline: 3px solid #226eaf; outline-offset: 3px; }

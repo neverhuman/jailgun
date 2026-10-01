@@ -95,3 +95,62 @@ fn github_repo_inference_stays_within_owner_repo_boundary() {
         None
     );
 }
+
+#[test]
+fn cli_has_consistent_arguments_and_keeps_execution_modes_explicit() {
+    use crate::cli::{Cli, Command};
+    use clap::{CommandFactory, Parser};
+    Cli::command().debug_assert();
+    assert!(matches!(
+        Cli::try_parse_from(["jailgun", "serve"]).unwrap().command,
+        Command::Serve {
+            advanced: false,
+            live: false,
+            ..
+        }
+    ));
+    assert!(Cli::try_parse_from(["jailgun", "serve", "--concepts", "--live"]).is_err());
+    assert!(Cli::try_parse_from(["jailgun", "serve", "--config", "any.toml"]).is_err());
+    assert!(Cli::try_parse_from([
+        "jailgun",
+        "serve",
+        "--advanced",
+        "--live",
+        "--config",
+        "any.toml"
+    ])
+    .is_ok());
+    assert!(Cli::try_parse_from([
+        "jailgun",
+        "runs",
+        "show",
+        "a-run",
+        "--runtime",
+        "runtime with spaces",
+        "--json"
+    ])
+    .is_ok());
+    for args in [
+        vec!["jailgun", "brainstorm", "--account", "synthetic"],
+        vec![
+            "jailgun",
+            "brainstorm",
+            "concept",
+            "--concept-file",
+            "file",
+            "--account",
+            "synthetic",
+        ],
+        vec![
+            "jailgun",
+            "brainstorm",
+            "concept",
+            "--account",
+            "synthetic",
+            "--tabs",
+            "11",
+        ],
+    ] {
+        assert!(Cli::try_parse_from(args).is_err());
+    }
+}

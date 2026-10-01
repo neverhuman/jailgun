@@ -1,170 +1,195 @@
-<img src="assets/jailgun.png" alt="Jailgun" width="100%">
-
-<!-- jankurai-badge:start -->
-[![Jankurai score: 97/100 advisory](agent/jankurai-badge.svg)](agent/repo-score.md)
-<!-- jankurai-badge:end -->
-
 # Jailgun
 
-Jailgun runs authenticated ChatGPT tab batches, captures generated source
-archives, validates receipts, and deploys through a Rust-owned safety layer.
+Turn one concept into several distinct explorations, compare them, and develop a
+revised final proposal through ChatGPT. Use the dashboard, CLI, or a standard MCP
+client. Jailgun keeps conversations, results and recovery state on your machine.
 
-**Version 0.2.0.** The headless server drives persistent browser accounts,
-takes an operator verification code from the CLI or
-`POST /api/browser/accounts/{id}/auth/code`, ingests runs on `POST /api/runs`
-using canonical `browser.account_ids` routing, and exposes auth and run status
-through `/mcp` (`jailgun.run`, `jailgun.auth_status`, `jailgun.submit_code`,
-`jailgun.run_status`, `jailgun.run_summary`). Passwords are not stored. See
-[CHANGELOG.md](CHANGELOG.md) and the
-[headless two-account setup](docs/HEADLESS_TWO_ACCOUNT_SETUP.md).
+**Concept → 5–10 explorations → comparison → synthesis → critique → revision.**
 
-The repository is intentionally example-first. Real credentials, browser
-profiles, local paths, remotes, prompts, archives, logs, and receipts are local
-runtime state and are ignored by Git.
+<!-- jankurai-badge:start -->
+[![Jankurai score: 84/100 advisory](agent/jankurai-badge.svg)](agent/repo-score.md)
+<!-- jankurai-badge:end -->
 
-Agent entrypoint: [AGENTS.md](AGENTS.md).
+**v0.2.0 is under development and has not been published.** The DREAM worker
+delivery is Linux-only; worker acceptance does not complete the broader concept
+application release. Clean-environment installation and full concept-workflow
+live-provider acceptance remain release gates. The
+[gap register](docs/public-release-progress.md) records what is verified.
 
-## Quick Start
+![Jailgun results dashboard showing a final concept and its tradeoffs](assets/dashboard-results.png)
 
-```bash
-cargo build --workspace
-bash ops/ci/rust.sh
-bash ops/ci/jankurai.sh
-```
+*Actual Chromium screenshot with synthetic demonstration data. This example
+explicitly continued with three complete candidates and excluded two. It is not
+a live ChatGPT response. [Capture record](assets/dashboard-results.json).*
 
-Start from `config/jailgun.example.toml` for local configuration, then keep
-operator secrets in ignored local files or environment variables.
+## Install and connect
 
-## Layout
+You need Google Chrome and a ChatGPT account you control. Initial login uses the
+website's normal interactive verification; Jailgun does not ask for your password
+or verification code. Paid model API credentials are not used.
 
-- `crates/jailgun-core` owns configuration, event models, tar validation,
-  receipts, prompt policy, and repository string audits.
-- `crates/jailgun-deploy` owns remote cleanup and deploy orchestration behind
-  testable traits.
-- `crates/jailgun-server` serves REST snapshots, HTTP run ingestion, browser
-  account auth, the `/mcp` control-plane tools, and WebSocket events.
-- `crates/jailgun-cli` exposes config validation, tar validation, scanning,
-  auth setup, `jailhard`, and dashboard serving.
-- `apps/browser-adapter` contains DOM-only TypeScript helpers for the browser
-  automation boundary.
-- `apps/dashboard` is a Vite/React dashboard that works with fixture data.
+The DREAM worker targets Linux x86-64 (Ubuntu 24.04/26.04). Hosted platform CI
+validates both Ubuntu versions. macOS packaging remains experimental and is not
+part of this worker delivery or its required CI. The broader application release
+ledger retains its separate cross-platform gates. Windows, other chat providers
+and hosted multi-tenant operation are outside this delivery.
 
-## Local Validation
+Install Git, curl, tar, Rust through [rustup](https://rustup.rs/), and a C compiler.
+Then:
 
 ```bash
-bash ops/ci/rust.sh
-bash ops/ci/node.sh
-bash ops/ci/security.sh
-bash ops/ci/jankurai.sh
+git clone https://github.com/neverhuman/jailgun.git
+cd jailgun
+bash scripts/bootstrap.sh
+export PATH="$HOME/.local/bin:$PATH"
+jailgun doctor
+jailgun setup
 ```
 
-The Jankurai lane writes `agent/repo-score.{json,md}` plus
-`agent/jankurai-badge.{svg,json}` and refreshes the badge block between the
-README markers above.
+Bootstrap installs pinned build tools, builds locked dependencies, and installs a verified
+bundle into your user-owned prefix. Installed operation needs no source checkout,
+Rust, or npm. See [installation](docs/install.md) for prerequisites, paths with
+spaces, explicit dependency installation, and checksum-verified release archives
+once v0.2.0 is published.
 
-## Configuration
+In the dashboard:
 
-Start from `config/jailgun.example.toml` and write local values to an ignored
-`config/jailgun.local.toml` or environment variables. Use `.env.example` as the
-environment reference.
+1. Open **Accounts**, connect ChatGPT, and complete login in its dedicated browser.
+2. Confirm the detected account identity and choose an observed model or the
+   account's current selection.
+3. Open **New concept**, enter your concept and constraints, choose five to ten
+   perspectives, and adjust the evaluation criteria if needed.
+4. Follow **Run progress**, then open **Results** for the revised concept,
+   comparison, critique, complete candidates and downloads.
 
-### Remote Chrome over SSH
+The private browser profile is reused across restarts. If authentication expires,
+reconnect from Accounts; completed work stays available. See the
+[dashboard guide](docs/dashboard.md) for partial results and recovery choices.
 
-Jailgun can attach to a Chrome instance that stays on another machine as long
-as that machine keeps the Chrome DevTools Protocol bound to `127.0.0.1` and the
-browser profile and state remain local there. The Mac only needs the forwarded
-CDP endpoint, not the browser UI.
+## First CLI run
 
-Use the helpers in `scripts/` to bring up a loopback-only SSH forward and keep
-it alive with `launchd`:
+List accounts and use the ID of your verified account:
 
-- `scripts/chrome-cdp-tunnel.sh` opens `127.0.0.1:9224` on the Mac and forwards
-  it to the remote machine's loopback CDP port.
-- `scripts/chrome-cdp-launchd.sh` writes and loads a LaunchAgent so the tunnel
-  restarts after login or disconnect.
+```bash
+jailgun accounts list
+jailgun brainstorm "A neighborhood tool library" --account YOUR_ACCOUNT_ID --tabs 5 --wait
+```
 
-When the tunnel is up, run `jailgun` or `chrome-bridge` on the Mac with
-`JAILGUN_CDP_URL=http://127.0.0.1:9224`.
+Without `--wait`, submission returns a run ID immediately. With it, success
+requires a completed final result. Inspect, export, pause or cancel with:
 
-The tunnel helper uses SSH key authentication, `StrictHostKeyChecking=yes`, and
-a pinned `known_hosts` file so the CDP endpoint is only exposed through the
-trusted SSH connection.
+```bash
+jailgun runs list
+jailgun runs show RUN_ID
+jailgun runs result RUN_ID
+jailgun runs export RUN_ID --out "results/my concept"
+jailgun runs pause RUN_ID
+jailgun runs resume RUN_ID
+jailgun runs cancel RUN_ID
+```
 
-Remote cleanup policy defaults to `preserve-reset`. Clean divergent remote
-checkouts are preserved under a timestamped ref and receipt before reset.
-Dirty checkouts, missing `origin/main`, failed ref creation, and failed receipt
-writes stop the deploy.
+Results and account state live under `~/.jailgun` by default. Exports contain
+readable files, including `final.md` for completed runs, plus a manifest with
+artifact hashes. Full responses stay available alongside structured summaries.
+Use `--runtime` for another private local directory. See the [CLI reference](docs/cli.md),
+[HTTP reference](docs/concept-http-api.md), and [backup/restore procedure](db/README.md).
 
-## Headless server with two authenticated accounts
+## Use an MCP client
 
-Jailgun can run as a **headless server** that drives **two persistent ChatGPT
-(Google) accounts** — each its own Chrome process, profile, and CDP port — so
-you log in **once per account** and the sessions persist across restarts. Auth
-is operator-driven (no passwords stored, codes never logged): the browser runs
-**headed under Xvfb** on the server, you complete the one-time Google login over
-a noVNC view, and you paste the verification code via the CLI or the
-`POST /api/browser/accounts/{id}/auth/code` endpoint. The server exposes `/mcp`
-for discovery, auth status, run status, and run summaries
-(`jailgun.run` / `jailgun.auth_status` / `jailgun.submit_code` /
-`jailgun.run_status` / `jailgun.run_summary`). JMCP submits compatible runs
-through `/api/runs` using canonical `browser.account_ids` routing, then tracks
-progress through `/mcp`.
+Create a scoped automation token in **Accounts → Automation access for CLI and
+MCP**, save it in a private file, and configure your client:
 
-**Full step-by-step walkthrough (with placeholder accounts + commands):**
-[`docs/HEADLESS_TWO_ACCOUNT_SETUP.md`](docs/HEADLESS_TWO_ACCOUNT_SETUP.md).
+```json
+{
+  "mcpServers": {
+    "jailgun": {
+      "command": "jailgun",
+      "args": ["mcp", "--token-file", "/absolute/path/to/private-token"]
+    }
+  }
+}
+```
 
-## Telegram notifications (optional)
+Use mode 0600 for the token file. The gateway connects to or safely starts the
+local daemon. Account login remains an operator dashboard action. Authenticated
+Streamable HTTP is available at `/mcp`; see [MCP configuration](docs/mcp.md) for
+tools, schemas, transport settings and troubleshooting.
 
-Jailgun can push a short message to a private Telegram chat each time a deploy
-commit succeeds or fails. The notifier is **optional** — Jailgun runs end-to-end
-without it.
+## DREAM lightweight worker
 
-To enable it on your machine:
+`jailgun worker` starts a lightweight browser-backed Rust MCP server for trusted agents. It
+offers isolated logical tabs, idempotent jobs, Astra/Sol model aliases, explicit
+`low` through `ultra` reasoning effort, bounded timeouts, selectable error
+reporting, cancellation, and SHA-256-verified chunked tar.gz upload/download.
+Production execution uses supervised ChatGPT website sessions—never Codex CLI
+device authentication. Several authenticated AI accounts can coexist: each gets
+a private Chrome profile and worker identity, tabs stay pinned to one account,
+and MCP reports ready/relogin counts without exposing cookies or credentials.
+CI injects a mock executor and never contacts a live model.
 
-1. Open Telegram and message `@BotFather`. Run `/newbot`, follow the prompts,
-   and copy the bot token it gives you (a string of the form `1234567:ABC...`).
-2. Put the token in a local file the repo will not commit:
+The worker binds loopback only. Remote clients use an SSH local forward and a
+mode-0600 bearer credential; no token belongs in a URL. Start it with:
 
-   ```bash
-   mkdir -p telegram
-   printf '%s\n' '<paste-your-bot-token-here>' > telegram/token.env
-   chmod 600 telegram/token.env
-   ```
+```bash
+jailgun worker --runtime "$HOME/.jailgun-worker" --addr 127.0.0.1:8790
+```
 
-   The `telegram/` directory is listed in `.gitignore`, so the token, the
-   discovered chat id cache, and any local notes you keep there stay out of
-   Git.
-3. Open your bot in Telegram (search for the bot name you chose in step 1) and
-   send it `/start`. Bots cannot DM you until you DM them first.
-4. Send the first test message from the repo root:
+See the complete [Worker MCP guide](docs/worker-mcp.md) for client configuration,
+all tools, account login/routing, model/effort controls, object chunking,
+integrity checks, failure semantics, and mock-CI guarantees.
 
-   ```bash
-   cargo run -p jailgun-cli -- telegram-send \
-     --token-file telegram/token.env \
-     --message "Jailgun online"
-   ```
+## Linux server setup
 
-   The CLI auto-discovers your chat id via `getUpdates` on first run; you can
-   pass `--chat-id <id>` to skip discovery, or write `TELEGRAM_CHAT_ID=<id>`
-   into `telegram/token.env` alongside the token.
-5. To ping on every successful local commit, install the post-commit hook:
+Install Chrome and the documented display prerequisites, then run:
 
-   ```bash
-   bash ops/ci/install-hooks.sh   # or copy ops/git-hooks/post-commit yourself
-   ```
+```bash
+jailgun doctor --server-browser
+jailgun setup --server-browser --no-open
+```
 
-   The hook runs `jailgun notify-commit` after each commit. If `telegram/token.env`
-   is missing, the hook exits quietly without failing the commit.
+From your workstation, forward the dashboard through SSH:
 
-Run history and deploy events also fan out over the dashboard's WebSocket
-endpoint regardless of Telegram setup.
+```bash
+ssh -N -L 8787:127.0.0.1:8787 user@your-server
+```
 
-## Release
+Open the pairing link printed by setup and complete login in **Accounts → Open
+login view**. The link works once and expires after five minutes. The private
+viewer requires the paired operator session. See [server login](docs/server-login.md)
+and [two-account setup](docs/HEADLESS_TWO_ACCOUNT_SETUP.md).
 
-Current version: **0.2.0** (2026-09-25).
+## Understand the result
 
-This release records the headless auth control plane, HTTP run ingestion,
-artifact and tar download recovery, and the module splits that pulled deploy
-shell backends, browser-adapter DOM contracts, orchestrator run flow, and the
-server auth/MCP/run surface into smaller modules. The change list is in
-[CHANGELOG.md](CHANGELOG.md).
+Default evaluation weights are usefulness 30%, feasibility 25%, novelty 20%,
+supporting evidence 15%, and risk management 10%. Scores are model-generated
+judgments. Output quality depends on the selected model, criteria and source
+evidence; review assumptions before acting on a proposal.
+
+Starts are paced account-wide, with up to ten active conversations per account.
+A failed or partial candidate cannot silently become complete. After bounded
+retries, choose whether to retry, cancel, or explicitly continue with at least
+three complete candidates. See [workflow behavior](docs/concept-workflows.md)
+for limits, context budgets and retained outputs.
+
+## Troubleshooting and development
+
+- **Setup cannot start:** run `jailgun doctor` with the same runtime and display
+  options. It identifies missing assets, Chrome or display dependencies.
+- **Pairing expired:** rerun setup for a new link. No long-lived token belongs in
+  a dashboard or WebSocket URL.
+- **Login or model needs attention:** reconnect in Accounts and confirm the
+  observed identity/model. A specific unavailable model is never substituted.
+- **Interrupted run:** inspect Run progress or `runs show`; preserve uncertain
+  submissions for reconciliation instead of sending the concept again.
+- **Try the interface without an account:** open the built dashboard with
+  `?demo=1`. It visibly uses synthetic data and cannot submit work.
+
+Archive generation, `jailhard`, guarded deployment and optional notifications
+remain [advanced workflows](docs/advanced-workflows.md). Concept submission never
+enables deployment. Read [authentication changes](docs/authentication-upgrade.md)
+before upgrading an older installation.
+
+For development, read [AGENTS.md](AGENTS.md), [CONTRIBUTING.md](CONTRIBUTING.md), [architecture](docs/architecture.md),
+[local CI](docs/ci-local.md), and [release procedure](docs/release.md). Run
+`bash scripts/ci-local.sh` for the integrated local checks. Report vulnerabilities
+through [SECURITY.md](SECURITY.md). Jailgun is [MIT licensed](LICENSE).

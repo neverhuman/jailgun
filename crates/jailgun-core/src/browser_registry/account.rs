@@ -43,9 +43,52 @@ pub struct BrowserAccount {
     pub status: BrowserAccountStatus,
     #[serde(default)]
     pub last_verified_at: Option<String>,
+    #[serde(default)]
+    pub provider_account_id: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct ProviderIdentity {
+    pub id: String,
+    pub email: String,
 }
 
 impl BrowserAccount {
+    pub fn require_archive_access(&self) -> Result<(), BrowserRegistryError> {
+        let marker = self.profile_dir.join(super::profile_ownership::MARKER);
+        match std::fs::symlink_metadata(&marker) {
+            Ok(_) => Err(BrowserRegistryError::LeaseInvalid(
+                "workflow-runtime-owned: manage this profile through the concept daemon".into(),
+            )),
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(()),
+            Err(source) => Err(BrowserRegistryError::Read {
+                path: marker.display().to_string(),
+                source,
+            }),
+        }
+    }
+    pub fn confirm_identity(
+        &mut self,
+        identity: &ProviderIdentity,
+        verified_at: String,
+    ) -> Result<(), BrowserRegistryError> {
+        if identity.id.trim().is_empty()
+            || !self.email_hint.eq_ignore_ascii_case(identity.email.trim())
+            || self
+                .provider_account_id
+                .as_ref()
+                .is_some_and(|id| id != &identity.id)
+        {
+            return Err(BrowserRegistryError::AccountIdentityConflict(
+                self.id.clone(),
+            ));
+        }
+        self.provider_account_id = Some(identity.id.clone());
+        self.status = BrowserAccountStatus::Ready;
+        self.last_verified_at = Some(verified_at);
+        Ok(())
+    }
+
     pub fn cdp_url(&self) -> String {
         format!("http://127.0.0.1:{}", self.cdp_port)
     }

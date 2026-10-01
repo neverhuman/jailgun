@@ -1,0 +1,1162 @@
+{
+  "generated": {
+    "by": "scripts/generate-contracts.mjs",
+    "note": "DO NOT EDIT BY HAND",
+    "source": "crates/jailgun-workflow/src/model.rs",
+    "command": "bash ops/ci/contracts.sh --write"
+  },
+  "$defs": {
+    "AccountIdentity": {
+      "properties": {
+        "email": {
+          "type": "string"
+        },
+        "id": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "email"
+      ],
+      "type": "object"
+    },
+    "AccountObservation": {
+      "properties": {
+        "available_models": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "identity": {
+          "$ref": "#/$defs/AccountIdentity"
+        },
+        "model": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "identity",
+        "model",
+        "available_models"
+      ],
+      "type": "object"
+    },
+    "AccountReadiness": {
+      "properties": {
+        "active": {
+          "format": "uint16",
+          "maximum": 65535,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "capacity": {
+          "format": "uint16",
+          "maximum": 65535,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "cooldown_until_ms": {
+          "format": "int64",
+          "type": "integer"
+        },
+        "id": {
+          "type": "string"
+        },
+        "next_submit_ms": {
+          "format": "int64",
+          "type": "integer"
+        },
+        "rate_limit_count": {
+          "format": "uint32",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "readiness": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "readiness",
+        "capacity",
+        "active",
+        "next_submit_ms",
+        "cooldown_until_ms",
+        "rate_limit_count"
+      ],
+      "type": "object"
+    },
+    "AccountSession": {
+      "properties": {
+        "account_id": {
+          "type": "string"
+        },
+        "email": {
+          "type": "string"
+        },
+        "error_code": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "lifecycle": {
+          "type": "string"
+        },
+        "login_expires_ms": {
+          "format": "int64",
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "login_view_available": {
+          "default": false,
+          "description": "Ephemeral supervisor observation; never persisted as account readiness.",
+          "type": "boolean"
+        },
+        "model": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ModelSelection"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "observation": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/AccountObservation"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "observed_ms": {
+          "format": "int64",
+          "type": [
+            "integer",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "account_id",
+        "email",
+        "lifecycle"
+      ],
+      "type": "object"
+    },
+    "Artifact": {
+      "properties": {
+        "attempt_id": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "byte_length": {
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "completion": {
+          "type": "string"
+        },
+        "created_ms": {
+          "format": "int64",
+          "type": "integer"
+        },
+        "id": {
+          "type": "string"
+        },
+        "media_type": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "run_id": {
+          "type": "string"
+        },
+        "sha256": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "run_id",
+        "name",
+        "media_type",
+        "sha256",
+        "byte_length",
+        "completion",
+        "created_ms"
+      ],
+      "type": "object"
+    },
+    "ArtifactChunk": {
+      "properties": {
+        "artifact": {
+          "$ref": "#/$defs/Artifact"
+        },
+        "eof": {
+          "type": "boolean"
+        },
+        "next_offset": {
+          "format": "uint64",
+          "minimum": 0,
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "offset": {
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "text": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "artifact",
+        "offset",
+        "eof",
+        "text"
+      ],
+      "type": "object"
+    },
+    "ArtifactRead": {
+      "additionalProperties": false,
+      "properties": {
+        "artifact_id": {
+          "type": "string"
+        },
+        "limit": {
+          "default": 16384,
+          "format": "uint32",
+          "maximum": 16384,
+          "minimum": 4,
+          "type": "integer"
+        },
+        "offset": {
+          "default": 0,
+          "description": "UTF-8 byte offset, always use next_offset from the preceding response.",
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "run_id": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "run_id",
+        "artifact_id"
+      ],
+      "type": "object"
+    },
+    "Attempt": {
+      "properties": {
+        "accepted_ms": {
+          "format": "int64",
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "completed_ms": {
+          "format": "int64",
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "conversation_id": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "conversation_url": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "created_ms": {
+          "format": "int64",
+          "type": "integer"
+        },
+        "error_code": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "id": {
+          "type": "string"
+        },
+        "number": {
+          "format": "uint16",
+          "maximum": 65535,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "observed_model": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "run_id": {
+          "type": "string"
+        },
+        "state": {
+          "type": "string"
+        },
+        "task_id": {
+          "type": "string"
+        },
+        "user_turn_id": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "id",
+        "run_id",
+        "task_id",
+        "number",
+        "state",
+        "created_ms"
+      ],
+      "type": "object"
+    },
+    "CandidateEvaluation": {
+      "additionalProperties": false,
+      "properties": {
+        "candidate": {
+          "format": "uint16",
+          "maximum": 65535,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "disagreements": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "scores": {
+          "items": {
+            "$ref": "#/$defs/CriterionScore"
+          },
+          "type": "array"
+        },
+        "uncertainty": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "candidate",
+        "scores",
+        "disagreements",
+        "uncertainty"
+      ],
+      "type": "object"
+    },
+    "CandidateSummary": {
+      "additionalProperties": false,
+      "properties": {
+        "assumptions": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "next_steps": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "proposal": {
+          "type": "string"
+        },
+        "strengths": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "weaknesses": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "proposal",
+        "strengths",
+        "weaknesses",
+        "assumptions",
+        "next_steps"
+      ],
+      "type": "object"
+    },
+    "Comparison": {
+      "properties": {
+        "basis": {
+          "type": "string"
+        },
+        "ranking": {
+          "items": {
+            "$ref": "#/$defs/RankedCandidate"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "basis",
+        "ranking"
+      ],
+      "type": "object"
+    },
+    "ConceptRequest": {
+      "additionalProperties": false,
+      "properties": {
+        "account_id": {
+          "type": "string"
+        },
+        "candidate_count": {
+          "default": 5,
+          "format": "uint16",
+          "maximum": 10,
+          "minimum": 5,
+          "type": "integer"
+        },
+        "concept": {
+          "maxLength": 64000,
+          "minLength": 1,
+          "type": "string"
+        },
+        "constraints": {
+          "default": "",
+          "maxLength": 16000,
+          "type": "string"
+        },
+        "criteria": {
+          "default": [
+            {
+              "name": "Usefulness",
+              "weight": 30
+            },
+            {
+              "name": "Feasibility",
+              "weight": 25
+            },
+            {
+              "name": "Novelty",
+              "weight": 20
+            },
+            {
+              "name": "Supporting evidence",
+              "weight": 15
+            },
+            {
+              "name": "Risk management",
+              "weight": 10
+            }
+          ],
+          "items": {
+            "$ref": "#/$defs/Criterion"
+          },
+          "maxItems": 10,
+          "minItems": 1,
+          "type": "array"
+        },
+        "idempotency_key": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "concept",
+        "account_id",
+        "idempotency_key"
+      ],
+      "type": "object"
+    },
+    "ConfigurationSnapshot": {
+      "properties": {
+        "max_attempts": {
+          "format": "uint16",
+          "maximum": 65535,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "max_jitter_ms": {
+          "format": "int64",
+          "type": "integer"
+        },
+        "model": {
+          "$ref": "#/$defs/ModelSelection"
+        },
+        "overall_deadline_ms": {
+          "format": "int64",
+          "type": "integer"
+        },
+        "perspectives": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "response_timeout_ms": {
+          "format": "int64",
+          "type": "integer"
+        },
+        "stage_char_limit": {
+          "format": "uint",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "submission_spacing_ms": {
+          "format": "int64",
+          "type": "integer"
+        },
+        "summary_char_limit": {
+          "format": "uint",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "template_version": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "template_version",
+        "perspectives",
+        "model",
+        "submission_spacing_ms",
+        "max_jitter_ms",
+        "response_timeout_ms",
+        "overall_deadline_ms",
+        "max_attempts",
+        "summary_char_limit",
+        "stage_char_limit"
+      ],
+      "type": "object"
+    },
+    "ConfirmAccount": {
+      "additionalProperties": false,
+      "properties": {
+        "identity": {
+          "$ref": "#/$defs/AccountIdentity"
+        },
+        "model": {
+          "$ref": "#/$defs/ModelSelection"
+        }
+      },
+      "required": [
+        "identity",
+        "model"
+      ],
+      "type": "object"
+    },
+    "ConnectAccount": {
+      "additionalProperties": false,
+      "properties": {
+        "email": {
+          "type": "string"
+        },
+        "id": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "email"
+      ],
+      "type": "object"
+    },
+    "CreatedToken": {
+      "properties": {
+        "metadata": {
+          "$ref": "#/$defs/TokenMetadata"
+        },
+        "secret": {
+          "description": "Returned once. Only its SHA-256 digest is retained by the installation.",
+          "type": "string"
+        }
+      },
+      "required": [
+        "metadata",
+        "secret"
+      ],
+      "type": "object"
+    },
+    "Criterion": {
+      "additionalProperties": false,
+      "properties": {
+        "name": {
+          "maxLength": 120,
+          "minLength": 1,
+          "type": "string"
+        },
+        "weight": {
+          "format": "uint16",
+          "maximum": 100,
+          "minimum": 1,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "name",
+        "weight"
+      ],
+      "type": "object"
+    },
+    "CriterionScore": {
+      "additionalProperties": false,
+      "properties": {
+        "criterion": {
+          "type": "string"
+        },
+        "rationale": {
+          "type": "string"
+        },
+        "score": {
+          "format": "uint16",
+          "maximum": 65535,
+          "minimum": 0,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "criterion",
+        "score",
+        "rationale"
+      ],
+      "type": "object"
+    },
+    "ErrorResponse": {
+      "properties": {
+        "code": {
+          "type": "string"
+        },
+        "message": {
+          "type": "string"
+        },
+        "next_action": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "code",
+        "message",
+        "next_action"
+      ],
+      "type": "object"
+    },
+    "Event": {
+      "properties": {
+        "created_ms": {
+          "format": "int64",
+          "type": "integer"
+        },
+        "data": true,
+        "kind": {
+          "type": "string"
+        },
+        "run_id": {
+          "type": "string"
+        },
+        "sequence": {
+          "format": "int64",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "sequence",
+        "run_id",
+        "kind",
+        "data",
+        "created_ms"
+      ],
+      "type": "object"
+    },
+    "FinalResult": {
+      "properties": {
+        "artifacts": {
+          "items": {
+            "$ref": "#/$defs/Artifact"
+          },
+          "type": "array"
+        },
+        "configuration": {
+          "$ref": "#/$defs/ConfigurationSnapshot"
+        },
+        "evaluation_notice": {
+          "type": "string"
+        },
+        "excluded_candidates": {
+          "items": {
+            "format": "uint16",
+            "maximum": 65535,
+            "minimum": 0,
+            "type": "integer"
+          },
+          "type": "array"
+        },
+        "final_artifact": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Artifact"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Accepted final text, populated when reading historical manifests too."
+        },
+        "request": {
+          "$ref": "#/$defs/ConceptRequest"
+        },
+        "run_id": {
+          "type": "string"
+        },
+        "schema_version": {
+          "format": "uint16",
+          "maximum": 65535,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "status": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "schema_version",
+        "run_id",
+        "status",
+        "request",
+        "configuration",
+        "excluded_candidates",
+        "evaluation_notice",
+        "artifacts"
+      ],
+      "type": "object"
+    },
+    "IssueToken": {
+      "additionalProperties": false,
+      "properties": {
+        "account_ids": {
+          "description": "Explicit account IDs; future accounts are never added implicitly.",
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "name": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "name",
+        "account_ids"
+      ],
+      "type": "object"
+    },
+    "ModelSelection": {
+      "oneOf": [
+        {
+          "additionalProperties": false,
+          "properties": {
+            "mode": {
+              "const": "current",
+              "type": "string"
+            }
+          },
+          "required": [
+            "mode"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "mode": {
+              "const": "specific",
+              "type": "string"
+            },
+            "name": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "mode",
+            "name"
+          ],
+          "type": "object"
+        }
+      ]
+    },
+    "RankedCandidate": {
+      "properties": {
+        "evaluation": {
+          "$ref": "#/$defs/CandidateEvaluation"
+        },
+        "weighted_score": {
+          "format": "double",
+          "type": "number"
+        }
+      },
+      "required": [
+        "weighted_score",
+        "evaluation"
+      ],
+      "type": "object"
+    },
+    "ResumeRequest": {
+      "additionalProperties": false,
+      "properties": {
+        "allow_incomplete": {
+          "default": false,
+          "type": "boolean"
+        }
+      },
+      "type": "object"
+    },
+    "Run": {
+      "properties": {
+        "allow_incomplete": {
+          "type": "boolean"
+        },
+        "artifacts": {
+          "items": {
+            "$ref": "#/$defs/Artifact"
+          },
+          "type": "array"
+        },
+        "configuration": {
+          "$ref": "#/$defs/ConfigurationSnapshot"
+        },
+        "created_ms": {
+          "format": "int64",
+          "type": "integer"
+        },
+        "deadline_ms": {
+          "format": "int64",
+          "type": "integer"
+        },
+        "id": {
+          "type": "string"
+        },
+        "pause_reason": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "request": {
+          "$ref": "#/$defs/ConceptRequest"
+        },
+        "status": {
+          "type": "string"
+        },
+        "submission_limit": {
+          "format": "uint16",
+          "maximum": 65535,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "submissions": {
+          "format": "uint16",
+          "maximum": 65535,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "tasks": {
+          "items": {
+            "$ref": "#/$defs/Task"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "id",
+        "request",
+        "configuration",
+        "status",
+        "created_ms",
+        "deadline_ms",
+        "submissions",
+        "submission_limit",
+        "allow_incomplete",
+        "tasks",
+        "artifacts"
+      ],
+      "type": "object"
+    },
+    "RunAccepted": {
+      "properties": {
+        "result_url": {
+          "type": "string"
+        },
+        "run_id": {
+          "type": "string"
+        },
+        "run_url": {
+          "type": "string"
+        },
+        "status": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "run_id",
+        "status",
+        "run_url",
+        "result_url"
+      ],
+      "type": "object"
+    },
+    "ServiceState": {
+      "enum": [
+        "running",
+        "stopping",
+        "stopped"
+      ],
+      "type": "string"
+    },
+    "ServiceStatus": {
+      "properties": {
+        "instance_id": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "pid": {
+          "format": "uint32",
+          "minimum": 0,
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "runtime": {
+          "type": "string"
+        },
+        "state": {
+          "$ref": "#/$defs/ServiceState"
+        },
+        "version": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "state",
+        "runtime",
+        "version"
+      ],
+      "type": "object"
+    },
+    "ServiceStopRequest": {
+      "additionalProperties": false,
+      "properties": {
+        "instance_id": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "instance_id"
+      ],
+      "type": "object"
+    },
+    "Task": {
+      "properties": {
+        "attempts": {
+          "format": "uint16",
+          "maximum": 65535,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "error_code": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "id": {
+          "type": "string"
+        },
+        "position": {
+          "format": "uint16",
+          "maximum": 65535,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "stage": {
+          "type": "string"
+        },
+        "status": {
+          "type": "string"
+        },
+        "summary": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/CandidateSummary"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "id",
+        "stage",
+        "position",
+        "status",
+        "attempts"
+      ],
+      "type": "object"
+    },
+    "TokenMetadata": {
+      "properties": {
+        "account_ids": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "created_ms": {
+          "format": "int64",
+          "type": "integer"
+        },
+        "id": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "revoked_ms": {
+          "format": "int64",
+          "type": [
+            "integer",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "id",
+        "name",
+        "account_ids",
+        "created_ms"
+      ],
+      "type": "object"
+    }
+  },
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "properties": {
+    "account_readiness": {
+      "$ref": "#/$defs/AccountReadiness"
+    },
+    "account_session": {
+      "$ref": "#/$defs/AccountSession"
+    },
+    "artifact_chunk": {
+      "$ref": "#/$defs/ArtifactChunk"
+    },
+    "artifact_read": {
+      "$ref": "#/$defs/ArtifactRead"
+    },
+    "attempt": {
+      "$ref": "#/$defs/Attempt"
+    },
+    "comparison": {
+      "$ref": "#/$defs/Comparison"
+    },
+    "concept_request": {
+      "$ref": "#/$defs/ConceptRequest"
+    },
+    "confirm_account": {
+      "$ref": "#/$defs/ConfirmAccount"
+    },
+    "connect_account": {
+      "$ref": "#/$defs/ConnectAccount"
+    },
+    "created_token": {
+      "$ref": "#/$defs/CreatedToken"
+    },
+    "error": {
+      "$ref": "#/$defs/ErrorResponse"
+    },
+    "event": {
+      "$ref": "#/$defs/Event"
+    },
+    "final_result": {
+      "$ref": "#/$defs/FinalResult"
+    },
+    "issue_token": {
+      "$ref": "#/$defs/IssueToken"
+    },
+    "resume_request": {
+      "$ref": "#/$defs/ResumeRequest"
+    },
+    "run": {
+      "$ref": "#/$defs/Run"
+    },
+    "run_accepted": {
+      "$ref": "#/$defs/RunAccepted"
+    },
+    "service_status": {
+      "$ref": "#/$defs/ServiceStatus"
+    },
+    "service_stop_request": {
+      "$ref": "#/$defs/ServiceStopRequest"
+    },
+    "token_metadata": {
+      "$ref": "#/$defs/TokenMetadata"
+    }
+  },
+  "required": [
+    "service_status",
+    "service_stop_request",
+    "concept_request",
+    "run_accepted",
+    "resume_request",
+    "run",
+    "attempt",
+    "comparison",
+    "final_result",
+    "artifact_read",
+    "artifact_chunk",
+    "account_readiness",
+    "account_session",
+    "connect_account",
+    "confirm_account",
+    "issue_token",
+    "created_token",
+    "token_metadata",
+    "event",
+    "error"
+  ],
+  "title": "WorkflowContracts",
+  "type": "object"
+}

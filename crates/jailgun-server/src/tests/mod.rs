@@ -98,10 +98,19 @@ fn write_prompt(root: &Path, name: &str) -> PathBuf {
     prompt_file
 }
 
-async fn post_run(app: Router, body: Value) -> (StatusCode, Value) {
+fn fixture_config() -> PathBuf {
+    Path::new(env!("CARGO_MANIFEST_DIR")).join("../../config/jailgun.example.toml")
+}
+
+async fn post_run(app: Router, mut body: Value) -> (StatusCode, Value) {
+    body.as_object_mut()
+        .unwrap()
+        .entry("config_path")
+        .or_insert_with(|| json!(fixture_config()));
     let response = app
         .oneshot(
             Request::builder()
+                .header("host", "localhost")
                 .method("POST")
                 .uri("/api/runs")
                 .header("content-type", "application/json")
@@ -123,3 +132,8 @@ mod browser_routes;
 mod mcp_routes;
 mod run_routes;
 mod status_routes;
+
+mod access_control;
+mod automation;
+mod concept_routes;
+mod service_control;

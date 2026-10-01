@@ -5,7 +5,7 @@ use serde::{Deserialize, Serialize};
 use super::request::JailgunRepoRef;
 use crate::TarValidation;
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Serialize, Deserialize, schemars::JsonSchema, PartialEq, Eq)]
 pub struct JailgunAgentRunSummary {
     pub version: u16,
     pub run_id: String,
@@ -29,7 +29,7 @@ pub struct JailgunAgentRunSummary {
     pub github_write_prompts_allowed: bool,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Serialize, Deserialize, schemars::JsonSchema, PartialEq, Eq)]
 pub struct JailgunSourceArchiveSummary {
     pub enabled: bool,
     pub repo_url: String,
@@ -38,7 +38,7 @@ pub struct JailgunSourceArchiveSummary {
     pub archive_filename: String,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Serialize, Deserialize, schemars::JsonSchema, PartialEq, Eq)]
 pub struct JailgunArtifact {
     pub kind: String,
     pub path: PathBuf,
@@ -54,7 +54,7 @@ pub struct JailgunArtifact {
     pub changed_files: Vec<String>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Serialize, Deserialize, schemars::JsonSchema, PartialEq, Eq)]
 pub struct JailgunFailure {
     #[serde(default)]
     pub tab_id: Option<u16>,
@@ -62,7 +62,7 @@ pub struct JailgunFailure {
     pub message: String,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Serialize, Deserialize, schemars::JsonSchema, PartialEq, Eq)]
 pub struct JailgunReviewPacket {
     pub version: u16,
     pub generated_at: String,
@@ -80,7 +80,7 @@ pub struct JailgunReviewPacket {
     pub source_metadata: BTreeMap<String, String>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Serialize, Deserialize, schemars::JsonSchema, PartialEq, Eq)]
 pub struct JailgunChangedFile {
     pub status: String,
     pub path: String,

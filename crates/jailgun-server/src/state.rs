@@ -10,6 +10,11 @@ use tokio::sync::{broadcast, mpsc, Mutex, RwLock};
 
 #[derive(Clone)]
 pub struct AppState {
+    pub daemon_control: Option<crate::DaemonControl>,
+    pub account_supervisor: Option<jailgun_orchestrator::concept::AccountSupervisor>,
+    pub workflow: Option<jailgun_workflow::Store>,
+    pub worker: Option<crate::worker::WorkerService>,
+    pub dashboard_sessions: Arc<crate::auth::DashboardSessions>,
     pub config: JailgunConfig,
     pub config_path: Option<PathBuf>,
     pub runs: Arc<RwLock<Vec<RunSnapshot>>>,
@@ -23,9 +28,8 @@ pub struct AppState {
     /// When `None`, the WS endpoint replays `events` once and closes
     /// (fixture mode used by `jailgun fixture`).
     pub event_bus: Option<broadcast::Sender<JailgunEvent>>,
-    /// When `Some`, POST `/api/events` and POST `/api/runs` require
-    /// `x-jailgun-token: <token>`.
-    /// When `None`, the endpoints refuse every request with 503.
+    /// Operator credential for all private endpoints (bearer or x-jailgun-token).
+    /// With no credential, private endpoints fail closed with 503.
     pub ingest_token: Option<String>,
     pub agent_backend: Arc<dyn AgentRunBackend>,
 }
@@ -42,6 +46,11 @@ impl AppState {
         let browser_registry_path =
             BrowserProfileRegistry::default_path_from_env(&config.browser.profile_registry_env);
         Self {
+            daemon_control: None,
+            account_supervisor: None,
+            workflow: None,
+            worker: None,
+            dashboard_sessions: Arc::new(crate::auth::DashboardSessions::default()),
             config,
             config_path: None,
             runs: Arc::new(RwLock::new(vec![run.clone()])),
@@ -82,6 +91,11 @@ impl AppState {
         let browser_registry_path =
             BrowserProfileRegistry::default_path_from_env(&config.browser.profile_registry_env);
         let state = Self {
+            daemon_control: None,
+            account_supervisor: None,
+            workflow: None,
+            worker: None,
+            dashboard_sessions: Arc::new(crate::auth::DashboardSessions::default()),
             config,
             config_path: None,
             runs: Arc::new(RwLock::new(Vec::new())),
@@ -100,6 +114,31 @@ impl AppState {
 
     pub fn with_ingest_token(mut self, token: Option<String>) -> Self {
         self.ingest_token = token;
+        self.dashboard_sessions = Arc::new(crate::auth::DashboardSessions::default());
+        self
+    }
+
+    pub fn with_daemon_control(mut self, control: crate::DaemonControl) -> Self {
+        self.daemon_control = Some(control);
+        self
+    }
+
+    pub fn with_workflow(mut self, store: jailgun_workflow::Store) -> Self {
+        self.workflow = Some(store);
+        self
+    }
+
+    pub fn with_worker(mut self, worker: crate::worker::WorkerService) -> Self {
+        self.worker = Some(worker);
+        self
+    }
+
+    pub fn with_account_supervisor(
+        mut self,
+        supervisor: jailgun_orchestrator::concept::AccountSupervisor,
+    ) -> Self {
+        self.workflow = Some(supervisor.store.clone());
+        self.account_supervisor = Some(supervisor);
         self
     }
 
@@ -114,7 +153,7 @@ impl AppState {
     }
 }
 
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, schemars::JsonSchema)]
 pub struct JailgunAgentRunAcceptedResponse {
     pub run_id: String,
     pub status: String,
