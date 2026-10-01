@@ -134,6 +134,29 @@ Native Streamable HTTP clients may connect to
 SDK perform initialization and protocol negotiation. Do not treat a plain HTTP
 `GET` as an MCP interoperability test.
 
+Alternatively, run the stdio gateway **on the worker host through SSH**. This
+keeps the operator token on the server; no token copy or local Jailgun install
+is needed:
+
+```json
+{
+  "mcpServers": {
+    "jailgun-fleet": {
+      "command": "ssh",
+      "args": [
+        "-T", "-o", "BatchMode=yes", "worker-host",
+        "env", "RUST_LOG=warn", "/absolute/server/path/jailgun",
+        "mcp", "--no-start", "--url", "http://127.0.0.1:8790"
+      ]
+    }
+  }
+}
+```
+
+The SSH user must have access to the daemon's private runtime. The gateway
+reads that user's local operator token. Configure the SSH identity and verify
+the host key before connecting the MCP client.
+
 ## Tool catalog
 
 | Tool | Use |
@@ -318,6 +341,14 @@ Then verify:
 Every job requires an `idempotency_key` of 1–128 bytes. Repeating the exact
 request returns the original job. Reusing a key with different input returns
 `idempotency-conflict` and does not submit another ChatGPT turn.
+
+Worker tab, job-status, and idempotency indexes are scoped to the current daemon
+process. Account profiles and verified objects survive restart, but worker jobs
+are not automatically resumed or replayed. Drain or cancel active jobs before
+an upgrade and retain downloaded output receipts. After an unexpected restart,
+reconcile the owned browser conversation before submitting again; do not assume
+an old key provides cross-restart deduplication. Durable concept workflows are a
+separate API and have their own restart-recovery guarantees.
 
 `timeout_seconds` must be within `worker.info` limits. On timeout, Jailgun asks
 the owned browser conversation to stop, captures partial output when possible,
