@@ -84,12 +84,16 @@ export class ChatGPTProvider {
     const control = this.page.locator('[data-testid="model-switcher-dropdown-button"],button[aria-label^="Model selector"],button[aria-label="Select ChatGPT model"]').first();
     if (!await control.isVisible().catch(() => false)) return [await this.currentModel()];
     await control.click({ timeout: 5000 });
+    const items = this.page.locator('[role="menuitem"],[role="menuitemradio"]');
     try {
-      await this.page.locator('[role="menuitem"],[role="menuitemradio"]').first().waitFor({ state: 'visible', timeout: 5000 });
-      return await this.page.locator('[role="menuitem"],[role="menuitemradio"]').evaluateAll((items) => items
+      await items.first().waitFor({ state: 'visible', timeout: 5000 });
+      return await items.evaluateAll((items) => items
         .filter((item) => item.getAttribute('aria-disabled') !== 'true')
         .map((item) => (item.getAttribute('aria-label') || item.textContent || '').replace(/\s+/g, ' ').trim()).filter(Boolean));
-    } finally { await this.page.keyboard.press('Escape'); }
+    } finally {
+      await this.page.keyboard.press('Escape');
+      await items.first().waitFor({ state: 'hidden', timeout: 5000 }).catch(() => {});
+    }
   }
 
   async selectModel() {
