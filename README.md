@@ -10,9 +10,10 @@ client. Jailgun keeps conversations, results and recovery state on your machine.
 [![Jankurai score: 84/100 advisory](agent/jankurai-badge.svg)](agent/repo-score.md)
 <!-- jankurai-badge:end -->
 
-**v0.2.0 is under development and has not been published or accepted for live
-ChatGPT use.** Linux synthetic browser checks pass; macOS, clean-environment
-installation and live-provider acceptance remain release gates. The
+**v0.2.0 is under development and has not been published.** The DREAM worker
+delivery is Linux-only; worker acceptance does not complete the broader concept
+application release. Clean-environment installation and full concept-workflow
+live-provider acceptance remain release gates. The
 [gap register](docs/public-release-progress.md) records what is verified.
 
 ![Jailgun results dashboard showing a final concept and its tradeoffs](assets/dashboard-results.png)
@@ -27,13 +28,14 @@ You need Google Chrome and a ChatGPT account you control. Initial login uses the
 website's normal interactive verification; Jailgun does not ask for your password
 or verification code. Paid model API credentials are not used.
 
-The release targets are Linux x86-64 (Ubuntu 24.04/26.04) and macOS 15 or newer
-(Apple Silicon/Intel). Automated checks have run on Ubuntu 24.04. Ubuntu 26.04
-and macOS acceptance are pending; other environments are unverified. Windows,
-other chat providers and hosted multi-tenant operation are outside this release.
+The DREAM worker targets Linux x86-64 (Ubuntu 24.04/26.04). Hosted platform CI
+validates both Ubuntu versions. macOS packaging remains experimental and is not
+part of this worker delivery or its required CI. The broader application release
+ledger retains its separate cross-platform gates. Windows, other chat providers
+and hosted multi-tenant operation are outside this delivery.
 
 Install Git, curl, tar, Rust through [rustup](https://rustup.rs/), and a C compiler.
-On macOS, install Xcode Command Line Tools. Then:
+Then:
 
 ```bash
 git clone https://github.com/neverhuman/jailgun.git
@@ -44,9 +46,7 @@ jailgun doctor
 jailgun setup
 ```
 
-The bootstrap implementation must first be merged into public `main`; until
-then these commands require the development branch containing it. Bootstrap
-installs pinned build tools, builds locked dependencies, and installs a verified
+Bootstrap installs pinned build tools, builds locked dependencies, and installs a verified
 bundle into your user-owned prefix. Installed operation needs no source checkout,
 Rust, or npm. See [installation](docs/install.md) for prerequisites, paths with
 spaces, explicit dependency installation, and checksum-verified release archives

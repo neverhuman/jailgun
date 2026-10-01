@@ -6,6 +6,11 @@ publish while any required release gate is unmet. `ops/ci/release.sh` currently
 checks documentation terms and files only and reports `release_verified: false`.
 Its rollback metadata describes the required procedure, not an automated upgrade operation.
 
+The DREAM worker fleet is a Linux-only delivery with required Ubuntu 24.04 and
+26.04 CI lanes. macOS is outside that worker rollout's acceptance scope. The
+broader application publication gates below remain separate and incomplete;
+merging or deploying the worker does not approve a public multi-platform release.
+
 ## Version Source
 
 Coordinate the version in Rust crate manifests, Node workspace manifests,

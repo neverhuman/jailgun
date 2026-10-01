@@ -6,6 +6,10 @@ authenticated account. Agents can select an account, open a logical tab, choose
 a model and reasoning effort, submit a job, poll status, cancel work, and move
 verified `.tar.gz` objects in both directions.
 
+This worker delivery targets Linux x86-64 on Ubuntu 24.04/26.04. Both Linux
+platform lanes remain required in CI; macOS is outside the worker acceptance
+scope. An engineer's SSH/MCP client can run on any compatible workstation.
+
 The production worker does **not** use `codex login`, device codes, API keys, or
 `codex exec`. Account owners sign in through the normal ChatGPT website inside
 Jailgun's private browser viewer. CI uses injected mocks and never contacts a
