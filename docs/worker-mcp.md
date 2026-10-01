@@ -218,14 +218,15 @@ job's `account_id` equals the requested account.
 Portable model values:
 
 - `current`: keep that account's current ChatGPT selection
-- `astra`: select the UI label `Astra`
-- `sol`: select the UI label `Sol`
+- `astra`: select the one observed model label containing the standalone word `Astra`
+- `sol`: select the one observed model label containing the standalone word `Sol` (for example, `GPT-5.6 Sol`)
 - an exact model label reported in `available_models`
 
 Reasoning efforts are `low`, `medium`, `high`, `xhigh`, `max`, and `ultra`.
 Availability is model- and account-dependent. `medium` may use the provider
-default when ChatGPT shows no selector. Any other unavailable effort or model
-fails explicitly; Jailgun never silently substitutes a different choice.
+default when ChatGPT shows no selector. An alias fails if zero or multiple
+observed labels match. Any other unavailable effort or model fails explicitly;
+Jailgun never silently substitutes a different choice.
 
 Change an idle tab before its next job:
 

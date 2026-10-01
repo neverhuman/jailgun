@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { ChatGPTProvider } from '../src/chatgpt-provider.mjs';
+import { ChatGPTProvider, resolveModelLabel } from '../src/chatgpt-provider.mjs';
 
 const turn = { conversation_url: 'http://127.0.0.1:9999/c/owned', user_turn_id: 'owned-turn' };
 
@@ -66,4 +66,13 @@ test('capture rejects a change between durable conversation routes', async () =>
   const result = await provider.capture(turn);
   assert.equal(result.complete, false);
   assert.equal(result.error_code, 'adapter-conversation-changed');
+});
+
+test('portable model aliases resolve one observed versioned label', () => {
+  const available = ['GPT-5.6 Sol', 'GPT-5.5', 'Astra'];
+  assert.equal(resolveModelLabel('sol', available), 'GPT-5.6 Sol');
+  assert.equal(resolveModelLabel('astra', available), 'Astra');
+  assert.equal(resolveModelLabel('GPT-5.5', available), 'GPT-5.5');
+  assert.equal(resolveModelLabel('unknown', available), null);
+  assert.equal(resolveModelLabel('sol', ['Sol latest', 'Sol legacy']), null);
 });

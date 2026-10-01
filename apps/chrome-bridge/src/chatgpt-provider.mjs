@@ -30,6 +30,16 @@ function providerLimit(state, message, code = 'account-rate-limited') {
   });
 }
 
+export function resolveModelLabel(requested, available) {
+  const normalized = String(requested || '').trim().toLowerCase();
+  if (!normalized) return null;
+  const exact = available.find((label) => label.toLowerCase() === normalized);
+  if (exact) return exact;
+  if (!['astra', 'sol'].includes(normalized)) return null;
+  const matches = available.filter((label) => label.toLowerCase().split(/[^a-z0-9]+/).includes(normalized));
+  return matches.length === 1 ? matches[0] : null;
+}
+
 /** ChatGPT website operations only. Rust owns scheduling, persistence, budgets and browser lifetime. */
 export class ChatGPTProvider {
   constructor(page, { identity, baseUrl = 'https://chatgpt.com', model = { mode: 'current' }, reasoningEffort = null, attachmentPath = null, pollMs = 300, settleMs = 1500, timeoutMs = 1800000 } = {}) {
@@ -86,13 +96,14 @@ export class ChatGPTProvider {
     const current = await this.currentModel();
     if (this.model.mode === 'current' || this.model.name === current) return current;
     const models = await this.availableModels();
-    if (!models.includes(this.model.name)) throw new AdapterError('model-unavailable', 'The configured model is not available on this account.', 'Choose an observed available model or the current selection.');
+    const selected = resolveModelLabel(this.model.name, models);
+    if (!selected) throw new AdapterError('model-unavailable', 'The configured model is not available on this account.', 'Choose an observed available model or the current selection.');
     await this.page.locator('[data-testid="model-switcher-dropdown-button"],button[aria-label^="Model selector"],button[aria-label="Select ChatGPT model"]').first().click({ timeout: 5000 });
-    const item = this.page.getByRole('menuitem', { name: this.model.name, exact: true }).or(this.page.getByRole('menuitemradio', { name: this.model.name, exact: true })).first();
+    const item = this.page.getByRole('menuitem', { name: selected, exact: true }).or(this.page.getByRole('menuitemradio', { name: selected, exact: true })).first();
     await item.click({ timeout: 5000 });
     const observed = await this.currentModel();
-    if (observed !== this.model.name) throw new AdapterError('model-mismatch', 'The model selector did not confirm the requested model.');
-    return observed;
+    if (observed !== 'current' && observed !== selected) throw new AdapterError('model-mismatch', 'The model selector did not confirm the requested model.');
+    return observed === 'current' ? selected : observed;
   }
 
   async selectReasoningEffort() {

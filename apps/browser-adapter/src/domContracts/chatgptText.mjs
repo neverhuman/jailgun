@@ -22,7 +22,10 @@ export function readChatGPTTextDom({ userTurnId = null, beforeUserIds = [], prom
   const userIds = users.map(messageId).filter(Boolean);
   const submitted = users.find((node) => !beforeUserIds.includes(messageId(node)) && messageId(node) && text(node) === prompt.replace(/\s+/g, ' ').trim());
   const modelControl = [...document.querySelectorAll('[data-testid="model-switcher-dropdown-button"],button[aria-label^="Model selector"],button[aria-label="Select ChatGPT model"]')].find(visible);
-  const observedModel = text(modelControl).replace(/^ChatGPT\s+/i, '').trim();
+  const modelControlText = text(modelControl).replace(/^ChatGPT\s+/i, '').trim();
+  // The current ChatGPT control can expose only the thinking-effort label and
+  // plan tier (for example, "Thinking effort Pro"). That is not a model name.
+  const observedModel = /^thinking effort\b/i.test(modelControlText) ? '' : modelControlText;
   const dialogs = [...document.querySelectorAll('[role="dialog"],[role="alert"],[aria-modal="true"]')].filter(visible);
   const rateLimit = dialogs.find((node) => /too many requests|making requests too quickly|temporarily limited access|reached.*limit|usage limit/i.test(text(node)));
   const expired = dialogs.some((node) => /session.*expired|log in again|sign in again/i.test(text(node)));
