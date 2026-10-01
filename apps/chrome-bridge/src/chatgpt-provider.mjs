@@ -80,31 +80,41 @@ export class ChatGPTProvider {
     return { identity, model: await this.currentModel() };
   }
 
-  async availableModels() {
+  async openModelMenu() {
     const control = this.page.locator('[data-testid="model-switcher-dropdown-button"],button[aria-label^="Model selector"],button[aria-label="Select ChatGPT model"]').first();
-    if (!await control.isVisible().catch(() => false)) return [await this.currentModel()];
+    if (!await control.isVisible().catch(() => false)) return null;
     await control.click({ timeout: 5000 });
     const items = this.page.locator('[role="menuitem"],[role="menuitemradio"]');
+    await items.first().waitFor({ state: 'visible', timeout: 5000 });
+    const labels = await items.evaluateAll((nodes) => nodes.map((item) => item.getAttribute('aria-disabled') === 'true'
+      ? null
+      : (item.getAttribute('aria-label') || item.textContent || '').replace(/\s+/g, ' ').trim() || null));
+    return { items, labels };
+  }
+
+  async availableModels() {
+    const menu = await this.openModelMenu();
+    if (!menu) return [await this.currentModel()];
     try {
-      await items.first().waitFor({ state: 'visible', timeout: 5000 });
-      return await items.evaluateAll((items) => items
-        .filter((item) => item.getAttribute('aria-disabled') !== 'true')
-        .map((item) => (item.getAttribute('aria-label') || item.textContent || '').replace(/\s+/g, ' ').trim()).filter(Boolean));
+      return menu.labels.filter(Boolean);
     } finally {
       await this.page.keyboard.press('Escape');
-      await items.first().waitFor({ state: 'hidden', timeout: 5000 }).catch(() => {});
+      await menu.items.first().waitFor({ state: 'hidden', timeout: 5000 }).catch(() => {});
     }
   }
 
   async selectModel() {
     const current = await this.currentModel();
     if (this.model.mode === 'current' || this.model.name === current) return current;
-    const models = await this.availableModels();
+    const menu = await this.openModelMenu();
+    if (!menu) throw new AdapterError('model-unavailable', 'The configured model is not available on this account.', 'Choose an observed available model or the current selection.');
+    const models = menu.labels.filter(Boolean);
     const selected = resolveModelLabel(this.model.name, models);
-    if (!selected) throw new AdapterError('model-unavailable', 'The configured model is not available on this account.', 'Choose an observed available model or the current selection.');
-    await this.page.locator('[data-testid="model-switcher-dropdown-button"],button[aria-label^="Model selector"],button[aria-label="Select ChatGPT model"]').first().click({ timeout: 5000 });
-    const item = this.page.getByRole('menuitem', { name: selected, exact: true }).or(this.page.getByRole('menuitemradio', { name: selected, exact: true })).first();
-    await item.click({ timeout: 5000 });
+    if (!selected) {
+      await this.page.keyboard.press('Escape');
+      throw new AdapterError('model-unavailable', 'The configured model is not available on this account.', 'Choose an observed available model or the current selection.');
+    }
+    await menu.items.nth(menu.labels.indexOf(selected)).click({ timeout: 5000 });
     const observed = await this.currentModel();
     if (observed !== 'current' && observed !== selected) throw new AdapterError('model-mismatch', 'The model selector did not confirm the requested model.');
     return observed === 'current' ? selected : observed;
