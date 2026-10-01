@@ -57,7 +57,7 @@ jobs:
       - run: bash ops/ci/jankurai.sh
       - name: Enforce zero findings
         run: jq -e '(.caps_applied | type == "array" and length == 0) and (.findings | type == "array" and length == 0) and .score >= 95' target/jankurai/audit/repo-score.json
-      - uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         if: always()
         with:
           name: jankurai-receipts
