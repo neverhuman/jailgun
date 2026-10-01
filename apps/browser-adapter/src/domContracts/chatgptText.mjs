@@ -25,7 +25,8 @@ export function readChatGPTTextDom({ userTurnId = null, beforeUserIds = [], prom
   const modelControlText = text(modelControl).replace(/^ChatGPT\s+/i, '').trim();
   // The current ChatGPT control can expose only the thinking-effort label and
   // plan tier (for example, "Thinking effort Pro"). That is not a model name.
-  const observedModel = /^thinking effort\b/i.test(modelControlText) ? '' : modelControlText;
+  // Compact ChatGPT controls concatenate the model version directly after this label.
+  const observedModel = /^thinking effort/i.test(modelControlText) ? '' : modelControlText;
   const dialogs = [...document.querySelectorAll('[role="dialog"],[role="alert"],[aria-modal="true"]')].filter(visible);
   const rateLimit = dialogs.find((node) => /too many requests|making requests too quickly|temporarily limited access|reached.*limit|usage limit/i.test(text(node)));
   const expired = dialogs.some((node) => /session.*expired|log in again|sign in again/i.test(text(node)));

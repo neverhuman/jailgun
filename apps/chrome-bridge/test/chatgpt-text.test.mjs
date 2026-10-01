@@ -31,6 +31,11 @@ test('streaming indicators prevent completion despite visible copy controls', ()
   assert.equal(inspect(user + '<article data-message-author-role="assistant" data-message-id="answer"><p>No completion signal</p></article>').completionSignal, false);
 });
 
+test('compact thinking-effort controls are not reported as model names', () => {
+  const result = inspect('<button aria-label="Select ChatGPT model">Thinking effort5.6 Medium</button>', { userTurnId: null });
+  assert.equal(result.observedModel, '');
+});
+
 test('Markdown preserves nested lists and fenced code and excludes executable HTML', () => {
   const body = '<h1>Proposal</h1><ol start="3"><li>Third<ul><li>Nested</li></ul></li></ol><pre><code class="language-js">const code = "```";\n</code></pre><p><strong>Bold</strong> <em>Emphasis</em> <a href="https://example.invalid/a(b)">Link</a><a href="javascript:alert(1)">Unsafe destination</a></p><script>alert(1)</script>';
   const result = inspect(user + response(body));
