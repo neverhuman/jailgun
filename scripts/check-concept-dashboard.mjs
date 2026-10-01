@@ -151,8 +151,11 @@ try {
       result.error = error.message.replace(/[a-f0-9]{8}-[a-f0-9-]{27,}/g, '[redacted]');
       throw error;
     } finally {
-      await context?.close(); lines.close(); child.stdin.end('stop\n');
+      // End the completed fixture before Chrome flushes its profile. Otherwise
+      // slow UI-browser teardown can expire the server's workflow watchdog.
+      lines.close(); child.stdin.end('stop\n');
       const stopTimer = setTimeout(() => child.kill('SIGTERM'), 10000); stopTimer.unref();
+      await context?.close();
       const [code] = await exit; clearTimeout(stopTimer);
       result.exit_status = code;
       result.commit = execFileSync('git', ['rev-parse', 'HEAD'], { encoding: 'utf8' }).trim();
