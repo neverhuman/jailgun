@@ -74,7 +74,7 @@ test('portable model aliases resolve one observed versioned label', () => {
   assert.equal(resolveModelLabel('astra', available), 'Astra');
   assert.equal(resolveModelLabel('GPT-5.5', available), 'GPT-5.5');
   assert.equal(resolveModelLabel('unknown', available), null);
-  assert.equal(resolveModelLabel('sol', ['Sol latest', 'Sol legacy']), null);
+  assert.equal(resolveModelLabel('sol', ['Sol alpha', 'Sol beta']), null);
 });
 
 test('model confirmation survives menu rows inserted after selection', () => {
