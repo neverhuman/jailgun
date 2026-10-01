@@ -17,7 +17,7 @@ repository = "git@github.com:neverhuman/jailgun.git"
 rust-version = "1.95"
 
 [workspace.dependencies]
-rmcp = { version = "=3.4.0", default-features = false, features = ["server", "client", "transport-io", "transport-streamable-http-server", "transport-streamable-http-client-reqwest", "transport-child-process"] }
+rmcp = { version = "=3.5.0", default-features = false, features = ["server", "client", "transport-io", "transport-streamable-http-server", "transport-streamable-http-client-reqwest", "transport-child-process"] }
 anyhow = "1"
 async-trait = "0.1"
 axum = { version = "0.8", features = ["ws"] }
