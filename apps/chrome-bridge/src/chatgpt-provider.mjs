@@ -155,17 +155,17 @@ export class ChatGPTProvider {
     if (typeof prompt !== 'string' || !prompt.trim()) throw new AdapterError('invalid-prompt', 'Prompt content is required.');
     await this.page.goto(this.baseUrl, { waitUntil: 'domcontentloaded', timeout: 45000 });
     await this.verifyIdentity();
-    const observedModel = await this.selectModel();
-    await this.selectReasoningEffort();
-    const state = await this.page.evaluate(readChatGPTTextDom);
-    if (state.rateLimited) throw providerLimit(state, 'The account is rate limited.');
-    await this.attachFile();
     const composer = this.page.locator('#prompt-textarea,[data-testid="composer-text-input"],.ProseMirror[contenteditable="true"],[contenteditable="true"][role="textbox"][aria-label="Ask ChatGPT"]').first();
     try {
       await composer.waitFor({ state: 'visible', timeout: 30_000 });
     } catch {
       throw new AdapterError('adapter-composer-missing', 'The ChatGPT composer did not become available after navigation.');
     }
+    const observedModel = await this.selectModel();
+    await this.selectReasoningEffort();
+    const state = await this.page.evaluate(readChatGPTTextDom);
+    if (state.rateLimited) throw providerLimit(state, 'The account is rate limited.');
+    await this.attachFile();
     await composer.fill(prompt, { timeout: 10000 });
     this.prepared = { prompt, beforeUserIds: state.userIds, observedModel };
     return { observed_model: observedModel };
