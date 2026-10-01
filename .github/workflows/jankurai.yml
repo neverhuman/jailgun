@@ -51,7 +51,7 @@ jobs:
           git cat-file -e "$JANKURAI_BASE_REF^{commit}"
           jankurai proof . --changed-from "$JANKURAI_BASE_REF" --out target/jankurai/proof-plan.json --md target/jankurai/proof-plan.md
           bash ops/ci/proofbind.sh "$JANKURAI_BASE_REF"
-          jankurai proofmark rust . --changed-from "$JANKURAI_BASE_REF" --obligations target/jankurai/proofbind/obligations.json
+          jankurai proofmark rust . --obligations target/jankurai/proofbind/obligations.json --changed-from "$JANKURAI_BASE_REF"
           jankurai rust witness build .
           jankurai migrate . --analyze --out target/jankurai/migration-report.json
       - run: bash ops/ci/jankurai.sh
