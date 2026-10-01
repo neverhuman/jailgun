@@ -15,7 +15,7 @@
     "@testing-library/react": "^16.3.0",
     "@vitejs/plugin-react": "^4.5.0",
     "jsdom": "^26.1.0",
-    "lucide-react": "^0.511.0",
+    "lucide-react": "^1.48.0",
     "react": "^19.1.0",
     "react-dom": "^19.1.0",
     "react-markdown": "10.1.0",
