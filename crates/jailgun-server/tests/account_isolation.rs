@@ -27,14 +27,13 @@ fn two_browser_identities_preserve_independent_sessions_and_workflows() {
         "two-account browser proof failed: {}",
         output.status
     );
-    let directory = stdout
+    let receipt_path = stdout
         .lines()
         .find_map(|line| line.split_once("workflow evidence: ").map(|(_, path)| path))
         .expect("account-isolation evidence path");
-    let evidence: serde_json::Value = serde_json::from_slice(
-        &std::fs::read(root.join(directory).join("evidence.json")).expect("proof receipt"),
-    )
-    .expect("valid proof receipt");
+    let evidence: serde_json::Value =
+        serde_json::from_slice(&std::fs::read(root.join(receipt_path)).expect("proof receipt"))
+            .expect("valid proof receipt");
     assert_eq!(evidence["status"], "pass");
     let checks = evidence["checks"].as_array().expect("proof checks");
     for check in [
