@@ -35,7 +35,7 @@ impl WorkerExecutor for YieldingExecutor {
 }
 
 #[tokio::test]
-async fn concurrent_identical_retries_accept_and_execute_exactly_one_job() {
+async fn concurrent_worker_retries_accept_and_execute_exactly_one_job() {
     let directory = tempfile::tempdir().unwrap();
     let executor = Arc::new(YieldingExecutor(AtomicUsize::new(0)));
     let worker = WorkerService::new(directory.path(), executor.clone()).unwrap();
