@@ -114,7 +114,16 @@ export class ChatGPTProvider {
       await this.page.keyboard.press('Escape');
       throw new AdapterError('model-unavailable', 'The configured model is not available on this account.', 'Choose an observed available model or the current selection.');
     }
-    await menu.items.nth(menu.labels.indexOf(selected)).click({ timeout: 5000 });
+    const item = menu.items.nth(menu.labels.indexOf(selected));
+    // The current ChatGPT power slider can visually overlap the model rows and
+    // intercept Playwright pointer events. Dispatch to the exact owned radio
+    // item, then require its checked state before continuing.
+    await item.evaluate((node) => node.click());
+    const selectionDeadline = Date.now() + 5000;
+    while (Date.now() < selectionDeadline && await item.getAttribute('aria-checked') !== 'true') await wait(100);
+    if (await item.getAttribute('aria-checked') !== 'true') throw new AdapterError('model-mismatch', 'The model selector did not confirm the requested model.');
+    await this.page.keyboard.press('Escape');
+    await menu.items.first().waitFor({ state: 'hidden', timeout: 5000 }).catch(() => {});
     const observed = await this.currentModel();
     if (observed !== 'current' && observed !== selected) throw new AdapterError('model-mismatch', 'The model selector did not confirm the requested model.');
     return observed === 'current' ? selected : observed;
