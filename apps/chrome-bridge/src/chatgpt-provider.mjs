@@ -40,6 +40,13 @@ export function resolveModelLabel(requested, available) {
   return matches.length === 1 ? matches[0] : null;
 }
 
+export function modelMenuItemState(nodes, { label, click = false }) {
+  const target = nodes.find((node) => (node.getAttribute('aria-label') || node.textContent || '').replace(/\s+/g, ' ').trim() === label);
+  if (!target) return { found: false, checked: false };
+  if (click) target.click();
+  return { found: true, checked: target.getAttribute('aria-checked') === 'true' };
+}
+
 /** ChatGPT website operations only. Rust owns scheduling, persistence, budgets and browser lifetime. */
 export class ChatGPTProvider {
   constructor(page, { identity, baseUrl = 'https://chatgpt.com', model = { mode: 'current' }, reasoningEffort = null, attachmentPath = null, pollMs = 300, settleMs = 1500, timeoutMs = 1800000 } = {}) {
@@ -114,14 +121,19 @@ export class ChatGPTProvider {
       await this.page.keyboard.press('Escape');
       throw new AdapterError('model-unavailable', 'The configured model is not available on this account.', 'Choose an observed available model or the current selection.');
     }
-    const item = menu.items.nth(menu.labels.indexOf(selected));
     // The current ChatGPT power slider can visually overlap the model rows and
-    // intercept Playwright pointer events. Dispatch to the exact owned radio
-    // item, then require its checked state before continuing.
-    await item.evaluate((node) => node.click());
+    // intercept Playwright pointer events. Dispatch by exact accessible label;
+    // selecting a model can insert a "Reset to default" row and shift indices.
+    const clicked = await menu.items.evaluateAll(modelMenuItemState, { label: selected, click: true });
+    if (!clicked.found) throw new AdapterError('model-unavailable', 'The configured model disappeared before selection completed.');
     const selectionDeadline = Date.now() + 5000;
-    while (Date.now() < selectionDeadline && await item.getAttribute('aria-checked') !== 'true') await wait(100);
-    if (await item.getAttribute('aria-checked') !== 'true') throw new AdapterError('model-mismatch', 'The model selector did not confirm the requested model.');
+    let confirmed = clicked.checked;
+    while (!confirmed && Date.now() < selectionDeadline) {
+      const state = await menu.items.evaluateAll(modelMenuItemState, { label: selected });
+      confirmed = state.checked || (!state.found && await this.currentModel() === selected);
+      if (!confirmed) await wait(100);
+    }
+    if (!confirmed) throw new AdapterError('model-mismatch', 'The model selector did not confirm the requested model.');
     await this.page.keyboard.press('Escape');
     await menu.items.first().waitFor({ state: 'hidden', timeout: 5000 }).catch(() => {});
     const observed = await this.currentModel();

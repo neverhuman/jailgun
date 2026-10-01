@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { ChatGPTProvider, resolveModelLabel } from '../src/chatgpt-provider.mjs';
+import { ChatGPTProvider, modelMenuItemState, resolveModelLabel } from '../src/chatgpt-provider.mjs';
 
 const turn = { conversation_url: 'http://127.0.0.1:9999/c/owned', user_turn_id: 'owned-turn' };
 
@@ -75,4 +75,17 @@ test('portable model aliases resolve one observed versioned label', () => {
   assert.equal(resolveModelLabel('GPT-5.5', available), 'GPT-5.5');
   assert.equal(resolveModelLabel('unknown', available), null);
   assert.equal(resolveModelLabel('sol', ['Sol latest', 'Sol legacy']), null);
+});
+
+test('model confirmation survives menu rows inserted after selection', () => {
+  const node = (label, checked = null) => ({
+    textContent: label,
+    clicked: false,
+    getAttribute(name) { return name === 'aria-checked' ? checked : null; },
+    click() { this.clicked = true; },
+  });
+  const sol = node('GPT-5.6 Sol', 'true');
+  const rows = [node('Select model'), node('Reset to default'), node('Power'), node('Latest', 'false'), sol];
+  assert.deepEqual(modelMenuItemState(rows, { label: 'GPT-5.6 Sol', click: true }), { found: true, checked: true });
+  assert.equal(sol.clicked, true);
 });
