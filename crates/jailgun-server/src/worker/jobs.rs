@@ -3,6 +3,10 @@ use super::*;
 impl WorkerService {
     pub async fn submit_job(&self, request: JobSubmit) -> Result<WorkerJob> {
         validate_job(&request)?;
+        // Serialize acceptance, not execution. Identity observation and implicit
+        // tab creation await before the key is recorded; concurrent retries must
+        // not pass the key check twice or submit two owned provider turns.
+        let _submission = self.inner.submissions.lock().await;
         let digest = format!("{:x}", Sha256::digest(serde_json::to_vec(&request)?));
         {
             let state = self.inner.state.read().await;

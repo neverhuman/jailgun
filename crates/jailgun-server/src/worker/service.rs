@@ -12,6 +12,7 @@ pub(super) struct WorkerInner {
     pub(super) state: RwLock<WorkerState>,
     pub(super) uploads: Mutex<HashMap<String, UploadState>>,
     pub(super) cancellations: Mutex<HashMap<String, watch::Sender<bool>>>,
+    pub(super) submissions: Mutex<()>,
 }
 
 #[derive(Default)]
@@ -97,6 +98,7 @@ impl WorkerService {
                 state: RwLock::new(state),
                 uploads: Mutex::new(HashMap::new()),
                 cancellations: Mutex::new(HashMap::new()),
+                submissions: Mutex::new(()),
             }),
         })
     }
