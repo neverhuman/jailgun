@@ -3,6 +3,11 @@ description: Set up locked validation runtimes and cache dependency downloads on
 runs:
   using: composite
   steps:
+    - name: Install task runner and Rust toolchain manager in the disposable guest
+      shell: bash
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y just rustup
     - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
       with:
         node-version-file: .node-version
@@ -19,7 +24,7 @@ runs:
         path: |
           ~/.cargo/registry/cache
           ~/.cargo/registry/index
-        key: ${{ runner.os }}-${{ runner.arch }}-cargo-downloads-${{ hashFiles('rust-toolchain.toml', 'Cargo.lock', 'ops/distribution/tools.json') }}
+        key: lan-${{ runner.os }}-${{ runner.arch }}-cargo-downloads-${{ hashFiles('rust-toolchain.toml', 'Cargo.lock', 'ops/distribution/tools.json') }}
     - name: Verify selected toolchains
       shell: bash
       run: |

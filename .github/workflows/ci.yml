@@ -21,7 +21,9 @@ concurrency:
 jobs:
   rust:
     name: rust
-    runs-on: ubuntu-24.04
+    runs-on:
+      group: neverhuman-lan
+      labels: [self-hosted, Linux, X64, lan-ci, ubuntu24]
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
@@ -32,7 +34,9 @@ jobs:
 
   worker-mock:
     name: worker mock API
-    runs-on: ubuntu-24.04
+    runs-on:
+      group: neverhuman-lan
+      labels: [self-hosted, Linux, X64, lan-ci, ubuntu24]
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
@@ -43,7 +47,9 @@ jobs:
 
   node:
     name: node
-    runs-on: ubuntu-24.04
+    runs-on:
+      group: neverhuman-lan
+      labels: [self-hosted, Linux, X64, lan-ci, ubuntu24]
     timeout-minutes: 35
     steps:
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
@@ -54,7 +60,9 @@ jobs:
 
   security:
     name: security
-    runs-on: ubuntu-24.04
+    runs-on:
+      group: neverhuman-lan
+      labels: [self-hosted, Linux, X64, lan-ci, ubuntu24]
     timeout-minutes: 35
     steps:
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
@@ -75,7 +83,9 @@ jobs:
 
   contracts:
     name: contracts
-    runs-on: ubuntu-24.04
+    runs-on:
+      group: neverhuman-lan
+      labels: [self-hosted, Linux, X64, lan-ci, ubuntu24]
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
@@ -88,7 +98,9 @@ jobs:
   ux-qa:
     name: ux-qa
     needs: [node]
-    runs-on: ubuntu-24.04
+    runs-on:
+      group: neverhuman-lan
+      labels: [self-hosted, Linux, X64, lan-ci, ubuntu24]
     timeout-minutes: 35
     steps:
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
@@ -96,10 +108,8 @@ jobs:
           persist-credentials: false
       - uses: ./.github/actions/setup
       - run: npm ci
-      - run: node node_modules/playwright-core/cli.js install --with-deps chromium
+      - run: bash ops/ci/lan-browser.sh
       - run: bash ops/ci/ux-qa.sh # catalog: jankurai ux audit --config agent/ux-qa.toml --out target/jankurai/ux-qa.json
-        env:
-          JAILGUN_TEST_CHROME: /usr/bin/google-chrome
       - uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5
         if: always()
         with:
@@ -111,7 +121,9 @@ jobs:
   e2e:
     name: e2e
     needs: [rust, node]
-    runs-on: ubuntu-24.04
+    runs-on:
+      group: neverhuman-lan
+      labels: [self-hosted, Linux, X64, lan-ci, ubuntu24]
     timeout-minutes: 35
     steps:
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
@@ -120,10 +132,8 @@ jobs:
       - uses: ./.github/actions/setup
       - run: sudo apt-get update && sudo apt-get install -y python3 xvfb x11vnc xauth x11-utils
       - run: npm ci
-      - run: node node_modules/playwright-core/cli.js install --with-deps chromium
+      - run: bash ops/ci/lan-browser.sh
       - run: bash ops/ci/e2e.sh
-        env:
-          JAILGUN_TEST_CHROME: /usr/bin/google-chrome
       - uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5
         if: always()
         with:
@@ -135,7 +145,9 @@ jobs:
 
   copy-code:
     name: copy-code
-    runs-on: ubuntu-24.04
+    runs-on:
+      group: neverhuman-lan
+      labels: [self-hosted, Linux, X64, lan-ci, ubuntu24]
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
@@ -155,7 +167,9 @@ jobs:
 
   release:
     name: release
-    runs-on: ubuntu-24.04
+    runs-on:
+      group: neverhuman-lan
+      labels: [self-hosted, Linux, X64, lan-ci, ubuntu24]
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
@@ -172,7 +186,9 @@ jobs:
 
   database:
     name: database
-    runs-on: ubuntu-24.04
+    runs-on:
+      group: neverhuman-lan
+      labels: [self-hosted, Linux, X64, lan-ci, ubuntu24]
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
@@ -189,7 +205,9 @@ jobs:
 
   documentation:
     name: documentation
-    runs-on: ubuntu-24.04
+    runs-on:
+      group: neverhuman-lan
+      labels: [self-hosted, Linux, X64, lan-ci, ubuntu24]
     timeout-minutes: 35
     steps:
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
@@ -211,14 +229,20 @@ jobs:
       fail-fast: false
       matrix:
         # The DREAM worker delivery is Linux-only; macOS is outside its acceptance scope.
-        os: [ubuntu-24.04, ubuntu-26.04]
-    runs-on: ${{ matrix.os }}
+        include:
+          - {os: ubuntu-24.04, runner_label: ubuntu24}
+          - {os: ubuntu-26.04, runner_label: ubuntu26}
+    runs-on:
+      group: neverhuman-lan
+      labels: [self-hosted, Linux, X64, lan-ci, "${{ matrix.runner_label }}"]
     timeout-minutes: 120
     steps:
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
         with:
           persist-credentials: false
       - uses: ./.github/actions/setup
+      - run: npm ci
+      - run: bash ops/ci/lan-browser.sh
       - name: Install Linux display prerequisites
         if: runner.os == 'Linux'
         run: sudo apt-get update && sudo apt-get install -y xvfb x11vnc xauth x11-utils
@@ -254,7 +278,9 @@ jobs:
   audit:
     name: audit
     needs: [rust, worker-mock, node, security, contracts, ux-qa, copy-code, release, e2e, database, documentation, platforms]
-    runs-on: ubuntu-24.04
+    runs-on:
+      group: neverhuman-lan
+      labels: [self-hosted, Linux, X64, lan-ci, ubuntu24]
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
