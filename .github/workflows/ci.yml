@@ -21,7 +21,8 @@ concurrency:
 jobs:
   rust:
     name: rust
-    runs-on:
+    # One job per disposable KVM guest; no host mounts, private controller keys, or LAN access.
+    runs-on: # zizmor: ignore[self-hosted-runner]
       group: neverhuman-lan
       labels: [self-hosted, Linux, X64, lan-ci, ubuntu24]
     timeout-minutes: 30
@@ -34,7 +35,8 @@ jobs:
 
   worker-mock:
     name: worker mock API
-    runs-on:
+    # One job per disposable KVM guest; no host mounts, private controller keys, or LAN access.
+    runs-on: # zizmor: ignore[self-hosted-runner]
       group: neverhuman-lan
       labels: [self-hosted, Linux, X64, lan-ci, ubuntu24]
     timeout-minutes: 15
@@ -47,7 +49,8 @@ jobs:
 
   node:
     name: node
-    runs-on:
+    # One job per disposable KVM guest; no host mounts, private controller keys, or LAN access.
+    runs-on: # zizmor: ignore[self-hosted-runner]
       group: neverhuman-lan
       labels: [self-hosted, Linux, X64, lan-ci, ubuntu24]
     timeout-minutes: 35
@@ -60,7 +63,8 @@ jobs:
 
   security:
     name: security
-    runs-on:
+    # One job per disposable KVM guest; no host mounts, private controller keys, or LAN access.
+    runs-on: # zizmor: ignore[self-hosted-runner]
       group: neverhuman-lan
       labels: [self-hosted, Linux, X64, lan-ci, ubuntu24]
     timeout-minutes: 35
@@ -83,7 +87,8 @@ jobs:
 
   contracts:
     name: contracts
-    runs-on:
+    # One job per disposable KVM guest; no host mounts, private controller keys, or LAN access.
+    runs-on: # zizmor: ignore[self-hosted-runner]
       group: neverhuman-lan
       labels: [self-hosted, Linux, X64, lan-ci, ubuntu24]
     timeout-minutes: 10
@@ -98,7 +103,8 @@ jobs:
   ux-qa:
     name: ux-qa
     needs: [node]
-    runs-on:
+    # One job per disposable KVM guest; no host mounts, private controller keys, or LAN access.
+    runs-on: # zizmor: ignore[self-hosted-runner]
       group: neverhuman-lan
       labels: [self-hosted, Linux, X64, lan-ci, ubuntu24]
     timeout-minutes: 35
@@ -121,7 +127,8 @@ jobs:
   e2e:
     name: e2e
     needs: [rust, node]
-    runs-on:
+    # One job per disposable KVM guest; no host mounts, private controller keys, or LAN access.
+    runs-on: # zizmor: ignore[self-hosted-runner]
       group: neverhuman-lan
       labels: [self-hosted, Linux, X64, lan-ci, ubuntu24]
     timeout-minutes: 35
@@ -145,7 +152,8 @@ jobs:
 
   copy-code:
     name: copy-code
-    runs-on:
+    # One job per disposable KVM guest; no host mounts, private controller keys, or LAN access.
+    runs-on: # zizmor: ignore[self-hosted-runner]
       group: neverhuman-lan
       labels: [self-hosted, Linux, X64, lan-ci, ubuntu24]
     timeout-minutes: 30
@@ -167,7 +175,8 @@ jobs:
 
   release:
     name: release
-    runs-on:
+    # One job per disposable KVM guest; no host mounts, private controller keys, or LAN access.
+    runs-on: # zizmor: ignore[self-hosted-runner]
       group: neverhuman-lan
       labels: [self-hosted, Linux, X64, lan-ci, ubuntu24]
     timeout-minutes: 10
@@ -186,7 +195,8 @@ jobs:
 
   database:
     name: database
-    runs-on:
+    # One job per disposable KVM guest; no host mounts, private controller keys, or LAN access.
+    runs-on: # zizmor: ignore[self-hosted-runner]
       group: neverhuman-lan
       labels: [self-hosted, Linux, X64, lan-ci, ubuntu24]
     timeout-minutes: 30
@@ -205,7 +215,8 @@ jobs:
 
   documentation:
     name: documentation
-    runs-on:
+    # One job per disposable KVM guest; no host mounts, private controller keys, or LAN access.
+    runs-on: # zizmor: ignore[self-hosted-runner]
       group: neverhuman-lan
       labels: [self-hosted, Linux, X64, lan-ci, ubuntu24]
     timeout-minutes: 35
@@ -232,7 +243,8 @@ jobs:
         include:
           - {os: ubuntu-24.04, runner_label: ubuntu24}
           - {os: ubuntu-26.04, runner_label: ubuntu26}
-    runs-on:
+    # One job per disposable KVM guest; no host mounts, private controller keys, or LAN access.
+    runs-on: # zizmor: ignore[self-hosted-runner]
       group: neverhuman-lan
       labels: [self-hosted, Linux, X64, lan-ci, "${{ matrix.runner_label }}"]
     timeout-minutes: 120
@@ -278,7 +290,8 @@ jobs:
   audit:
     name: audit
     needs: [rust, worker-mock, node, security, contracts, ux-qa, copy-code, release, e2e, database, documentation, platforms]
-    runs-on:
+    # One job per disposable KVM guest; no host mounts, private controller keys, or LAN access.
+    runs-on: # zizmor: ignore[self-hosted-runner]
       group: neverhuman-lan
       labels: [self-hosted, Linux, X64, lan-ci, ubuntu24]
     timeout-minutes: 30

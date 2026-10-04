@@ -19,7 +19,22 @@ sudo chown -R "$(id -u):$(id -g)" "$browser_cache"
 docker rm "$container"
 trap - EXIT
 docker image rm "$image"
-node node_modules/playwright-core/cli.js install --with-deps chromium
+# Playwright 1.60's dependency installer has no Ubuntu 26 entry. Install the
+# Chromium libraries from its pinned nativeDeps.ts through the real guest OS's
+# repositories; do not override Playwright's OS detection or change the matrix.
+# https://github.com/microsoft/playwright/blob/v1.60.0/packages/playwright-core/src/server/registry/nativeDeps.ts
+# shellcheck source=/dev/null
+source /etc/os-release
+[[ $ID == ubuntu && ($VERSION_ID == 24.04 || $VERSION_ID == 26.04) ]] || exit 2
+sudo apt-get update
+sudo apt-get install -y --no-install-recommends \
+  libasound2t64 libatk-bridge2.0-0t64 libatk1.0-0t64 libatspi2.0-0t64 \
+  libcairo2 libcups2t64 libdbus-1-3 libdrm2 libgbm1 libglib2.0-0t64 \
+  libnspr4 libnss3 libpango-1.0-0 libx11-6 libxcb1 libxcomposite1 \
+  libxdamage1 libxext6 libxfixes3 libxkbcommon0 libxrandr2 \
+  xvfb fonts-noto-color-emoji fonts-unifont libfontconfig1 libfreetype6 \
+  xfonts-cyrillic xfonts-scalable fonts-liberation fonts-ipafont-gothic \
+  fonts-wqy-zenhei fonts-tlwg-loma-otf fonts-freefont-ttf
 # Ubuntu's generic AppArmor user-namespace restriction otherwise prevents the
 # Chromium sandbox for this unpacked binary. This changes only the isolated VM.
 sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
