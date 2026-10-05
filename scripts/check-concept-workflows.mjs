@@ -9,6 +9,18 @@ import { start } from '../apps/fake-chatgpt/src/server.mjs';
 const service = await start({ port: 0, interactive: true });
 service.concept.controls.generationMs = 4500;
 service.concept.controls.completionDelayMs = 300;
+const publishConversation = service.concept.conversations.set;
+let heldIsolationVictims = null;
+service.concept.conversations.set = function (id, entry) {
+  // Cancellation must observe an in-progress victim even if the separate main
+  // run takes longer than the fixture's normal completion timer to start.
+  // Hold only that synthetic victim, before its conversation is published.
+  if (heldIsolationVictims && entry.prompt.includes('A synthetic concept whose work will be cancelled')) {
+    entry.mode = 'partial';
+    heldIsolationVictims.add(id);
+  }
+  return publishConversation.call(this, id, entry);
+};
 const chrome = process.env.JAILGUN_TEST_CHROME || (existsSync('/usr/bin/google-chrome') ? '/usr/bin/google-chrome' : chromium.executablePath());
 try {
   for (const [count, scenario] of [[5, 'complete'], [10, 'complete'], [5, 'recovery'], [5, 'isolation'], [5, 'run-deadline'], [5, 'response-timeout'], [5, 'rate-limit'], [5, 'rate-limit-uncertain'], [5, 'account-http'], [5, 'reconnect'], [5, 'mcp-http'], [10, 'mcp-http'], [5, 'mcp-stdio'], [10, 'mcp-stdio'], [5, 'cli'], [10, 'cli'], [5, 'two-accounts']]) {
@@ -17,6 +29,7 @@ try {
     service.concept.controls.models = ['Fixture One', 'Fixture Two'];
     service.concept.controls.mode = ['run-deadline', 'response-timeout'].includes(scenario) ? 'partial' : scenario.startsWith('rate-limit') ? scenario : 'complete';
     service.concept.controls.retryAt = scenario.startsWith('rate-limit') ? new Date(2_000_000).toISOString() : null;
+    heldIsolationVictims = scenario === 'isolation' ? new Set() : null;
     const previousConversations = new Set(service.concept.conversations.keys());
     const previousSubmissions = service.concept.submissions.length;
     const accountProof = scenario === 'two-accounts' || scenario === 'cli' || scenario === 'reconnect' || scenario === 'account-http' || scenario.startsWith('mcp-');
@@ -37,6 +50,7 @@ try {
       const conversations = [...service.concept.conversations.values()].filter(entry => !previousConversations.has(entry.id));
       if (conversations.length !== 1 || conversations[0].mode !== 'stopped') throw new Error('execution limit did not stop exactly the owned conversation');
     }
+    if (heldIsolationVictims && (!heldIsolationVictims.size || [...heldIsolationVictims].some(id => service.concept.conversations.get(id)?.mode !== 'stopped'))) throw new Error('isolation proof did not stop every held victim conversation');
     if (scenario === 'rate-limit-uncertain' && (service.concept.submissions.length !== previousSubmissions + 1 || service.concept.conversations.size !== previousConversations.size)) throw new Error('uncertain submission was retried or misidentified as accepted');
     if (scenario === 'two-accounts') {
       const submissions = service.concept.submissions.slice(previousSubmissions);
@@ -55,9 +69,13 @@ try {
       binary_sha256: createHash('sha256').update(await readFile(binary)).digest('hex'),
       ...(scenario === 'cli' ? { cli_binary_sha256: createHash('sha256').update(await readFile('target/debug/jailgun')).digest('hex') } : {}),
       ...(scenario === 'mcp-stdio' ? { stdio_binary_sha256: createHash('sha256').update(await readFile('target/debug/jailgun')).digest('hex'), stderr_sha256: createHash('sha256').update(await readFile(resolve(output, 'stdio-stderr.log'))).digest('hex') } : {}),
+      ...(heldIsolationVictims ? { cancellation_fixture: { held_provider_ids: [...heldIsolationVictims], mode_before_cancellation: 'partial', all_held_victims_stopped: true } } : {}),
       node: process.version, chrome: execFileSync(chrome, ['--version'], { encoding: 'utf8' }).trim(), chromium_sandbox: true,
     });
     await writeFile(evidencePath, JSON.stringify(evidence, null, 2) + '\n', { mode: 0o600 });
     console.log(`Synthetic ${count}-candidate ${scenario} workflow evidence: ${output}/evidence.json`);
   }
-} finally { await service.stop(); }
+} finally {
+  service.concept.conversations.set = publishConversation;
+  await service.stop();
+}
