@@ -56,6 +56,18 @@ const { chromium } = require('playwright-core');
   await browser.close();
 })().catch(error => { console.error(error); process.exitCode = 1; });
 NODE
+# Package acceptance deliberately uses system-only PATH and doctor discovers
+# standard absolute browser paths. Publish the same qualified Chromium there;
+# do not weaken its clean-installation check or substitute a version wrapper.
+system_browser=/usr/bin/chromium
+if [[ -e $system_browser || -L $system_browser ]]; then
+  [[ $(readlink -f "$system_browser") == "$(readlink -f "$browser")" ]] || {
+    echo 'Refusing to replace a different system browser' >&2; exit 2;
+  }
+else
+  sudo ln -s "$browser" "$system_browser"
+fi
+[[ $("$system_browser" --version) == "$("$browser" --version)" ]] || exit 1
 if [[ -n ${GITHUB_ENV:-} ]]; then
   printf 'JAILGUN_TEST_CHROME=%s\n' "$browser" >> "$GITHUB_ENV"
 fi
