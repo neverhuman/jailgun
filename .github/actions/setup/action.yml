@@ -8,6 +8,8 @@ runs:
       run: |
         sudo apt-get update
         sudo apt-get install -y just rustup
+        # cargo install places gate tools here; expose them to later job steps.
+        echo "${CARGO_HOME:-$HOME/.cargo}/bin" >> "$GITHUB_PATH"
     - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
       with:
         node-version-file: .node-version
