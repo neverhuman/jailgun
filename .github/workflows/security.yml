@@ -21,7 +21,10 @@ concurrency:
 jobs:
   scanners:
     name: scanners
-    runs-on: ubuntu-24.04
+    # One job per disposable KVM guest; no host mounts, private controller keys, or LAN access.
+    runs-on: # zizmor: ignore[self-hosted-runner]
+      group: neverhuman-lan
+      labels: [self-hosted, Linux, X64, lan-ci, ubuntu24]
     timeout-minutes: 35
     steps:
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
