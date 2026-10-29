@@ -17,7 +17,7 @@ repository = "git@github.com:neverhuman/jailgun.git"
 rust-version = "1.95"
 
 [workspace.dependencies]
-rmcp = { version = "=3.4.0", default-features = false, features = ["server", "client", "transport-io", "transport-streamable-http-server", "transport-streamable-http-client-reqwest", "transport-child-process"] }
+rmcp = { version = "=3.7.0", default-features = false, features = ["server", "client", "transport-io", "transport-streamable-http-server", "transport-streamable-http-client-reqwest", "transport-child-process"] }
 anyhow = "1"
 async-trait = "0.1"
 axum = { version = "0.8", features = ["ws"] }
@@ -33,7 +33,7 @@ reqwest-mcp = { package = "reqwest", version = "=0.13.5", default-features = fal
 rusqlite = { version = "=0.40.2", features = ["bundled", "backup", "hooks"] }
 proptest = "1"
 serde = { version = "1", features = ["derive"] }
-schemars = "=1.2.2"
+schemars = "=1.2.3"
 serde_json = "1"
 sha2 = "0.10"
 tar = "0.4"
